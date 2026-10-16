@@ -1,0 +1,39 @@
+/**
+ * MacqHR (Macquires) — Official Centralized Theme Palette CSS
+ * Single source of truth for Web / CSS consumers alongside src/theme/colors.ts
+ */
+:root {
+  /* Official Macquires Brand Swatches */
+  --macq-oxford-blue: #001629;   /* RGB(0, 22, 41) */
+  --macq-prussian-blue: #002C52; /* RGB(0, 44, 82) */
+  --macq-indigo-dye: #293F66;    /* RGB(41, 63, 102) */
+  --macq-bdazzled-blue: #3F5678; /* RGB(63, 86, 120) */
+  --macq-davys-grey: #555555;    /* RGB(85, 85, 85) */
+  --macq-spanish-grey: #999999;  /* RGB(153, 153, 153) */
+  --macq-orange-pantone: #FE5800;/* RGB(254, 88, 0) */
+
+  /* Semantic Light Theme Tokens */
+  --color-primary: var(--macq-prussian-blue);
+  --color-secondary: var(--macq-indigo-dye);
+  --color-tertiary: var(--macq-bdazzled-blue);
+  --color-accent: var(--macq-orange-pantone);
+  --color-text-primary: var(--macq-oxford-blue);
+  --color-text-secondary: var(--macq-davys-grey);
+  --color-text-muted: var(--macq-spanish-grey);
+  --color-bg: #F4F6F9;
+  --color-surface: #FFFFFF;
+  --color-border: #DCE3EC;
+}
+
+[data-theme='dark'] {
+  --color-primary: var(--macq-orange-pantone);
+  --color-secondary: var(--macq-bdazzled-blue);
+  --color-tertiary: var(--macq-indigo-dye);
+  --color-accent: var(--macq-orange-pantone);
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #D6E0EB;
+  --color-text-muted: var(--macq-spanish-grey);
+  --color-bg: var(--macq-oxford-blue);
+  --color-surface: var(--macq-prussian-blue);
+  --color-border: var(--macq-bdazzled-blue);
+}

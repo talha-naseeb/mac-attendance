@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "MacqHR",
+    "slug": "macqhr",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "primaryColor": "#002C52",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.macquires.macqhr"
+    },
+    "android": {
+      "package": "com.macquires.macqhr"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
