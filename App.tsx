@@ -36,6 +36,18 @@ import { ClockInScreen } from './src/screens/ClockInScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { RequestTimeOffModal } from './src/screens/RequestTimeOffModal';
 import { SubModalType, SubModuleModal } from './src/screens/SubModuleModal';
+import {
+  buildTeamsApprovalAdaptiveCard,
+  createOutlookLeaveCalendarEvent,
+  MACQUIRES_ENTRA_CONFIG,
+  MicrosoftEntraAccount,
+  OutlookCalendarEvent,
+  resolveTeamsPresenceFromAttendance,
+} from './src/services/microsoftGraph';
+import {
+  OfflineAttendancePunch,
+  verifyPunchSignature,
+} from './src/services/offlineSyncAndCompliance';
 import { darkColors, lightColors, MACQUIRES_PALETTE } from './src/theme/colors';
 import { AppLanguage, rtlRow, TYPOGRAPHY } from './src/theme/typography';
 import {
@@ -94,6 +106,37 @@ function MacqHRApp() {
   const [breakInTime, setBreakInTime] = useState('-- : --');
   const [breakOutTime, setBreakOutTime] = useState('-- : --');
   const [elapsedMinutes, setElapsedMinutes] = useState(132); // 2 hours 12 minutes
+
+  // Microsoft 365 & Offline Queue State
+  const [microsoftAccount, setMicrosoftAccount] =
+    useState<MicrosoftEntraAccount>({
+      tenantId: MACQUIRES_ENTRA_CONFIG.tenantId,
+      objectId: 'obj-rahaf-1042',
+      userPrincipalName: CURRENT_EMPLOYEE.email,
+      displayName: CURRENT_EMPLOYEE.fullName,
+      jobTitle: CURRENT_EMPLOYEE.title,
+      department: CURRENT_EMPLOYEE.department,
+      officeLocation: CURRENT_EMPLOYEE.branch,
+      accessToken: 'msal-jwt-verified-token-2026',
+      expiresAtIso: new Date(Date.now() + 3600 * 1000).toISOString(),
+      isConnected: true,
+    });
+  const [outlookEvents, setOutlookEvents] = useState<OutlookCalendarEvent[]>([
+    createOutlookLeaveCalendarEvent({
+      employeeName: 'Mohammad Jamal',
+      leaveType: 'Annual Vacation',
+      fromDay: 5,
+      toDay: 5,
+    }),
+  ]);
+  const [offlinePunches, setOfflinePunches] = useState<
+    OfflineAttendancePunch[]
+  >([]);
+
+  const teamsPresence = resolveTeamsPresenceFromAttendance({
+    isClockedIn,
+    isOnBreak,
+  });
 
   const colors = darkMode ? darkColors : lightColors;
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
@@ -188,11 +231,35 @@ function MacqHRApp() {
     id: string,
     decision: 'Approved' | 'Rejected'
   ) => {
+    const target = approvals.find((a) => a.id === id);
     setApprovals((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, status: decision } : item
       )
     );
+    if (target) {
+      buildTeamsApprovalAdaptiveCard({
+        id: target.id,
+        employeeName: target.employeeName,
+        role: target.role,
+        category: target.category,
+        headline: target.headline,
+        startDate: target.startDate,
+        endDate: target.endDate,
+        amountSar: target.amountSar,
+        decision,
+      });
+      setNotifications((prev) => [
+        {
+          id: `notif-ms-${Date.now()}`,
+          title: `Teams Adaptive Card: ${decision}`,
+          body: `${target.employeeName}'s ${target.headline} was ${decision.toLowerCase()} and synced to Microsoft Teams.`,
+          timeAgo: 'Just now',
+          read: false,
+        },
+        ...prev,
+      ]);
+    }
   };
 
   const handleRearrangeActions = () => {
@@ -251,6 +318,17 @@ function MacqHRApp() {
       toDate: `Jun ${String(payload.toDay).padStart(2, '0')}, 2026`,
     };
     setWhosOff((prev) => [newEntry, ...prev]);
+
+    // Sync Leave to Microsoft Outlook Calendar (/me/events) per RULES.md Section 3.3
+    const outlookEv = createOutlookLeaveCalendarEvent({
+      employeeName: CURRENT_EMPLOYEE.fullName,
+      leaveType: payload.leaveType,
+      fromDay: payload.fromDay,
+      toDay: payload.toDay,
+      notes: payload.notes,
+    });
+    setOutlookEvents((prev) => [outlookEv, ...prev]);
+
     setRequestTimeOffVisible(false);
   };
 
@@ -278,6 +356,41 @@ function MacqHRApp() {
 
   const handleMarkAllNotificationsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleSecurityAuditEvent = (message: string, blocked: boolean) => {
+    if (blocked) {
+      setNotifications((prev) => [
+        {
+          id: `sec-${Date.now()}`,
+          title: 'Anti-Spoofing Security Alert',
+          body: message,
+          timeAgo: 'Just now',
+          read: false,
+        },
+        ...prev,
+      ]);
+    }
+  };
+
+  const handleQueueOfflinePunch = (punch: OfflineAttendancePunch) => {
+    if (verifyPunchSignature(punch)) {
+      setOfflinePunches((prev) => [punch, ...prev]);
+    }
+  };
+
+  const handleSyncOfflinePunches = () => {
+    setOfflinePunches((prev) =>
+      prev.map((p) => (verifyPunchSignature(p) ? { ...p, synced: true } : p))
+    );
+  };
+
+  const handleToggleMicrosoftSso = () => {
+    setMicrosoftAccount((prev) => ({
+      ...prev,
+      isConnected: true,
+      expiresAtIso: new Date(Date.now() + 3600 * 1000).toISOString(),
+    }));
   };
 
   if (biometricLocked) {
@@ -367,10 +480,14 @@ function MacqHRApp() {
                 breakInTime={breakInTime}
                 breakOutTime={breakOutTime}
                 elapsedMinutes={elapsedMinutes}
+                teamsPresence={teamsPresence}
+                offlineQueueCount={offlinePunches.length}
                 onToggleClockInOut={handleToggleClockInOut}
                 onToggleBreak={handleToggleBreak}
                 onOpenAttendanceHistory={() => setActiveScreen('attendance')}
                 onBackToDashboard={() => setActiveBottomTab('dashboard')}
+                onSecurityAuditEvent={handleSecurityAuditEvent}
+                onQueueOfflinePunch={handleQueueOfflinePunch}
               />
             ) : (
               <DashboardScreen
@@ -397,6 +514,9 @@ function MacqHRApp() {
                 }
                 onToggleBiometricLock={() => setBiometricLocked(true)}
                 onRearrangeActions={handleRearrangeActions}
+                onOpenMicrosoft365={() => setActiveSubModal('microsoft365')}
+                microsoftConnected={microsoftAccount.isConnected}
+                teamsAvailability={teamsPresence.availability}
               />
             )}
           </View>
@@ -535,10 +655,16 @@ function MacqHRApp() {
             schedule={INITIAL_SCHEDULE}
             tasks={tasks}
             notifications={notifications}
+            microsoftAccount={microsoftAccount}
+            teamsPresence={teamsPresence}
+            outlookEvents={outlookEvents}
+            offlinePunches={offlinePunches}
             onClose={() => setActiveSubModal(null)}
             onToggleTask={handleToggleTask}
             onAddFinancialTransaction={handleAddFinancialTransaction}
             onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+            onToggleMicrosoftSso={handleToggleMicrosoftSso}
+            onSyncOfflinePunches={handleSyncOfflinePunches}
           />
         </SafeAreaView>
       </View>

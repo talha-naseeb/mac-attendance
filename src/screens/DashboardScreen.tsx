@@ -39,6 +39,9 @@ interface DashboardScreenProps {
   onToggleLanguage: () => void;
   onToggleBiometricLock: () => void;
   onRearrangeActions: () => void;
+  onOpenMicrosoft365?: () => void;
+  microsoftConnected?: boolean;
+  teamsAvailability?: string;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -59,6 +62,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onToggleLanguage,
   onToggleBiometricLock,
   onRearrangeActions,
+  onOpenMicrosoft365,
+  microsoftConnected = true,
+  teamsAvailability = 'Available',
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const isRTL = lang === 'ar';
@@ -306,22 +312,66 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           >
             {t.welcome} {employeeName}
           </Text>
-          <TouchableOpacity
-            style={[styles.profileLinkRow, rtlRow(isRTL)]}
-            onPress={onOpenProfile}
-          >
-            <Text
-              style={[styles.viewProfileLink, { color: colors.accent }]}
-              numberOfLines={1}
+          <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }, rtlRow(isRTL)]}>
+            <TouchableOpacity
+              style={[styles.profileLinkRow, rtlRow(isRTL)]}
+              onPress={onOpenProfile}
             >
-              {t.viewProfile}
-            </Text>
-            <Feather
-              name={isRTL ? 'chevron-left' : 'chevron-right'}
-              size={14}
-              color={colors.accent}
-            />
-          </TouchableOpacity>
+              <Text
+                style={[styles.viewProfileLink, { color: colors.accent }]}
+                numberOfLines={1}
+              >
+                {t.viewProfile}
+              </Text>
+              <Feather
+                name={isRTL ? 'chevron-left' : 'chevron-right'}
+                size={14}
+                color={colors.accent}
+              />
+            </TouchableOpacity>
+
+            {onOpenMicrosoft365 && (
+              <TouchableOpacity
+                style={[
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    paddingHorizontal: 9,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    backgroundColor: colors.primarySoft,
+                    borderWidth: 1,
+                    borderColor: colors.primary,
+                  },
+                  rtlRow(isRTL),
+                ]}
+                onPress={onOpenMicrosoft365}
+                accessibilityLabel="Open Microsoft 365 & Teams Hub"
+              >
+                <View
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: microsoftConnected ? '#10B981' : '#F59E0B',
+                  }}
+                />
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '800',
+                    color: colors.primary,
+                  }}
+                  numberOfLines={1}
+                >
+                  {isRTL
+                    ? `مايكروسوفت تيمز: ${teamsAvailability}`
+                    : `MS Teams: ${teamsAvailability}`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
 

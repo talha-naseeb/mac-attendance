@@ -3,16 +3,37 @@
     "name": "MacqHR",
     "slug": "macqhr",
     "version": "1.0.0",
+    "scheme": "macqhr",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "primaryColor": "#002C52",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.macquires.macqhr"
+      "bundleIdentifier": "com.macquires.macqhr",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MacqHR requires high-accuracy GPS location to verify your presence inside the Macquires office geofence when clocking in or out.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "MacqHR uses geofence monitoring to support automatic attendance verification at Macquires branches.",
+        "NSFaceIDUsageDescription": "MacqHR uses Face ID liveness authentication to secure your employee workspace and attendance punches."
+      }
     },
     "android": {
-      "package": "com.macquires.macqhr"
+      "package": "com.macquires.macqhr",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_WIFI_STATE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow MacqHR to verify your Macquires office geofence location during attendance."
+        }
+      ]
+    ],
     "web": {
       "bundler": "metro"
     }

@@ -1,4 +1,4 @@
-import { Platform, TextStyle, ViewStyle } from 'react-native';
+import type { TextStyle, ViewStyle } from 'react-native';
 
 export type AppLanguage = 'en' | 'ar';
 
@@ -8,24 +8,9 @@ export type AppLanguage = 'en' | 'ar';
  * with generous line-heights so Arabic ascenders/diacritics never clip.
  */
 export const FONT_FAMILY = {
-  regular: Platform.select({
-    ios: 'System',
-    android: 'sans-serif',
-    web: "'Inter', 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    default: 'System',
-  }),
-  medium: Platform.select({
-    ios: 'System',
-    android: 'sans-serif-medium',
-    web: "'Inter', 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    default: 'System',
-  }),
-  bold: Platform.select({
-    ios: 'System',
-    android: 'sans-serif',
-    web: "'Inter', 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    default: 'System',
-  }),
+  regular: 'System',
+  medium: 'System',
+  bold: 'System',
 };
 
 export const TYPOGRAPHY: Record<string, TextStyle> = {

@@ -438,6 +438,50 @@ export const ApprovalsScreen: React.FC<ApprovalsScreenProps> = ({
                   </Text>
                 ) : null}
 
+                {/* Microsoft Teams Adaptive Card Sync Indicator */}
+                <View
+                  style={[
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      backgroundColor: colors.surfaceSubtle,
+                      marginBottom: 10,
+                      gap: 8,
+                    },
+                    rtlRow(isRTL),
+                  ]}
+                >
+                  <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }, rtlRow(isRTL)]}>
+                    <Feather name="message-square" size={13} color={colors.primary} />
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '700',
+                        color: colors.textSecondary,
+                        flexShrink: 1,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {isRTL
+                        ? 'بطاقة موافقة تفاعلية متزامنة مع Microsoft Teams'
+                        : 'Synced to Microsoft Teams Adaptive Card'}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '800',
+                      color: colors.accent,
+                    }}
+                  >
+                    MS Graph v1.5
+                  </Text>
+                </View>
+
                 {/* Reject / Approve Buttons */}
                 {item.status === 'Pending' && (
                   <View style={[styles.actionsFooterRow, rtlRow(isRTL)]}>

@@ -13,6 +13,15 @@ import { Feather } from '@expo/vector-icons';
 import { CURRENT_EMPLOYEE } from '../data/mockData';
 import { formatSar, makeTr } from '../i18n/localize';
 import { TRANSLATIONS } from '../i18n/translations';
+import {
+  MicrosoftEntraAccount,
+  OutlookCalendarEvent,
+  TeamsPresenceState,
+} from '../services/microsoftGraph';
+import {
+  calculateSaudiGosiBreakdown,
+  OfflineAttendancePunch,
+} from '../services/offlineSyncAndCompliance';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText } from '../theme/typography';
 import {
@@ -34,6 +43,7 @@ export type SubModalType =
   | 'tasks'
   | 'profile'
   | 'notifications'
+  | 'microsoft365'
   | null;
 
 interface SubModuleModalProps {
@@ -47,10 +57,16 @@ interface SubModuleModalProps {
   schedule: ShiftDay[];
   tasks: TaskItem[];
   notifications: NotificationItem[];
+  microsoftAccount?: MicrosoftEntraAccount;
+  teamsPresence?: TeamsPresenceState;
+  outlookEvents?: OutlookCalendarEvent[];
+  offlinePunches?: OfflineAttendancePunch[];
   onClose: () => void;
   onToggleTask: (taskId: string) => void;
   onAddFinancialTransaction: (title: string, amountSar: number) => void;
   onMarkAllNotificationsRead: () => void;
+  onToggleMicrosoftSso?: () => void;
+  onSyncOfflinePunches?: () => void;
 }
 
 /** Extra UI strings local to this modal (EN | AR). */
@@ -96,10 +112,16 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
   schedule,
   tasks,
   notifications,
+  microsoftAccount,
+  teamsPresence,
+  outlookEvents = [],
+  offlinePunches = [],
   onClose,
   onToggleTask,
   onAddFinancialTransaction,
   onMarkAllNotificationsRead,
+  onToggleMicrosoftSso,
+  onSyncOfflinePunches,
 }) => {
   // Default to descending (newest first) to address the Play Store review feedback
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
@@ -152,6 +174,10 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
         return t.profileTitle;
       case 'notifications':
         return t.notificationsTitle;
+      case 'microsoft365':
+        return isRTL
+          ? 'تكامل مايكروسوفت 365 وتيمز'
+          : 'Microsoft 365 & Teams Hub';
       default:
         return '';
     }
@@ -447,13 +473,50 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
                   <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
                   <Text style={[styles.cardSectionTitle, { color: colors.textPrimary }, txt]}>
-                    {tr('Deductions')}
+                    {tr('Deductions & Saudi Labor Law Compliance')}
                   </Text>
                   <SlipRow
-                    label={tr('GOSI Social Insurance')}
+                    label={tr('GOSI Social Insurance (9.75% Employee)')}
                     value={`-${formatSar(lang, selectedSlip.gosiDeductionSar)}`}
                     valueColor={colors.dangerText}
                   />
+                  {(() => {
+                    const gosiInfo = calculateSaudiGosiBreakdown({
+                      basicSalarySar: selectedSlip.basicSalarySar,
+                      housingAllowanceSar: selectedSlip.housingAllowanceSar,
+                      transportAllowanceSar: selectedSlip.transportAllowanceSar,
+                      overtimeSar: selectedSlip.overtimeSar,
+                      iban: CURRENT_EMPLOYEE.iban,
+                    });
+                    return (
+                      <>
+                        <SlipRow
+                          label={
+                            isRTL
+                              ? 'حصة الشركة في التأمينات (11.75%)'
+                              : 'Employer GOSI Contribution (11.75%)'
+                          }
+                          value={formatSar(lang, gosiInfo.employerContributionSar)}
+                          valueColor={colors.textSecondary}
+                        />
+                        <SlipRow
+                          label={
+                            isRTL
+                              ? 'حماية الأجور (نظام مدد WPS)'
+                              : 'Mudad WPS Status (IBAN Verified)'
+                          }
+                          value={
+                            gosiInfo.mudadWpsCompliant
+                              ? isRTL
+                                ? 'متوافق وموثق ✓'
+                                : 'Mudad Compliant ✓'
+                              : 'Pending'
+                          }
+                          valueColor={colors.successText}
+                        />
+                      </>
+                    );
+                  })()}
                 </View>
               </>
             )}
@@ -803,6 +866,253 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
                     </Text>
                   </View>
                 ))}
+              </>
+            )}
+
+            {/* 9. MICROSOFT 365, TEAMS & ENTRA ID INTEGRATION HUB */}
+            {activeModal === 'microsoft365' && (
+              <>
+                {/* Entra ID SSO Status Card */}
+                <View style={cardStyle}>
+                  <View style={[styles.rowBetween, row]}>
+                    <View style={styles.flexText}>
+                      <Text
+                        style={[
+                          styles.cardSectionTitle,
+                          { color: colors.textPrimary },
+                          txt,
+                        ]}
+                      >
+                        {isRTL
+                          ? 'الدخول الموحد (Microsoft Entra ID / Azure AD)'
+                          : 'Microsoft Entra ID (Azure AD) Single Sign-On'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.itemSub,
+                          { color: colors.textSecondary },
+                          txt,
+                        ]}
+                      >
+                        {microsoftAccount?.userPrincipalName ||
+                          CURRENT_EMPLOYEE.email}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dirContact,
+                          { color: colors.textMuted },
+                          txt,
+                        ]}
+                      >
+                        Tenant ID: {microsoftAccount?.tenantId || '72f988bf-macquires'}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.miniPill,
+                        {
+                          backgroundColor: microsoftAccount?.isConnected
+                            ? colors.successBg
+                            : colors.warningBg,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.miniPillText,
+                          {
+                            color: microsoftAccount?.isConnected
+                              ? colors.successText
+                              : colors.warningText,
+                          },
+                        ]}
+                      >
+                        {microsoftAccount?.isConnected
+                          ? isRTL
+                            ? 'متصل بـ OAuth2'
+                            : 'SSO Connected'
+                          : isRTL
+                            ? 'غير متصل'
+                            : 'Disconnected'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {onToggleMicrosoftSso && (
+                    <TouchableOpacity
+                      style={[
+                        styles.submitSmallBtn,
+                        {
+                          backgroundColor: colors.primary,
+                          marginTop: 12,
+                        },
+                      ]}
+                      onPress={onToggleMicrosoftSso}
+                    >
+                      <Text style={styles.submitSmallBtnText}>
+                        {microsoftAccount?.isConnected
+                          ? isRTL
+                            ? 'تحديث رمز جلسة Microsoft Graph'
+                            : 'Refresh Microsoft Graph OAuth2 Token'
+                          : isRTL
+                            ? 'تسجيل الدخول بحساب مايكروسوفت للعمل'
+                            : 'Sign In with Microsoft Work Account'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Microsoft Teams Live Presence Sync */}
+                {teamsPresence && (
+                  <View style={cardStyle}>
+                    <Text
+                      style={[
+                        styles.cardSectionTitle,
+                        { color: colors.textPrimary },
+                        txt,
+                      ]}
+                    >
+                      {isRTL
+                        ? 'مزامنة حالة الحضور مع Microsoft Teams'
+                        : 'Microsoft Teams Live Presence Sync'}
+                    </Text>
+                    <SlipRow
+                      label={isRTL ? 'الحالة في تيمز' : 'Teams Availability'}
+                      value={teamsPresence.availability}
+                      valueColor={colors.accent}
+                    />
+                    <SlipRow
+                      label={isRTL ? 'النشاط الحالي' : 'Activity State'}
+                      value={teamsPresence.activity}
+                    />
+                    <SlipRow
+                      label={isRTL ? 'رسالة الحالة التلقائية' : 'Synced Status Message'}
+                      value={teamsPresence.statusMessage}
+                    />
+                  </View>
+                )}
+
+                {/* Microsoft Outlook Calendar Synced Leaves */}
+                <View style={cardStyle}>
+                  <Text
+                    style={[
+                      styles.cardSectionTitle,
+                      { color: colors.textPrimary },
+                      txt,
+                    ]}
+                  >
+                    {isRTL
+                      ? 'مزامنة الإجازات مع تقويم Microsoft Outlook'
+                      : 'Outlook Calendar Leave Events (/me/events)'}
+                  </Text>
+                  {outlookEvents.length === 0 ? (
+                    <Text style={[styles.itemSub, { color: colors.textMuted }, txt]}>
+                      {isRTL
+                        ? 'سيتم دفع الإجازات المعتمدة تلقائياً إلى تقويم Outlook.'
+                        : 'Approved leaves automatically push Out-of-Office (OOF) blocks to Exchange Online.'}
+                    </Text>
+                  ) : (
+                    outlookEvents.map((ev) => (
+                      <View
+                        key={ev.id}
+                        style={{
+                          paddingVertical: 8,
+                          borderBottomWidth: 1,
+                          borderBottomColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.itemTitle,
+                            { color: colors.textPrimary },
+                            txt,
+                          ]}
+                        >
+                          {ev.subject}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dirContact,
+                            { color: colors.successText },
+                            txt,
+                          ]}
+                        >
+                          Exchange OOF Synced • {ev.startIso.slice(0, 10)} →{' '}
+                          {ev.endIso.slice(0, 10)}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+
+                {/* Offline Anti-Tamper Signed Attendance Queue */}
+                <View style={cardStyle}>
+                  <View style={[styles.rowBetween, row]}>
+                    <Text
+                      style={[
+                        styles.cardSectionTitle,
+                        { color: colors.textPrimary, marginBottom: 0 },
+                        txt,
+                      ]}
+                    >
+                      {isRTL
+                        ? `طابور البصمات دون اتصال (${offlinePunches.length})`
+                        : `Offline Signed Punch Queue (${offlinePunches.length})`}
+                    </Text>
+                    {offlinePunches.length > 0 && onSyncOfflinePunches && (
+                      <TouchableOpacity
+                        style={[
+                          styles.sortButton,
+                          {
+                            backgroundColor: colors.accent,
+                            borderColor: colors.accent,
+                          },
+                        ]}
+                        onPress={onSyncOfflinePunches}
+                      >
+                        <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>
+                          {isRTL ? 'مزامنة الآن' : 'Sync Now'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.dirContact,
+                      { color: colors.textMuted, marginTop: 6 },
+                      txt,
+                    ]}
+                  >
+                    {isRTL
+                      ? 'يتم ختم كل سجل حضور بتوقيع رقمي مشفر لمنع التلاعب بالوقت أو الإحداثيات.'
+                      : 'Each offline punch is sealed with an FNV-1a cryptographic signature to prevent timestamp or coordinate tampering.'}
+                  </Text>
+                  {offlinePunches.map((p) => (
+                    <View
+                      key={p.id}
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTopWidth: 1,
+                        borderTopColor: colors.border,
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.itemTitle,
+                          { color: colors.textPrimary, fontSize: 13 },
+                          txt,
+                        ]}
+                      >
+                        {p.action} • {p.signatureHash}
+                      </Text>
+                      <Text style={[styles.dirContact, { color: colors.textSecondary }]}>
+                        GPS: {p.latitude.toFixed(4)}, {p.longitude.toFixed(4)} •{' '}
+                        {p.synced ? 'Synced ✓' : 'Queued (Offline)'}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </>
             )}
           </ScrollView>
