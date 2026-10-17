@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { CURRENT_EMPLOYEE } from '../data/mockData';
 import { formatSar, makeTr } from '../i18n/localize';
 import { TRANSLATIONS } from '../i18n/translations';
@@ -22,6 +22,15 @@ import {
   calculateSaudiGosiBreakdown,
   OfflineAttendancePunch,
 } from '../services/offlineSyncAndCompliance';
+import {
+  AVATAR_PRESETS,
+  AvatarPresetId,
+  deriveAvatarInitials,
+  detectCountryFromPhoneInput,
+  EditableEmployeeProfile,
+  getAvatarPresetById,
+  validateAndApplyProfileChanges,
+} from '../services/profileSettingsService';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText } from '../theme/typography';
 import {
@@ -42,6 +51,7 @@ export type SubModalType =
   | 'schedule'
   | 'tasks'
   | 'profile'
+  | 'settings'
   | 'notifications'
   | 'microsoft365'
   | null;
@@ -50,6 +60,7 @@ interface SubModuleModalProps {
   activeModal: SubModalType;
   colors: ThemeColors;
   lang: AppLanguage;
+  employeeProfile?: EditableEmployeeProfile;
   transactions: FinancialTransaction[];
   salarySlips: SalarySlip[];
   directory: DirectoryEmployee[];
@@ -62,6 +73,11 @@ interface SubModuleModalProps {
   outlookEvents?: OutlookCalendarEvent[];
   offlinePunches?: OfflineAttendancePunch[];
   onClose: () => void;
+  onUpdateProfile?: (updated: EditableEmployeeProfile) => void;
+  onToggleTheme?: () => void;
+  onToggleLanguage?: () => void;
+  onToggleBiometricLock?: () => void;
+  onSwitchModal?: (modal: SubModalType) => void;
   onToggleTask: (taskId: string) => void;
   onAddFinancialTransaction: (title: string, amountSar: number) => void;
   onMarkAllNotificationsRead: () => void;
@@ -105,6 +121,7 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
   activeModal,
   colors,
   lang,
+  employeeProfile,
   transactions,
   salarySlips,
   directory,
@@ -117,12 +134,25 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
   outlookEvents = [],
   offlinePunches = [],
   onClose,
+  onUpdateProfile,
+  onToggleTheme,
+  onToggleLanguage,
+  onToggleBiometricLock,
+  onSwitchModal,
   onToggleTask,
   onAddFinancialTransaction,
   onMarkAllNotificationsRead,
   onToggleMicrosoftSso,
   onSyncOfflinePunches,
 }) => {
+  const emp: EditableEmployeeProfile = employeeProfile ?? {
+    ...CURRENT_EMPLOYEE,
+    avatarInitials: 'RA',
+    avatarPresetId: 'navy',
+    avatarColor: colors.primary,
+  };
+  const isRTL = lang === 'ar';
+
   // Default to descending (newest first) to address the Play Store review feedback
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [selectedSlipIndex, setSelectedSlipIndex] = useState(0);
@@ -130,9 +160,31 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
   const [newClaimTitle, setNewClaimTitle] = useState('');
   const [newClaimAmount, setNewClaimAmount] = useState('');
 
+  // Editable Profile Screen state
+  const [nameInput, setNameInput] = useState(
+    isRTL ? emp.fullNameAr : emp.fullName
+  );
+  const [phoneInput, setPhoneInput] = useState(emp.phone);
+  const [selectedPresetId, setSelectedPresetId] = useState<AvatarPresetId>(
+    emp.avatarPresetId
+  );
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  const detectedPhone = detectCountryFromPhoneInput(phoneInput);
+
+  useEffect(() => {
+    if (activeModal === 'profile') {
+      setNameInput(isRTL ? emp.fullNameAr : emp.fullName);
+      setPhoneInput(emp.phone);
+      setSelectedPresetId(emp.avatarPresetId);
+      setProfileError(null);
+      setProfileSaved(false);
+    }
+  }, [activeModal, isRTL, emp.fullName, emp.fullNameAr, emp.phone, emp.avatarPresetId]);
+
   if (!activeModal) return null;
 
-  const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
   const L = LOCAL[lang] ?? LOCAL.en;
   const tr = makeTr(lang);
@@ -149,8 +201,8 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
   const selectedSlip = salarySlips[selectedSlipIndex] || salarySlips[0];
 
   const q = directoryQuery.trim().toLowerCase();
-  const filteredDirectory = directory.filter((emp) =>
-    [emp.name, emp.department, emp.title, tr(emp.name), tr(emp.department), tr(emp.title)]
+  const filteredDirectory = directory.filter((dEmp) =>
+    [dEmp.name, dEmp.department, dEmp.title, tr(dEmp.name), tr(dEmp.department), tr(dEmp.title)]
       .join(' ')
       .toLowerCase()
       .includes(q)
@@ -172,6 +224,8 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
         return t.tasksTitle;
       case 'profile':
         return t.profileTitle;
+      case 'settings':
+        return isRTL ? 'إعدادات التطبيق والأمان' : 'Settings & Preferences';
       case 'notifications':
         return t.notificationsTitle;
       case 'microsoft365':
@@ -215,18 +269,18 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
   );
 
   const profileFields: Array<[string, string]> = [
-    [tr('Employee ID'), CURRENT_EMPLOYEE.id],
+    [tr('Employee ID'), emp.id],
     [
       tr('Department'),
-      isRTL ? CURRENT_EMPLOYEE.departmentAr : CURRENT_EMPLOYEE.department,
+      isRTL ? emp.departmentAr : emp.department,
     ],
-    [tr('Branch'), tr(CURRENT_EMPLOYEE.branch)],
-    [tr('Direct Manager'), tr(CURRENT_EMPLOYEE.manager)],
-    [tr('Join Date'), tr(CURRENT_EMPLOYEE.joinDate)],
-    [tr('Email'), CURRENT_EMPLOYEE.email],
-    [tr('Phone'), CURRENT_EMPLOYEE.phone],
-    [tr('GOSI Number'), CURRENT_EMPLOYEE.gosiNumber],
-    [tr('IBAN'), CURRENT_EMPLOYEE.iban],
+    [tr('Branch'), tr(emp.branch)],
+    [tr('Direct Manager'), tr(emp.manager)],
+    [tr('Join Date'), tr(emp.joinDate)],
+    [tr('Email'), emp.email],
+    [tr('Phone'), emp.phone],
+    [tr('GOSI Number'), emp.gosiNumber],
+    [tr('IBAN'), emp.iban],
   ];
 
   return (
@@ -780,35 +834,549 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
                 </TouchableOpacity>
               ))}
 
-            {/* 7. EMPLOYEE PROFILE */}
+            {/* 7. SEPARATE EMPLOYEE PROFILE SCREEN (View + Edit Avatar, Name & Phone) */}
             {activeModal === 'profile' && (
-              <View style={cardStyle}>
-                <View style={styles.profileHeader}>
-                  <View
-                    style={[styles.profileLargeAvatar, { backgroundColor: colors.primary }]}
-                  >
-                    <Text style={styles.profileLargeAvatarText}>RA</Text>
+              <>
+                <View style={cardStyle}>
+                  <View style={styles.profileHeader}>
+                    <View
+                      style={[
+                        styles.profileLargeAvatar,
+                        {
+                          backgroundColor:
+                            getAvatarPresetById(selectedPresetId)
+                              .backgroundColor,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.profileLargeAvatarText}>
+                        {deriveAvatarInitials(nameInput || emp.fullName)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.profileName, { color: colors.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {nameInput || (isRTL ? emp.fullNameAr : emp.fullName)}
+                    </Text>
+                    <Text
+                      style={[styles.profileRole, { color: colors.accent }]}
+                      numberOfLines={1}
+                    >
+                      {isRTL ? emp.titleAr : emp.title}
+                    </Text>
                   </View>
+
+                  <View
+                    style={[styles.divider, { backgroundColor: colors.border }]}
+                  />
+
+                  {/* Editable Profile Fields: Avatar Style, Full Name & Phone Number */}
                   <Text
-                    style={[styles.profileName, { color: colors.textPrimary }]}
-                    numberOfLines={1}
+                    style={[
+                      styles.itemTitle,
+                      { color: colors.textPrimary, marginBottom: 10 },
+                      txt,
+                    ]}
                   >
-                    {isRTL ? CURRENT_EMPLOYEE.fullNameAr : CURRENT_EMPLOYEE.fullName}
+                    {isRTL
+                      ? 'تعديل الملف الشخصي (الصورة والاسم ورقم الجوال)'
+                      : 'Edit Profile, Name & Phone Number'}
                   </Text>
+
                   <Text
-                    style={[styles.profileRole, { color: colors.accent }]}
-                    numberOfLines={1}
+                    style={[
+                      styles.itemSub,
+                      { color: colors.textSecondary, marginBottom: 8 },
+                      txt,
+                    ]}
                   >
-                    {isRTL ? CURRENT_EMPLOYEE.titleAr : CURRENT_EMPLOYEE.title}
+                    {isRTL ? 'لون الصورة الرمزية' : 'Choose Avatar Style'}
                   </Text>
+                  <View
+                    style={[
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                        marginBottom: 14,
+                      },
+                      row,
+                    ]}
+                  >
+                    {AVATAR_PRESETS.map((preset) => {
+                      const isSelected = preset.id === selectedPresetId;
+                      return (
+                        <TouchableOpacity
+                          key={preset.id}
+                          onPress={() => setSelectedPresetId(preset.id)}
+                          style={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: 21,
+                            backgroundColor: preset.backgroundColor,
+                            borderWidth: isSelected ? 2.5 : 1,
+                            borderColor: isSelected
+                              ? MACQUIRES_PALETTE.orangePantone
+                              : colors.border,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: MACQUIRES_PALETTE.white,
+                              fontWeight: '800',
+                              fontSize: 13,
+                            }}
+                          >
+                            {deriveAvatarInitials(nameInput || emp.fullName)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Full Name Field (Synchronized Rounded Input Box) */}
+                  <Text
+                    style={[
+                      styles.itemSub,
+                      { color: colors.textSecondary, marginBottom: 6 },
+                      txt,
+                    ]}
+                  >
+                    {isRTL ? 'الاسم الكامل' : 'Full Name'}
+                  </Text>
+                  <View
+                    style={[
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                        borderWidth: 1,
+                        borderRadius: 12,
+                        paddingHorizontal: 14,
+                        height: 48,
+                        marginBottom: 14,
+                        gap: 10,
+                      },
+                      row,
+                    ]}
+                  >
+                    <Feather
+                      name="user"
+                      size={17}
+                      color={colors.textSecondary}
+                    />
+                    <TextInput
+                      value={nameInput}
+                      onChangeText={setNameInput}
+                      placeholder={isRTL ? 'الاسم الكامل' : 'Full Name'}
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        {
+                          flex: 1,
+                          fontSize: 14,
+                          fontWeight: '700',
+                          color: colors.textPrimary,
+                          paddingVertical: 6,
+                        },
+                        txt,
+                      ]}
+                    />
+                  </View>
+
+                  {/* Phone Number Field (Synchronized Rounded Input Box + Auto Flag via libphonenumber-js) */}
+                  <Text
+                    style={[
+                      styles.itemSub,
+                      { color: colors.textSecondary, marginBottom: 6 },
+                      txt,
+                    ]}
+                  >
+                    {isRTL ? 'رقم الجوال' : 'Phone Number'}
+                  </Text>
+                  <View
+                    style={[
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                        borderWidth: 1,
+                        borderRadius: 12,
+                        paddingHorizontal: 14,
+                        height: 48,
+                        marginBottom: 14,
+                        gap: 10,
+                      },
+                      row,
+                    ]}
+                  >
+                    <Text style={{ fontSize: 19 }}>{detectedPhone.flag}</Text>
+                    <TextInput
+                      value={phoneInput}
+                      onChangeText={(text) => {
+                        const auto = detectCountryFromPhoneInput(
+                          text,
+                          detectedPhone.iso2
+                        );
+                        setPhoneInput(
+                          text.trim().length === 0
+                            ? ''
+                            : auto.controlledValue || text
+                        );
+                      }}
+                      keyboardType="phone-pad"
+                      placeholder="+966 50 482 9104"
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        {
+                          flex: 1,
+                          fontSize: 14,
+                          fontWeight: '700',
+                          color: colors.textPrimary,
+                          paddingVertical: 6,
+                        },
+                        txt,
+                      ]}
+                    />
+                  </View>
+
+                  {profileError && (
+                    <Text
+                      style={[
+                        {
+                          color: colors.badgeRed,
+                          fontSize: 12,
+                          fontWeight: '700',
+                          marginBottom: 10,
+                        },
+                        txt,
+                      ]}
+                    >
+                      {profileError}
+                    </Text>
+                  )}
+
+                  {profileSaved && (
+                    <Text
+                      style={[
+                        {
+                          color: colors.accent,
+                          fontSize: 13,
+                          fontWeight: '700',
+                          marginBottom: 10,
+                        },
+                        txt,
+                      ]}
+                    >
+                      {isRTL
+                        ? '✓ تم تحديث الملف الشخصي والاسم ورقم الجوال بنجاح!'
+                        : '✓ Profile avatar, name & phone number updated!'}
+                    </Text>
+                  )}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.submitSmallBtn,
+                      { backgroundColor: colors.accent },
+                    ]}
+                    onPress={() => {
+                      const res = validateAndApplyProfileChanges(emp, {
+                        fullName: isRTL ? emp.fullName : nameInput,
+                        fullNameAr: isRTL ? nameInput : emp.fullNameAr,
+                        phone: phoneInput,
+                        avatarPresetId: selectedPresetId,
+                      });
+                      if (!res.valid) {
+                        setProfileError(
+                          isRTL
+                            ? 'يرجى إدخال اسم صحيح'
+                            : 'Please enter a valid full name.'
+                        );
+                        setProfileSaved(false);
+                        return;
+                      }
+                      setProfileError(null);
+                      setPhoneInput(res.updatedProfile.phone);
+                      if (onUpdateProfile) {
+                        onUpdateProfile(res.updatedProfile);
+                      }
+                      setProfileSaved(true);
+                    }}
+                  >
+                    <Text style={styles.submitSmallBtnText}>
+                      {isRTL ? 'حفظ التغييرات' : 'Save Profile Changes'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <View style={cardStyle}>
+                  <Text
+                    style={[
+                      styles.itemTitle,
+                      { color: colors.textPrimary, marginBottom: 10 },
+                      txt,
+                    ]}
+                  >
+                    {isRTL
+                      ? 'السجل الوظيفي والتأمينات (GOSI)'
+                      : 'Official Employment & GOSI Record'}
+                  </Text>
+                  {profileFields.map(([label, value]) => (
+                    <SlipRow key={label} label={label} value={value} />
+                  ))}
+                </View>
+              </>
+            )}
 
-                {profileFields.map(([label, value]) => (
-                  <SlipRow key={label} label={label} value={value} />
-                ))}
-              </View>
+            {/* 7B. SEPARATE SETTINGS & PREFERENCES SCREEN */}
+            {activeModal === 'settings' && (
+              <>
+                <View style={cardStyle}>
+                  <Text
+                    style={[
+                      styles.itemTitle,
+                      { color: colors.textPrimary, marginBottom: 12 },
+                      txt,
+                    ]}
+                  >
+                    {isRTL ? 'المظهر واللغة' : 'Appearance & Language'}
+                  </Text>
+
+                  {/* Dark / Light Mode Setting */}
+                  <TouchableOpacity
+                    style={[
+                      styles.slipRow,
+                      row,
+                      { paddingVertical: 12 },
+                    ]}
+                    onPress={onToggleTheme}
+                  >
+                    <View
+                      style={[
+                        { flexDirection: 'row', alignItems: 'center', gap: 10 },
+                        row,
+                      ]}
+                    >
+                      <Feather
+                        name={colors.isDark ? 'sun' : 'moon'}
+                        size={19}
+                        color={colors.primaryBright}
+                      />
+                      <Text
+                        style={[
+                          styles.itemTitle,
+                          { color: colors.textPrimary },
+                          txt,
+                        ]}
+                      >
+                        {colors.isDark ? t.switchLightMode : t.switchDarkMode}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        color: colors.accent,
+                        fontWeight: '800',
+                        fontSize: 13,
+                      }}
+                    >
+                      {colors.isDark ? 'Dark' : 'Light'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View
+                    style={[styles.divider, { backgroundColor: colors.border }]}
+                  />
+
+                  {/* Language Setting */}
+                  <TouchableOpacity
+                    style={[
+                      styles.slipRow,
+                      row,
+                      { paddingVertical: 12 },
+                    ]}
+                    onPress={onToggleLanguage}
+                  >
+                    <View
+                      style={[
+                        { flexDirection: 'row', alignItems: 'center', gap: 10 },
+                        row,
+                      ]}
+                    >
+                      <Feather
+                        name="globe"
+                        size={19}
+                        color={colors.primaryBright}
+                      />
+                      <Text
+                        style={[
+                          styles.itemTitle,
+                          { color: colors.textPrimary },
+                          txt,
+                        ]}
+                      >
+                        {isRTL ? 'لغة التطبيق' : 'Application Language'}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        color: colors.accent,
+                        fontWeight: '800',
+                        fontSize: 13,
+                      }}
+                    >
+                      {lang === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={cardStyle}>
+                  <Text
+                    style={[
+                      styles.itemTitle,
+                      { color: colors.textPrimary, marginBottom: 12 },
+                      txt,
+                    ]}
+                  >
+                    {isRTL
+                      ? 'الأمان والاتصال المؤسسي'
+                      : 'Security & Enterprise Integration'}
+                  </Text>
+
+                  {/* Touch / Face ID Lock */}
+                  <TouchableOpacity
+                    style={[
+                      styles.slipRow,
+                      row,
+                      { paddingVertical: 12 },
+                    ]}
+                    onPress={() => {
+                      onClose();
+                      if (onToggleBiometricLock) onToggleBiometricLock();
+                    }}
+                  >
+                    <View
+                      style={[
+                        { flexDirection: 'row', alignItems: 'center', gap: 10 },
+                        row,
+                      ]}
+                    >
+                      <Ionicons
+                        name="finger-print-outline"
+                        size={20}
+                        color={colors.primaryBright}
+                      />
+                      <Text
+                        style={[
+                          styles.itemTitle,
+                          { color: colors.textPrimary },
+                          txt,
+                        ]}
+                      >
+                        {t.biometricSecurityLock}
+                      </Text>
+                    </View>
+                    <Feather
+                      name={isRTL ? 'chevron-left' : 'chevron-right'}
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  </TouchableOpacity>
+
+                  <View
+                    style={[styles.divider, { backgroundColor: colors.border }]}
+                  />
+
+                  {/* Microsoft 365 & Teams Hub */}
+                  <TouchableOpacity
+                    style={[
+                      styles.slipRow,
+                      row,
+                      { paddingVertical: 12 },
+                    ]}
+                    onPress={() => {
+                      if (onSwitchModal) onSwitchModal('microsoft365');
+                    }}
+                  >
+                    <View
+                      style={[
+                        { flexDirection: 'row', alignItems: 'center', gap: 10 },
+                        row,
+                      ]}
+                    >
+                      <Feather
+                        name="cloud"
+                        size={19}
+                        color={colors.primaryBright}
+                      />
+                      <Text
+                        style={[
+                          styles.itemTitle,
+                          { color: colors.textPrimary },
+                          txt,
+                        ]}
+                      >
+                        {isRTL
+                          ? 'مركز مايكروسوفت 365 وتيمز'
+                          : 'Microsoft 365 & Teams Sync'}
+                      </Text>
+                    </View>
+                    <Feather
+                      name={isRTL ? 'chevron-left' : 'chevron-right'}
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  </TouchableOpacity>
+
+                  <View
+                    style={[styles.divider, { backgroundColor: colors.border }]}
+                  />
+
+                  {/* Open Profile Editor */}
+                  <TouchableOpacity
+                    style={[
+                      styles.slipRow,
+                      row,
+                      { paddingVertical: 12 },
+                    ]}
+                    onPress={() => {
+                      if (onSwitchModal) onSwitchModal('profile');
+                    }}
+                  >
+                    <View
+                      style={[
+                        { flexDirection: 'row', alignItems: 'center', gap: 10 },
+                        row,
+                      ]}
+                    >
+                      <Feather
+                        name="user"
+                        size={19}
+                        color={colors.primaryBright}
+                      />
+                      <Text
+                        style={[
+                          styles.itemTitle,
+                          { color: colors.textPrimary },
+                          txt,
+                        ]}
+                      >
+                        {isRTL
+                          ? 'تعديل الملف الشخصي والاسم ورقم الجوال'
+                          : 'Edit Profile, Name & Phone Number'}
+                      </Text>
+                    </View>
+                    <Feather
+                      name={isRTL ? 'chevron-left' : 'chevron-right'}
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
 
             {/* 8. NOTIFICATIONS INBOX */}

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1284" height="2778" viewBox="0 0 1284 2778" fill="none">
+  <defs>
+    <linearGradient id="splashBg" x1="0" y1="0" x2="1284" y2="2778" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#001629"/>
+      <stop offset="100%" stop-color="#002C52"/>
+    </linearGradient>
+    <linearGradient id="badgeBg" x1="482" y1="1060" x2="802" y2="1380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#002C52"/>
+      <stop offset="100%" stop-color="#001629"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full Oxford Blue Splash Background -->
+  <rect width="1284" height="2778" fill="url(#splashBg)"/>
+
+  <!-- Centered Concept A Squircle Icon Badge (320x320) -->
+  <rect x="482" y="1060" width="320" height="320" rx="76" fill="url(#badgeBg)" stroke="#293F66" stroke-width="6"/>
+
+  <!-- Architectural M Pillars inside Badge -->
+  <path d="M552 1296V1170C552 1158.95 560.954 1150 572 1150C579.4 1150 586.1 1154 589.6 1160.1L642 1254L694.4 1160.1C697.9 1154 704.6 1150 712 1150C723.046 1150 732 1158.95 732 1170V1296" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Orange Pantone Human Head / Pulse Node at Apex -->
+  <circle cx="642" cy="1146" r="31" fill="#FE5800"/>
+
+  <!-- Base Verification Bar -->
+  <path d="M592 1316H692" stroke="#FE5800" stroke-width="20" stroke-linecap="round"/>
+
+  <!-- Wordmark: macqHR® -->
+  <text x="642" y="1485" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="96" letter-spacing="-1.5">
+    <tspan fill="#FFFFFF" font-weight="300">macq</tspan><tspan fill="#FE5800" font-weight="800">HR</tspan><tspan fill="#999999" font-size="38" font-weight="700" dy="-38">®</tspan>
+  </text>
+
+  <!-- Subtitle: MACQUIRES PEOPLE -->
+  <text x="642" y="1548" text-anchor="middle" fill="#999999" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="800" letter-spacing="8">
+    MACQUIRES PEOPLE
+  </text>
+</svg>

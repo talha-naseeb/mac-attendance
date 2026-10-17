@@ -5,8 +5,14 @@
     "version": "1.0.0",
     "scheme": "macqhr",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "primaryColor": "#002C52",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#001629"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.macquires.macqhr",
@@ -18,6 +24,10 @@
     },
     "android": {
       "package": "com.macquires.macqhr",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#001629"
+      },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -35,7 +45,8 @@
       ]
     ],
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
     }
   }
 }

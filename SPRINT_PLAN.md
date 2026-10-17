@@ -96,3 +96,76 @@
 - [ ] **Task 5.1: App Configuration & EAS Standalone Build (`eas.json`)**
 - [ ] **Task 5.2: SSL Certificate Pinning & ProGuard Hardening**
 - [ ] **Task 5.3: Physical Device Field Testing & Store Release**
+
+---
+
+## Sprint 6: Option A Smooth Bezier Cradle Bottom Navigation Bar Redesign
+
+### Development
+- [x] **Task 6.1: SVG Smooth Bezier Cradle Geometry Engine**
+  - [x] Install `react-native-svg` and build [`src/services/bottomNavGeometry.ts`](src/services/bottomNavGeometry.ts).
+  - [x] Compute S-curve Bezier cutout dipping cleanly underneath the center `+` FAB (`depth = 36px`, `halfWidth = 58px`).
+- [x] **Task 6.2: Flush Bottom Edge Attachment (Zero Bottom Gap/Shadow)**
+  - [x] Create [`src/components/NotchedBottomBar.tsx`](src/components/NotchedBottomBar.tsx) extending through `useSafeAreaInsets().bottom` so the bar attaches flush to the physical bottom of mobile screens.
+  - [x] Remove `bottom` from root `<SafeAreaView>` edges in [`App.tsx`](App.tsx) and eliminate downward bottom shadow.
+
+### Automated & Manual Testing
+- [x] **Task 6.3: Option A Bottom Nav Automated Tests**
+  - [x] `TC-6.1` & `TC-6.2` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **PASSED**.
+- [x] **Task 6.4: User Manual Testing (Completed & Approved)**
+  - [x] Verify on mobile/web that the bottom navigation bar is flush with the bottom edge, has no bottom shadow, and curves smoothly under the center `+` button in both Light and Dark modes.
+
+---
+
+## Sprint 7: Official MacqHR Concept A ("People + M Crown") Logo & App Icon
+
+### Development
+- [x] **Task 7.1: Concept A Vector Logo Specification & Standalone Asset**
+  - [x] Create [`src/services/logoSpec.ts`](src/services/logoSpec.ts) defining the Concept A ("People + M Crown") SVG geometry, squircle badge gradient (`#002C52` → `#001629`), architectural white `M` pillars (`#FFFFFF`), Orange Pantone (`#FE5800`) human apex pulse node, and base verification bar.
+  - [x] Export standalone high-resolution SVG icon asset at [`assets/macqhr-icon.svg`](assets/macqhr-icon.svg).
+- [x] **Task 7.2: Reusable `<MacqLogo />` Component & UI Integration**
+  - [x] Create [`src/components/MacqLogo.tsx`](src/components/MacqLogo.tsx) supporting `icon`, `horizontal`, and `stacked` variants across `sm`, `md`, `lg`, and `xl` sizes plus RTL layout compatibility.
+  - [x] Integrate `<MacqLogo />` into the top header bar of [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx) and the Biometric Security Lock Screen in [`App.tsx`](App.tsx).
+
+### Automated & Manual Testing
+- [x] **Task 7.3: Concept A Logo Automated Tests**
+  - [x] `TC-7.1` & `TC-7.2` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **PASSED**.
+- [x] **Task 7.4: User Manual Testing (Completed & Approved)**
+  - [x] Verify the new Concept A MacqHR logo in the Dashboard top header (icon only) and Opening/Biometric Lock Screen (full logo + wordmark).
+
+---
+
+## Sprint 8: Option A Executive Sidebar Drawer & Live Profile Editor
+
+### Development
+- [x] **Task 8.1: Header Three-Dots Removal & Logo Click Trigger**
+  - [x] Remove the `more-vertical` (3-dots) button and floating overflow menu from [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx).
+  - [x] Make the Concept A `<MacqLogo />` in the header clickable to open the **Option A Executive Sidebar Drawer**.
+- [x] **Task 8.2: Option A Executive Sidebar Drawer & Live Profile Editing**
+  - [x] Create [`src/services/profileSettingsService.ts`](src/services/profileSettingsService.ts) and [`src/components/ExecutiveSidebarDrawer.tsx`](src/components/ExecutiveSidebarDrawer.tsx).
+  - [x] Support live **Avatar Style change**, **Full Name change**, and **Mobile Phone Number change** inside the sidebar with instant state synchronization across [`App.tsx`](App.tsx), [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx), and [`src/screens/SubModuleModal.tsx`](src/screens/SubModuleModal.tsx).
+  - [x] Move Dark/Light Mode, Language (`EN/عربي`), Biometric Security Lock, Request Time Off, and Employment/GOSI Record controls into the Sidebar.
+
+### Automated & Manual Testing
+- [x] **Task 8.3: Option A Sidebar & Profile Editor Automated Tests**
+  - [x] `TC-8.1`, `TC-8.2` & `TC-8.3` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **PASSED**.
+- [x] **Task 8.4: User Manual Testing (Completed & Approved)**
+  - [x] Tap the MacqHR logo in the top header to open the Option A Sidebar, test changing Avatar style, Full Name, and Phone Number, and verify the Settings switches.
+
+---
+
+## Sprint 9: Frontend Optimization, RBAC Role Filtering & Tiered Skeleton Shimmer Hydration
+
+### Development
+- [x] **Task 9.1: Role-Based Access Control (RBAC) & Tiered Hydration Service**
+  - [x] Create [`src/services/dashboardOptimizationService.ts`](src/services/dashboardOptimizationService.ts) with synchronous JWT role permission claims (`EMPLOYEE`, `MANAGER`, `HR_ADMIN`), section-level authorization (`getAuthorizedDashboardSections`), Quick Action module filtering (`filterActionsByRole`), and tiered cold-start latency descriptors (`TIER_1_CORE`, `TIER_2_ACTIONS`, `TIER_3_FEED`).
+- [x] **Task 9.2: Geometry-Matched Skeleton Shimmer Component & Virtualized `<FlatList>` Dashboard**
+  - [x] Create [`src/components/DashboardSkeleton.tsx`](src/components/DashboardSkeleton.tsx) with 60 FPS `Animated` pulse/shimmer placeholders matching the exact dimensions (`borderRadius: 16`) of Balances, Actions Grid, Who's Off, Birthdays, and Events cards.
+  - [x] Upgrade [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx) from a monolithic `<ScrollView>` to a windowed `<FlatList>` (`initialNumToRender={3}`, `maxToRenderPerBatch={3}`, `windowSize={5}`) with an interactive RBAC Role Switcher (`Line Manager` / `Employee` / `HR Admin`) and Skeleton Replay button.
+
+### Automated & Manual Testing
+- [x] **Task 9.3: RBAC & Progressive Skeleton Hydration Automated Tests**
+  - [x] `TC-9.1`, `TC-9.2` & `TC-9.3` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **26/26 TOTAL PASSED**.
+- [x] **Task 9.4: User Manual Testing (Completed & Approved)**
+  - [x] Switch between `Line Manager`, `Employee`, and `HR Admin` pills on the Dashboard (or tap the refresh button) to verify tiered Skeleton Shimmer hydration and role-filtered cards.
+

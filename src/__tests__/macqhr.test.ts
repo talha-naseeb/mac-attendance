@@ -15,6 +15,21 @@ import {
   createSignedOfflinePunch,
   verifyPunchSignature,
 } from '../services/offlineSyncAndCompliance';
+import { buildSmoothBezierCradleGeometry } from '../services/bottomNavGeometry';
+import { getMacqLogoSpec } from '../services/logoSpec';
+import {
+  deriveAvatarInitials,
+  detectCountryFromPhoneInput,
+  EditableEmployeeProfile,
+  validateAndApplyProfileChanges,
+} from '../services/profileSettingsService';
+import {
+  createInitialHydrationMap,
+  filterActionsByRole,
+  getAuthorizedDashboardSections,
+  resolvePermissionsForRole,
+} from '../services/dashboardOptimizationService';
+import { INITIAL_ACTIONS } from '../data/mockData';
 import { MACQUIRES_PALETTE, darkColors, lightColors } from '../theme/colors';
 import { rtlRow, rtlText } from '../theme/typography';
 import { TRANSLATIONS } from '../i18n/translations';
@@ -407,6 +422,251 @@ describeSuite(
         assertEqual(breakdown.employerContributionSar, 2350); // 11.75% of 20,000
         assertEqual(breakdown.netPayableAfterGosiSar, 20100); // (16000+4000+1600+450) - 1950
         assertEqual(breakdown.mudadWpsCompliant, true);
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Sprint 6: Option A Smooth Bezier Cradle Bottom Navigation Bar Geometry',
+  () => {
+    itCase(
+      'TC-6.1: Computes flush bottom height including mobile safe-area bottom inset (Zero bottom gap)',
+      () => {
+        const geo = buildSmoothBezierCradleGeometry({
+          width: 390,
+          safeBottomInset: 34, // iPhone Home Indicator inset
+          barContentHeight: 66,
+          cradleHalfWidth: 58,
+          cradleDepth: 36,
+        });
+
+        assertEqual(geo.width, 390);
+        assertEqual(geo.centerX, 195);
+        assertEqual(geo.totalHeight, 100); // 66 + 34 flush to bottom edge
+        assertTrue(geo.fillPath.endsWith('L 390,100 L 0,100 Z'));
+      }
+    );
+
+    itCase(
+      'TC-6.2: Generates symmetrical S-curve Bezier cutout dipping under the center + FAB button',
+      () => {
+        const geo = buildSmoothBezierCradleGeometry({
+          width: 400,
+          safeBottomInset: 0,
+          barContentHeight: 66,
+          cradleHalfWidth: 58,
+          cradleDepth: 36,
+        });
+
+        assertEqual(geo.centerX, 200);
+        // Verify the Bezier curve reaches exact depth 36 at center X = 200
+        assertTrue(
+          geo.topStrokePath.includes('200,36'),
+          'Top contour must dip to (centerX=200, depth=36)'
+        );
+        // Top stroke path must not close along the bottom edge (prevents bottom border/shadow line)
+        assertTrue(!geo.topStrokePath.endsWith('Z'));
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Sprint 7: Official MacqHR Concept A ("People + M Crown") Logo Specification',
+  () => {
+    itCase(
+      'TC-7.1: Enforces Concept A ("People + M Crown") strict Macquires brand colors in Light & Dark modes',
+      () => {
+        const lightSpec = getMacqLogoSpec(false);
+        const darkSpec = getMacqLogoSpec(true);
+
+        assertEqual(lightSpec.conceptId, 'CONCEPT_A_PEOPLE_M_CROWN');
+        assertEqual(lightSpec.colors.badgeBackground, MACQUIRES_PALETTE.prussianBlue);
+        assertEqual(darkSpec.colors.badgeBackground, MACQUIRES_PALETTE.oxfordBlue);
+        assertEqual(lightSpec.colors.badgeBorder, MACQUIRES_PALETTE.indigoDye);
+        assertEqual(lightSpec.colors.accentOrange, MACQUIRES_PALETTE.orangePantone);
+        assertEqual(lightSpec.colors.mStroke, MACQUIRES_PALETTE.white);
+      }
+    );
+
+    itCase(
+      'TC-7.2: Generates valid vector geometry for Concept A M-pillars, human apex node, and base verification bar',
+      () => {
+        const spec = getMacqLogoSpec(false);
+
+        assertEqual(spec.viewBox, '0 0 48 48');
+        assertEqual(spec.humanApexCircle.cx, 24);
+        assertEqual(spec.humanApexCircle.cy, 12.5);
+        assertEqual(spec.humanApexCircle.fill, MACQUIRES_PALETTE.orangePantone);
+        assertTrue(spec.mPillarsPath.startsWith('M9 36V16'));
+        assertEqual(spec.baseVerificationBarPath, 'M16 39H32');
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Sprint 8: Option A Executive Sidebar Drawer & Live Profile Editor (Avatar, Name & Phone)',
+  () => {
+    const baseProfile: EditableEmployeeProfile = {
+      id: 'EMP-1042',
+      firstName: 'Rahaf',
+      firstNameAr: 'رهف',
+      fullName: 'Rahaf Al-Mansoor',
+      fullNameAr: 'رهف المنصور',
+      title: 'Senior People Operations Lead',
+      titleAr: 'قائد عمليات الموارد البشرية أول',
+      department: 'Human Resources & Culture',
+      departmentAr: 'الموارد البشرية والثقافة المؤسسية',
+      branch: 'Riyadh HQ • Kingdom of Saudi Arabia',
+      email: 'rahaf.almansoor@macquires.com',
+      phone: '+966 50 482 9104',
+      manager: 'Tariq Al-Otaibi',
+      joinDate: '14 Mar, 2022',
+      gosiNumber: '4920184421',
+      iban: 'SA44 8000 0000 6080 1016 7519',
+      avatarInitials: 'RA',
+      avatarPresetId: 'navy',
+      avatarColor: MACQUIRES_PALETTE.prussianBlue,
+    };
+
+    itCase(
+      'TC-8.1: Updates full name, first name, phone number, and avatar preset live when saving in Option A Sidebar',
+      () => {
+        const res = validateAndApplyProfileChanges(baseProfile, {
+          fullName: 'Talha Jutt',
+          phone: '+966 55 901 2233',
+          avatarPresetId: 'orange',
+        });
+
+        assertEqual(res.valid, true);
+        assertEqual(res.updatedProfile.fullName, 'Talha Jutt');
+        assertEqual(res.updatedProfile.firstName, 'Talha');
+        assertEqual(res.updatedProfile.avatarInitials, 'TJ');
+        assertEqual(res.updatedProfile.phone, '+966 55 901 2233');
+        assertEqual(res.updatedProfile.avatarPresetId, 'orange');
+        assertEqual(res.updatedProfile.avatarColor, MACQUIRES_PALETTE.orangePantone);
+      }
+    );
+
+    itCase(
+      'TC-8.2: Rejects invalid or empty full name and preserves existing profile state',
+      () => {
+        const res = validateAndApplyProfileChanges(baseProfile, {
+          fullName: ' ',
+          phone: '+966 50 482 9104',
+        });
+
+        assertEqual(res.valid, false);
+        assertEqual(res.error, 'EMPTY_NAME');
+        assertEqual(res.updatedProfile.fullName, 'Rahaf Al-Mansoor');
+      }
+    );
+
+    itCase(
+      'TC-8.3: Automatically detects country code & flag from typed phone number via libphonenumber-js without extra validation errors',
+      () => {
+        const sa = detectCountryFromPhoneInput('+966504829104');
+        assertEqual(sa.iso2, 'SA');
+        assertEqual(sa.dialCode, '+966');
+        assertEqual(sa.flag, '🇸🇦');
+        assertEqual(sa.controlledValue, '+966 50 482 9104');
+
+        const pk = detectCountryFromPhoneInput('+923001234567');
+        assertEqual(pk.iso2, 'PK');
+        assertEqual(pk.dialCode, '+92');
+        assertEqual(pk.flag, '🇵🇰');
+
+        const ae = detectCountryFromPhoneInput('971509988776');
+        assertEqual(ae.iso2, 'AE');
+        assertEqual(ae.dialCode, '+971');
+        assertEqual(ae.flag, '🇦🇪');
+
+        assertEqual(deriveAvatarInitials('Rakan Al-Otaibi'), 'RA');
+        assertEqual(deriveAvatarInitials('Talha'), 'TA');
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Sprint 9: Frontend Optimization, RBAC Role Filtering & Tiered Skeleton Hydration',
+  () => {
+    itCase(
+      'TC-9.1: Resolves synchronous JWT role permissions & filters unauthorized Dashboard sections at 0ms',
+      () => {
+        const empSections = getAuthorizedDashboardSections('EMPLOYEE');
+        const mgrSections = getAuthorizedDashboardSections('MANAGER');
+        const hrSections = getAuthorizedDashboardSections('HR_ADMIN');
+
+        // Employee does not have team_calendar:view ('whos_off' section)
+        assertEqual(
+          empSections.some((s) => s.id === 'whos_off'),
+          false
+        );
+        assertEqual(empSections.length, 4);
+
+        // Line Manager & HR Admin have team_calendar:view ('whos_off' section)
+        assertEqual(
+          mgrSections.some((s) => s.id === 'whos_off'),
+          true
+        );
+        assertEqual(mgrSections.length, 5);
+        assertEqual(hrSections.length, 5);
+        assertTrue(
+          resolvePermissionsForRole('HR_ADMIN').includes('gosi_wps:admin')
+        );
+      }
+    );
+
+    itCase(
+      'TC-9.2: Filters Quick Action cards by role so Employees only see self-service modules while Managers/HR see Approvals & Directory',
+      () => {
+        const empActions = filterActionsByRole(INITIAL_ACTIONS, 'EMPLOYEE');
+        const mgrActions = filterActionsByRole(INITIAL_ACTIONS, 'MANAGER');
+
+        assertEqual(
+          empActions.some((a) => a.id === 'approvals'),
+          false
+        );
+        assertEqual(
+          empActions.some((a) => a.id === 'directory'),
+          false
+        );
+        assertEqual(
+          mgrActions.some((a) => a.id === 'approvals'),
+          true
+        );
+        assertEqual(
+          mgrActions.some((a) => a.id === 'directory'),
+          true
+        );
+      }
+    );
+
+    itCase(
+      'TC-9.3: Orders progressive skeleton hydration from TIER_1_CORE (<250ms) to TIER_2_ACTIONS to TIER_3_FEED',
+      () => {
+        const coldMap = createInitialHydrationMap(false);
+        const warmMap = createInitialHydrationMap(true);
+
+        assertEqual(coldMap.balances, false);
+        assertEqual(warmMap.balances, true);
+
+        const sections = getAuthorizedDashboardSections('MANAGER');
+        assertEqual(sections[0].id, 'balances');
+        assertEqual(sections[0].tier, 'TIER_1_CORE');
+        assertTrue(
+          sections[0].simulatedColdLatencyMs <
+            sections[1].simulatedColdLatencyMs,
+          'Tier 1 Core must hydrate before Tier 2 Actions'
+        );
+        assertTrue(
+          sections[1].simulatedColdLatencyMs <
+            sections[2].simulatedColdLatencyMs,
+          'Tier 2 Actions must hydrate before Tier 3 Feed'
+        );
       }
     );
   }

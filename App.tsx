@@ -29,6 +29,8 @@ import {
   INITIAL_WHOS_OFF,
 } from './src/data/mockData';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { MacqLogo } from './src/components/MacqLogo';
+import { NotchedBottomBar } from './src/components/NotchedBottomBar';
 import { TRANSLATIONS } from './src/i18n/translations';
 import { ApprovalsScreen } from './src/screens/ApprovalsScreen';
 import { AttendanceScreen } from './src/screens/AttendanceScreen';
@@ -48,6 +50,10 @@ import {
   OfflineAttendancePunch,
   verifyPunchSignature,
 } from './src/services/offlineSyncAndCompliance';
+import {
+  deriveAvatarInitials,
+  EditableEmployeeProfile,
+} from './src/services/profileSettingsService';
 import { darkColors, lightColors, MACQUIRES_PALETTE } from './src/theme/colors';
 import { AppLanguage, rtlRow, TYPOGRAPHY } from './src/theme/typography';
 import {
@@ -70,6 +76,7 @@ if (Platform.OS === 'web') {
 function MacqHRApp() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<AppLanguage>('en');
+  const [showOpeningSplash, setShowOpeningSplash] = useState(true);
   const [biometricLocked, setBiometricLocked] = useState(false);
   const [activeBottomTab, setActiveBottomTab] = useState<'dashboard' | 'clock'>(
     'dashboard'
@@ -79,6 +86,15 @@ function MacqHRApp() {
   >('main');
   const [requestTimeOffVisible, setRequestTimeOffVisible] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState<SubModalType>(null);
+
+  // Live Editable Employee Profile State (Option A Sidebar)
+  const [employeeProfile, setEmployeeProfile] =
+    useState<EditableEmployeeProfile>({
+      ...CURRENT_EMPLOYEE,
+      avatarInitials: deriveAvatarInitials(CURRENT_EMPLOYEE.fullName),
+      avatarPresetId: 'navy',
+      avatarColor: MACQUIRES_PALETTE.prussianBlue,
+    });
 
   // App state
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>(
@@ -393,6 +409,38 @@ function MacqHRApp() {
     }));
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowOpeningSplash(false);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (showOpeningSplash) {
+    return (
+      <SafeAreaProvider>
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onPress={() => setShowOpeningSplash(false)}
+          style={[
+            styles.lockScreen,
+            { backgroundColor: MACQUIRES_PALETTE.oxfordBlue },
+          ]}
+        >
+          <StatusBar barStyle="light-content" />
+          <MacqLogo
+            colors={darkColors}
+            size="xl"
+            layout="stacked"
+            showWordmark={true}
+            showSubtitle={true}
+            forceLightWordmark={true}
+          />
+        </TouchableOpacity>
+      </SafeAreaProvider>
+    );
+  }
+
   if (biometricLocked) {
     return (
       <SafeAreaProvider>
@@ -404,10 +452,14 @@ function MacqHRApp() {
         >
           <StatusBar barStyle="light-content" />
           <View style={styles.lockCard}>
-            <View style={styles.lockLogoRow}>
-              <Text style={styles.lockLogoZen}>macq</Text>
-              <Text style={styles.lockLogoHR}>HR</Text>
-              <Text style={styles.lockLogoReg}>®</Text>
+            <View style={{ marginBottom: 16 }}>
+              <MacqLogo
+                colors={lightColors}
+                size="lg"
+                layout="stacked"
+                showWordmark={true}
+                showSubtitle={true}
+              />
             </View>
             <Text style={styles.lockTitle} numberOfLines={1}>
               {t.biometricSecurityLock}
@@ -423,8 +475,8 @@ function MacqHRApp() {
               <Text style={styles.unlockBtnText} numberOfLines={1}>
                 {t.authenticateAs}{' '}
                 {lang === 'ar'
-                  ? CURRENT_EMPLOYEE.fullNameAr
-                  : CURRENT_EMPLOYEE.fullName}
+                  ? employeeProfile.fullNameAr
+                  : employeeProfile.fullName}
               </Text>
             </TouchableOpacity>
           </View>
@@ -447,7 +499,7 @@ function MacqHRApp() {
       >
         <SafeAreaView
           style={[styles.root, { backgroundColor: colors.background }]}
-          edges={['top', 'left', 'right', 'bottom']}
+          edges={['top', 'left', 'right']}
         >
           <StatusBar barStyle={darkMode ? 'light-content' : 'dark-content'} />
 
@@ -495,9 +547,10 @@ function MacqHRApp() {
                 lang={lang}
                 employeeName={
                   lang === 'ar'
-                    ? CURRENT_EMPLOYEE.firstNameAr
-                    : CURRENT_EMPLOYEE.firstName
+                    ? employeeProfile.firstNameAr
+                    : employeeProfile.firstName
                 }
+                employeeProfile={employeeProfile}
                 leaveBalances={leaveBalances}
                 actions={actions}
                 whosOff={whosOff}
@@ -506,6 +559,8 @@ function MacqHRApp() {
                 unreadNotificationsCount={unreadNotificationsCount}
                 onOpenModule={handleOpenModule}
                 onOpenProfile={() => setActiveSubModal('profile')}
+                onOpenSettings={() => setActiveSubModal('settings')}
+                onUpdateProfile={setEmployeeProfile}
                 onOpenNotifications={() => setActiveSubModal('notifications')}
                 onOpenQuickRequest={() => setRequestTimeOffVisible(true)}
                 onToggleTheme={() => setDarkMode((d) => !d)}
@@ -521,117 +576,18 @@ function MacqHRApp() {
             )}
           </View>
 
-          {/* Bottom Navigation Bar with Center Floating '+' Button */}
+          {/* Option A: Smooth Bezier Cradle Bottom Navigation Bar (Flush to Bottom Edge) */}
           {activeScreen === 'main' && (
-            <View
-              style={[
-                styles.bottomBarContainer,
-                rtlRow(isRTL),
-                {
-                  backgroundColor: colors.surface,
-                  borderTopColor: colors.border,
-                },
-              ]}
-            >
-              {/* Left Tab: Dashboard Grid Icon */}
-              <TouchableOpacity
-                style={styles.navTab}
-                onPress={() => setActiveBottomTab('dashboard')}
-                accessibilityLabel={t.dashboardTab}
-              >
-                <View style={styles.navIconSlot}>
-                  <Feather
-                    name="grid"
-                    size={20}
-                    color={
-                      activeBottomTab === 'dashboard'
-                        ? colors.accent
-                        : colors.textMuted
-                    }
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.navTabLabel,
-                    {
-                      color:
-                        activeBottomTab === 'dashboard'
-                          ? colors.accent
-                          : colors.textMuted,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {t.dashboardTab}
-                </Text>
-                {activeBottomTab === 'dashboard' && (
-                  <View
-                    style={[
-                      styles.activeIndicator,
-                      { backgroundColor: colors.accent },
-                    ]}
-                  />
-                )}
-              </TouchableOpacity>
-
-              {/* Center Floating '+' Quick Request Button (Orange Pantone #FE5800) */}
-              <View style={styles.fabSlot}>
-                <TouchableOpacity
-                  style={[
-                    styles.fabButton,
-                    {
-                      backgroundColor: colors.accent,
-                      borderColor: colors.surface,
-                    },
-                  ]}
-                  onPress={() => setRequestTimeOffVisible(true)}
-                  accessibilityLabel={t.requestTimeOff}
-                >
-                  <Feather name="plus" size={28} color={colors.textOnPrimary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Right Tab: Attendance Clock / Stopwatch Icon */}
-              <TouchableOpacity
-                style={styles.navTab}
-                onPress={() => setActiveBottomTab('clock')}
-                accessibilityLabel={t.clockIn}
-              >
-                <View style={styles.navIconSlot}>
-                  <Feather
-                    name="clock"
-                    size={20}
-                    color={
-                      activeBottomTab === 'clock'
-                        ? colors.accent
-                        : colors.textMuted
-                    }
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.navTabLabel,
-                    {
-                      color:
-                        activeBottomTab === 'clock'
-                          ? colors.accent
-                          : colors.textMuted,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {t.clockIn}
-                </Text>
-                {activeBottomTab === 'clock' && (
-                  <View
-                    style={[
-                      styles.activeIndicator,
-                      { backgroundColor: colors.accent },
-                    ]}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
+            <NotchedBottomBar
+              colors={colors}
+              isRTL={isRTL}
+              activeBottomTab={activeBottomTab}
+              dashboardLabel={t.dashboardTab}
+              clockInLabel={t.clockIn}
+              requestTimeOffLabel={t.requestTimeOff}
+              onSelectTab={(tab) => setActiveBottomTab(tab)}
+              onPressQuickRequest={() => setRequestTimeOffVisible(true)}
+            />
           )}
 
           {/* Request Time Off Modal */}
@@ -643,11 +599,12 @@ function MacqHRApp() {
             onSubmitRequest={handleSubmitTimeOff}
           />
 
-          {/* Secondary Module Modal */}
+          {/* Secondary Module Modal (Includes Separate Profile Screen & Separate Settings Screen) */}
           <SubModuleModal
             activeModal={activeSubModal}
             colors={colors}
             lang={lang}
+            employeeProfile={employeeProfile}
             transactions={transactions}
             salarySlips={INITIAL_SALARY_SLIPS}
             directory={INITIAL_DIRECTORY}
@@ -660,6 +617,13 @@ function MacqHRApp() {
             outlookEvents={outlookEvents}
             offlinePunches={offlinePunches}
             onClose={() => setActiveSubModal(null)}
+            onUpdateProfile={setEmployeeProfile}
+            onToggleTheme={() => setDarkMode((d) => !d)}
+            onToggleLanguage={() =>
+              setLang((prev) => (prev === 'en' ? 'ar' : 'en'))
+            }
+            onToggleBiometricLock={() => setBiometricLocked(true)}
+            onSwitchModal={(modal) => setActiveSubModal(modal)}
             onToggleTask={handleToggleTask}
             onAddFinancialTransaction={handleAddFinancialTransaction}
             onMarkAllNotificationsRead={handleMarkAllNotificationsRead}

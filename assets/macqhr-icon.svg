@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="macqBg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#002C52"/>
+      <stop offset="100%" stop-color="#001629"/>
+    </linearGradient>
+  </defs>
+  <!-- Squircle Background -->
+  <rect width="512" height="512" rx="116" fill="url(#macqBg)"/>
+  <!-- Architectural M Pillars -->
+  <path d="M112 378V178C112 160.327 126.327 146 144 146C155.8 146 166.4 152.4 172 162.2L256 312L340 162.2C345.6 152.4 356.2 146 368 146C385.673 146 400 160.327 400 178V378" stroke="#FFFFFF" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Orange Pantone Human Head / Pulse Node at Apex -->
+  <circle cx="256" cy="140" r="50" fill="#FE5800"/>
+  <!-- Base Verification Bar -->
+  <path d="M176 410H336" stroke="#FE5800" stroke-width="32" stroke-linecap="round"/>
+</svg>
