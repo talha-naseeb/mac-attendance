@@ -49,8 +49,8 @@ interface DashboardScreenProps {
   unreadNotificationsCount: number;
   onOpenModule: (moduleId: ActionModuleId) => void;
   onOpenProfile: () => void;
-  onOpenSettings: () => void;
-  onUpdateProfile: (updated: EditableEmployeeProfile) => void;
+  onOpenSettings?: () => void;
+  onUpdateProfile?: (updated: EditableEmployeeProfile) => void;
   onOpenNotifications: () => void;
   onOpenQuickRequest: () => void;
   onToggleTheme: () => void;
@@ -60,6 +60,9 @@ interface DashboardScreenProps {
   onOpenMicrosoft365?: () => void;
   microsoftConnected?: boolean;
   teamsAvailability?: string;
+  onLogout?: () => void;
+  userRole?: UserRole;
+  onSelectRole?: (role: UserRole) => void;
 }
 
 const ROLES_ORDER: UserRole[] = ['MANAGER', 'EMPLOYEE', 'HR_ADMIN'];
@@ -87,13 +90,22 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onOpenMicrosoft365,
   microsoftConnected = true,
   teamsAvailability = 'Available',
+  onLogout,
+  userRole,
+  onSelectRole,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeRole, setActiveRole] = useState<UserRole>('MANAGER');
-  const [hydrationCycle, setHydrationCycle] = useState(0);
+  const [internalRole, setInternalRole] = useState<UserRole>(userRole ?? 'MANAGER');
+  const activeRole = userRole ?? internalRole;
   const [hydratedSections, setHydratedSections] = useState<SectionHydrationMap>(
     () => createInitialHydrationMap(false)
   );
+
+  useEffect(() => {
+    if (userRole) {
+      setInternalRole(userRole);
+    }
+  }, [userRole]);
 
   const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
@@ -124,15 +136,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     return () => {
       timers.forEach((timer) => clearTimeout(timer));
     };
-  }, [activeRole, hydrationCycle, authorizedSections]);
+  }, [activeRole, authorizedSections]);
 
-  const handleSelectRole = useCallback((nextRole: UserRole) => {
-    setActiveRole(nextRole);
-  }, []);
-
-  const handleReplaySkeletonHydration = useCallback(() => {
-    setHydrationCycle((prev) => prev + 1);
-  }, []);
+  const handleSelectRole = useCallback(
+    (nextRole: UserRole) => {
+      setInternalRole(nextRole);
+      onSelectRole?.(nextRole);
+    },
+    [onSelectRole]
+  );
 
   // Ensure avatars never blend into the card surface (e.g. Prussian Blue on Prussian Blue in dark mode).
   const avatarBg = useCallback(
@@ -965,90 +977,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             </View>
           </View>
         </View>
-
-        {/* RBAC Role Switcher & Progressive Skeleton Shimmer Bar */}
-        <View
-          style={[
-            styles.rbacBar,
-            rtlRow(isRTL),
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <View style={[styles.rbacPillsRow, rtlRow(isRTL)]}>
-            {ROLES_ORDER.map((roleKey) => {
-              const meta = ROLE_REGISTRY[roleKey];
-              const isSelected = activeRole === roleKey;
-              return (
-                <TouchableOpacity
-                  key={roleKey}
-                  activeOpacity={0.85}
-                  onPress={() => handleSelectRole(roleKey)}
-                  style={[
-                    styles.rbacRolePill,
-                    {
-                      backgroundColor: isSelected
-                        ? colors.primary
-                        : colors.surfaceSubtle,
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.rbacDot,
-                      {
-                        backgroundColor: isSelected
-                          ? '#FFFFFF'
-                          : meta.badgeColor,
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.rbacRoleText,
-                      {
-                        color: isSelected
-                          ? '#FFFFFF'
-                          : colors.textSecondary,
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {isRTL ? meta.labelAr : meta.labelEn}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleReplaySkeletonHydration}
-            style={[
-              styles.skeletonReplayBtn,
-              {
-                backgroundColor: colors.surfaceSubtle,
-                borderColor: colors.border,
-              },
-            ]}
-            accessibilityLabel="Replay Progressive Skeleton Hydration"
-          >
-            <Feather name="refresh-cw" size={13} color={colors.accent} />
-          </TouchableOpacity>
-        </View>
       </View>
     ),
     [
-      activeRole,
       colors,
       employeeName,
       employeeProfile.avatarColor,
       employeeProfile.avatarInitials,
-      handleReplaySkeletonHydration,
-      handleSelectRole,
       isRTL,
       lang,
       microsoftConnected,
@@ -1078,6 +1013,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         onToggleLanguage={onToggleLanguage}
         onToggleBiometricLock={onToggleBiometricLock}
         onOpenQuickRequest={onOpenQuickRequest}
+        onLogout={() => {
+          setSidebarOpen(false);
+          onLogout?.();
+        }}
       />
 
       <FlatList

@@ -1,5 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Platform,
+  StyleSheet,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { DashboardSectionId } from '../services/dashboardOptimizationService';
 import { ThemeColors } from '../theme/colors';
 import { rtlRow } from '../theme/typography';
@@ -17,19 +24,20 @@ export const SkeletonPulse: React.FC<SkeletonPulseProps> = React.memo(
     const pulseAnim = useRef(new Animated.Value(0.38)).current;
 
     useEffect(() => {
+      const isNative = Platform.OS !== 'web';
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 0.88,
             duration: 650,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
           Animated.timing(pulseAnim, {
             toValue: 0.38,
             duration: 650,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
         ])
       );

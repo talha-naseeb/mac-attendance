@@ -36,8 +36,11 @@ import { ApprovalsScreen } from './src/screens/ApprovalsScreen';
 import { AttendanceScreen } from './src/screens/AttendanceScreen';
 import { ClockInScreen } from './src/screens/ClockInScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { RequestTimeOffModal } from './src/screens/RequestTimeOffModal';
 import { SubModalType, SubModuleModal } from './src/screens/SubModuleModal';
+import { AuthSession } from './src/services/authService';
+import { UserRole } from './src/services/dashboardOptimizationService';
 import {
   buildTeamsApprovalAdaptiveCard,
   createOutlookLeaveCalendarEvent,
@@ -77,6 +80,8 @@ function MacqHRApp() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<AppLanguage>('en');
   const [showOpeningSplash, setShowOpeningSplash] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('MANAGER');
   const [biometricLocked, setBiometricLocked] = useState(false);
   const [activeBottomTab, setActiveBottomTab] = useState<'dashboard' | 'clock'>(
     'dashboard'
@@ -162,6 +167,9 @@ function MacqHRApp() {
   // Consistent Hardware Back Navigation handler across all screens & modals
   useEffect(() => {
     const onHardwareBackPress = (): boolean => {
+      if (!isAuthenticated) {
+        return false;
+      }
       if (biometricLocked) {
         return true; // Prevent exiting while locked
       }
@@ -190,6 +198,7 @@ function MacqHRApp() {
     );
     return () => subscription.remove();
   }, [
+    isAuthenticated,
     biometricLocked,
     requestTimeOffVisible,
     activeSubModal,
@@ -409,6 +418,27 @@ function MacqHRApp() {
     }));
   };
 
+  const handleLoginSuccess = (session: AuthSession) => {
+    setUserRole(session.role);
+    setEmployeeProfile(session.profile);
+    if (session.authMethod === 'MICROSOFT_365_SSO') {
+      setMicrosoftAccount((prev) => ({
+        ...prev,
+        isConnected: true,
+        displayName: session.profile.fullName,
+        userPrincipalName: session.profile.email,
+        expiresAtIso: new Date(Date.now() + 3600 * 1000).toISOString(),
+      }));
+    }
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setActiveScreen('main');
+    setActiveBottomTab('dashboard');
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowOpeningSplash(false);
@@ -437,6 +467,39 @@ function MacqHRApp() {
             forceLightWordmark={true}
           />
         </TouchableOpacity>
+      </SafeAreaProvider>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaProvider>
+        <View
+          style={[
+            styles.webOuterFrame,
+            {
+              backgroundColor: darkMode
+                ? MACQUIRES_PALETTE.oxfordBlue
+                : '#DCE3EC',
+            },
+          ]}
+        >
+          <SafeAreaView
+            style={[styles.root, { backgroundColor: colors.background }]}
+            edges={['top', 'left', 'right', 'bottom']}
+          >
+            <StatusBar barStyle={darkMode ? 'light-content' : 'dark-content'} />
+            <LoginScreen
+              colors={colors}
+              lang={lang}
+              onLoginSuccess={handleLoginSuccess}
+              onToggleLanguage={() =>
+                setLang((prev) => (prev === 'en' ? 'ar' : 'en'))
+              }
+              onToggleTheme={() => setDarkMode((d) => !d)}
+            />
+          </SafeAreaView>
+        </View>
       </SafeAreaProvider>
     );
   }
@@ -572,6 +635,9 @@ function MacqHRApp() {
                 onOpenMicrosoft365={() => setActiveSubModal('microsoft365')}
                 microsoftConnected={microsoftAccount.isConnected}
                 teamsAvailability={teamsPresence.availability}
+                onLogout={handleLogout}
+                userRole={userRole}
+                onSelectRole={setUserRole}
               />
             )}
           </View>

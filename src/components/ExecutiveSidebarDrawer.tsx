@@ -3,6 +3,7 @@ import {
   Animated,
   Easing,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,11 +28,12 @@ export interface ExecutiveSidebarDrawerProps {
   profile: EditableEmployeeProfile;
   onClose: () => void;
   onOpenProfileScreen: () => void;
-  onOpenSettingsScreen: () => void;
+  onOpenSettingsScreen?: () => void;
   onToggleTheme: () => void;
   onToggleLanguage: () => void;
   onToggleBiometricLock: () => void;
   onOpenQuickRequest: () => void;
+  onLogout?: () => void;
 }
 
 const DRAWER_WIDTH = 312;
@@ -48,6 +50,7 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
   onToggleLanguage,
   onToggleBiometricLock,
   onOpenQuickRequest,
+  onLogout,
 }) => {
   const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
@@ -63,34 +66,36 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
       slideAnim.setValue(isRTL ? DRAWER_WIDTH : -DRAWER_WIDTH);
       fadeAnim.setValue(0);
 
+      const isNative = Platform.OS !== 'web';
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 260,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ]).start();
     }
   }, [visible, isRTL, slideAnim, fadeAnim]);
 
   const handleAnimatedClose = (afterClose?: () => void) => {
+    const isNative = Platform.OS !== 'web';
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: isRTL ? DRAWER_WIDTH : -DRAWER_WIDTH,
         duration: 200,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }),
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 180,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }),
     ]).start(() => {
       onClose();
@@ -263,7 +268,7 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
                 <TouchableOpacity
                   style={[styles.cleanMenuItem, rtlRow(isRTL)]}
                   onPress={() =>
-                    handleAnimatedClose(() => onOpenSettingsScreen())
+                    handleAnimatedClose(() => onOpenSettingsScreen?.())
                   }
                 >
                   <Feather
@@ -421,7 +426,13 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
                   },
                 ]}
                 onPress={() =>
-                  handleAnimatedClose(() => onToggleBiometricLock())
+                  handleAnimatedClose(() => {
+                    if (onLogout) {
+                      onLogout();
+                    } else {
+                      onToggleBiometricLock();
+                    }
+                  })
                 }
                 accessibilityLabel="Logout"
               >

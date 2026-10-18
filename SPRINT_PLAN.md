@@ -169,3 +169,20 @@
 - [x] **Task 9.4: User Manual Testing (Completed & Approved)**
   - [x] Switch between `Line Manager`, `Employee`, and `HR Admin` pills on the Dashboard (or tap the refresh button) to verify tiered Skeleton Shimmer hydration and role-filtered cards.
 
+---
+
+## Sprint 10: Dedicated Login Screen, Microsoft 365 SSO Sign-In & Complete Session Flow
+
+### Development
+- [x] **Task 10.1: Login Screen & Authentication Architecture**
+  - [x] Create [`src/screens/LoginScreen.tsx`](src/screens/LoginScreen.tsx) with Concept A branding, synchronized input containers for Work Email and Password, Password visibility toggle, quick role selector (`Employee`, `Line Manager`, `HR Admin`), and a dedicated **Sign in with Microsoft 365** button.
+  - [x] Implement validation service in [`src/services/authService.ts`](src/services/authService.ts) supporting email formatting, mock credentials verification, role claim generation, and error handling.
+- [x] **Task 10.2: Global Session Management & Logout Flow**
+  - [x] Connect [`App.tsx`](App.tsx) authentication state (`isAuthenticated`, `userRole`, `employeeProfile`) to render `LoginScreen` when unauthenticated.
+  - [x] Update [`src/components/ExecutiveSidebarDrawer.tsx`](src/components/ExecutiveSidebarDrawer.tsx) and [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx) to wire the bottom **Logout** pill to trigger a full session sign-out back to `LoginScreen`.
+- [x] **Task 10.3: Authentication & Session Automated Tests**
+  - [x] Write `TC-10.1`, `TC-10.2` & `TC-10.3` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) covering login validation, role claim resolution, and Microsoft 365 Entra ID SSO session lifecycle — **30/30 PASSED**.
+- [ ] **Task 10.4: User Manual Testing (Ready for User Verification)**
+  - [ ] Verify Login screen UI, test logging in with different roles, confirm sidebar Logout returns to Login, and test Microsoft 365 button.
+
+

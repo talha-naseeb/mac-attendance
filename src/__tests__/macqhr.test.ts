@@ -26,14 +26,20 @@ import {
 } from '../services/profileSettingsService';
 import {
   createInitialHydrationMap,
+  DASHBOARD_SECTION_REGISTRY,
   filterActionsByRole,
   getAuthorizedDashboardSections,
   resolvePermissionsForRole,
 } from '../services/dashboardOptimizationService';
-import { INITIAL_ACTIONS } from '../data/mockData';
+import { INITIAL_ACTIONS, INITIAL_LEAVE_BALANCES } from '../data/mockData';
 import { MACQUIRES_PALETTE, darkColors, lightColors } from '../theme/colors';
 import { rtlRow, rtlText } from '../theme/typography';
 import { TRANSLATIONS } from '../i18n/translations';
+import {
+  authenticateWithMicrosoftSso,
+  DEMO_USERS,
+  validateAndAuthenticate,
+} from '../services/authService';
 
 // Lightweight zero-dependency test harness compatible with strict TypeScript & Node
 let passedCount = 0;
@@ -690,6 +696,123 @@ describeSuite(
           sections[1].simulatedColdLatencyMs <
             sections[2].simulatedColdLatencyMs,
           'Tier 2 Actions must hydrate before Tier 3 Feed'
+        );
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Sprint 10: Authentication, Role Claims & Microsoft 365 Entra ID SSO Session Management',
+  () => {
+    itCase(
+      'TC-10.1: Validates email format and password constraint rules',
+      () => {
+        const emptyEmail = validateAndAuthenticate({
+          email: '',
+          password: 'secretPassword123',
+          role: 'EMPLOYEE',
+        });
+        assertEqual(emptyEmail.valid, false);
+        assertEqual(emptyEmail.error, 'EMPTY_EMAIL');
+
+        const badEmail = validateAndAuthenticate({
+          email: 'notanemail',
+          password: 'secretPassword123',
+          role: 'EMPLOYEE',
+        });
+        assertEqual(badEmail.valid, false);
+        assertEqual(badEmail.error, 'INVALID_EMAIL');
+
+        const shortPass = validateAndAuthenticate({
+          email: 'rahaf.mansoor@macquires.sa',
+          password: '123',
+          role: 'EMPLOYEE',
+        });
+        assertEqual(shortPass.valid, false);
+        assertEqual(shortPass.error, 'SHORT_PASSWORD');
+
+        const validLogin = validateAndAuthenticate({
+          email: 'rahaf.mansoor@macquires.sa',
+          password: 'validPassword123',
+          role: 'EMPLOYEE',
+        });
+        assertEqual(validLogin.valid, true);
+        assertTrue(!!validLogin.session, 'Session must be returned');
+        assertEqual(validLogin.session?.authMethod, 'PASSWORD');
+      }
+    );
+
+    itCase(
+      'TC-10.2: Enforces automatic role resolution from email identity across EMPLOYEE, MANAGER, and HR_ADMIN presets',
+      () => {
+        const roles = ['EMPLOYEE', 'MANAGER', 'HR_ADMIN'] as const;
+        roles.forEach((r) => {
+          const res = validateAndAuthenticate({
+            email: DEMO_USERS[r].email,
+            password: 'password123',
+          });
+          assertEqual(res.valid, true);
+          assertTrue(!!res.session, `Session for ${r} must be valid`);
+          assertEqual(res.session?.role, r);
+          assertEqual(res.session?.profile.email, DEMO_USERS[r].email);
+          assertEqual(res.session?.profile.fullName, DEMO_USERS[r].fullName);
+          assertTrue(
+            Boolean(res.session?.token.includes(r.toLowerCase())),
+            `Token must contain role claim for ${r}`
+          );
+        });
+      }
+    );
+
+    itCase(
+      'TC-10.3: Generates verified Microsoft 365 Entra ID SSO session with tenant claims',
+      () => {
+        const ssoSession = authenticateWithMicrosoftSso('MANAGER');
+        assertEqual(ssoSession.role, 'MANAGER');
+        assertEqual(ssoSession.authMethod, 'MICROSOFT_365_SSO');
+        assertEqual(ssoSession.profile.fullName, DEMO_USERS.MANAGER.fullName);
+        assertTrue(
+          ssoSession.token.startsWith('ms-entra-id-jwt-'),
+          'SSO token must have Entra ID prefix'
+        );
+        assertTrue(
+          ssoSession.authenticatedAt <= Date.now(),
+          'Authenticated timestamp must be valid'
+        );
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 1: Minimalistic Employee Main Screen & Clean Dashboard Structure',
+  () => {
+    itCase(
+      'TC-P1.1: Dashboard enforces clean, streamlined core section registry without noisy clutter',
+      () => {
+        const allSections = DASHBOARD_SECTION_REGISTRY.map((s) => s.id);
+        // Clean dashboard focuses strictly on the 5 core sections:
+        assertEqual(allSections.length, 5);
+        assertEqual(allSections.includes('balances'), true);
+        assertEqual(allSections.includes('actions'), true);
+        assertEqual(allSections.includes('whos_off'), true);
+        assertEqual(allSections.includes('birthdays'), true);
+        assertEqual(allSections.includes('events'), true);
+      }
+    );
+
+    itCase(
+      'TC-P1.2: Ensures Dashboard balances provide valid leave metrics for clean header presentation',
+      () => {
+        assertEqual(INITIAL_LEAVE_BALANCES.length > 0, true);
+        const annual = INITIAL_LEAVE_BALANCES.find(
+          (b) => b.title === 'Annual Vacation'
+        );
+        assertTrue(!!annual, 'Annual Vacation balance must exist');
+        assertTrue(
+          annual!.remaining <= annual!.total,
+          'Remaining balance cannot exceed total'
         );
       }
     );
