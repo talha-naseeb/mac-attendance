@@ -260,3 +260,97 @@ export function evaluateAttendanceSecurity(
     violationDetails,
   };
 }
+
+export interface SlippyMapTile {
+  key: string;
+  url: string;
+  leftPx: number;
+  topPx: number;
+}
+
+export interface LiveSlippyMapGrid {
+  zoom: number;
+  tileSizePx: number;
+  centerTileX: number;
+  centerTileY: number;
+  subTileOffsetX: number;
+  subTileOffsetY: number;
+  tiles: SlippyMapTile[];
+}
+
+/**
+ * Computes a Web Mercator slippy-map tile grid centered on exact GPS
+ * coordinates (latitude, longitude) so React Native can render real street
+ * map tiles natively on iOS, Android, and Web without an API key.
+ */
+export function buildLiveSlippyMapGrid(
+  latitude: number,
+  longitude: number,
+  options?: {
+    zoom?: number;
+    isDark?: boolean;
+    viewportWidth?: number;
+    viewportHeight?: number;
+  }
+): LiveSlippyMapGrid {
+  const zoom = options?.zoom ?? 16;
+  const isDark = options?.isDark ?? false;
+  const viewportWidth = options?.viewportWidth ?? 420;
+  const viewportHeight = options?.viewportHeight ?? 210;
+  const tileSizePx = 256;
+
+  const clampedLat = Math.max(-85.0511, Math.min(85.0511, latitude));
+  const clampedLon = ((((longitude + 180) % 360) + 360) % 360) - 180;
+
+  const n = Math.pow(2, zoom);
+  const latRad = (clampedLat * Math.PI) / 180;
+
+  const exactX = ((clampedLon + 180) / 360) * n;
+  const exactY =
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+
+  const centerTileX = Math.floor(exactX);
+  const centerTileY = Math.floor(exactY);
+
+  const subTileOffsetX = Math.round((exactX - centerTileX) * tileSizePx);
+  const subTileOffsetY = Math.round((exactY - centerTileY) * tileSizePx);
+
+  const centerScreenX = viewportWidth / 2;
+  const centerScreenY = viewportHeight / 2;
+
+  // Use unwatermarked Google Maps street/hybrid tiles (zero API key required, no watermark)
+  const layerParam = isDark ? 'y' : 'm';
+  const tiles: SlippyMapTile[] = [];
+
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const tx = ((centerTileX + dx) % n + n) % n;
+      const ty = Math.max(0, Math.min(n - 1, centerTileY + dy));
+
+      const leftPx = Math.round(
+        centerScreenX - subTileOffsetX + dx * tileSizePx
+      );
+      const topPx = Math.round(
+        centerScreenY - subTileOffsetY + dy * tileSizePx
+      );
+
+      tiles.push({
+        key: `${zoom}-${tx}-${ty}-${dx}-${dy}-${layerParam}`,
+        url: `https://mt1.google.com/vt/lyrs=${layerParam}&x=${tx}&y=${ty}&z=${zoom}`,
+        leftPx,
+        topPx,
+      });
+    }
+  }
+
+  return {
+    zoom,
+    tileSizePx,
+    centerTileX,
+    centerTileY,
+    subTileOffsetX,
+    subTileOffsetY,
+    tiles,
+  };
+}
+

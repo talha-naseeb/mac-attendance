@@ -1,4 +1,5 @@
 import {
+  buildLiveSlippyMapGrid,
   calculateHaversineDistanceMeters,
   evaluateAttendanceSecurity,
   MACQUIRES_BRANCHES,
@@ -288,6 +289,29 @@ describeSuite(
         assertTrue(
           verdict.violations.includes('UNVERIFIED_BIOMETRIC_LIVENESS')
         );
+      }
+    );
+
+    itCase(
+      'TC-2.9: Computes Web Mercator live street map tile grid centered on exact GPS coordinates',
+      () => {
+        const gridLight = buildLiveSlippyMapGrid(31.5204, 74.3587, {
+          zoom: 16,
+          isDark: false,
+          viewportWidth: 400,
+          viewportHeight: 200,
+        });
+        assertEqual(gridLight.zoom, 16);
+        assertEqual(gridLight.tiles.length, 15);
+        assertTrue(
+          gridLight.tiles[0].url.includes('mt1.google.com/vt/lyrs=m')
+        );
+
+        const gridDark = buildLiveSlippyMapGrid(31.5204, 74.3587, {
+          zoom: 16,
+          isDark: true,
+        });
+        assertTrue(gridDark.tiles[0].url.includes('mt1.google.com/vt/lyrs=y'));
       }
     );
   }
