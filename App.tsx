@@ -106,6 +106,12 @@ function MacqHRApp() {
     INITIAL_LEAVE_BALANCES
   );
   const [actions, setActions] = useState<ActionItem[]>(INITIAL_ACTIONS);
+  const [selectedActionIds, setSelectedActionIds] = useState<ActionModuleId[]>([
+    'attendance',
+    'payroll',
+    'transactions',
+    'schedule',
+  ]);
   const [whosOff, setWhosOff] = useState<WhosOffEntry[]>(INITIAL_WHOS_OFF);
   const [approvals, setApprovals] = useState<ApprovalItem[]>(INITIAL_APPROVALS);
   const [myAttendance, setMyAttendance] = useState<AttendanceRecord[]>(
@@ -632,6 +638,8 @@ function MacqHRApp() {
                 }
                 onToggleBiometricLock={() => setBiometricLocked(true)}
                 onRearrangeActions={handleRearrangeActions}
+                selectedActionIds={selectedActionIds}
+                onSaveSelectedActions={setSelectedActionIds}
                 onOpenMicrosoft365={() => setActiveSubModal('microsoft365')}
                 microsoftConnected={microsoftAccount.isConnected}
                 teamsAvailability={teamsPresence.availability}

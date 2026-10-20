@@ -15,6 +15,10 @@ import { MacqLogo } from '../components/MacqLogo';
 import { makeTr } from '../i18n/localize';
 import { TRANSLATIONS } from '../i18n/translations';
 import {
+  ArrangeActionsModal,
+  DEFAULT_SELECTED_ACTIONS,
+} from '../components/ArrangeActionsModal';
+import {
   createInitialHydrationMap,
   DashboardSectionDescriptor,
   filterActionsByRole,
@@ -55,8 +59,11 @@ interface DashboardScreenProps {
   onOpenQuickRequest: () => void;
   onToggleTheme: () => void;
   onToggleLanguage: () => void;
+  onBiometricLock?: () => void;
   onToggleBiometricLock: () => void;
-  onRearrangeActions: () => void;
+  onRearrangeActions?: () => void;
+  selectedActionIds?: ActionModuleId[];
+  onSaveSelectedActions?: (newSelectedIds: ActionModuleId[]) => void;
   onOpenMicrosoft365?: () => void;
   microsoftConnected?: boolean;
   teamsAvailability?: string;
@@ -87,6 +94,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onToggleLanguage,
   onToggleBiometricLock,
   onRearrangeActions,
+  selectedActionIds,
+  onSaveSelectedActions,
   onOpenMicrosoft365,
   microsoftConnected = true,
   teamsAvailability = 'Available',
@@ -95,6 +104,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onSelectRole,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [arrangeModalVisible, setArrangeModalVisible] = useState(false);
+  const [currentSelectedActionIds, setCurrentSelectedActionIds] = useState<
+    ActionModuleId[]
+  >(
+    selectedActionIds && selectedActionIds.length > 0
+      ? selectedActionIds
+      : DEFAULT_SELECTED_ACTIONS
+  );
   const [internalRole, setInternalRole] = useState<UserRole>(userRole ?? 'MANAGER');
   const activeRole = userRole ?? internalRole;
   const [hydratedSections, setHydratedSections] = useState<SectionHydrationMap>(
@@ -106,6 +123,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       setInternalRole(userRole);
     }
   }, [userRole]);
+
+  useEffect(() => {
+    if (selectedActionIds && selectedActionIds.length > 0) {
+      setCurrentSelectedActionIds(selectedActionIds);
+    }
+  }, [selectedActionIds]);
 
   const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
@@ -120,6 +143,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     () => filterActionsByRole(actions, activeRole),
     [actions, activeRole]
   );
+
+  // Clean 4-card display: filters by user's chosen pinned actions (up to 4 cards, minimum 2)
+  const displayedActions = useMemo(() => {
+    const authorizedMap = new Map(roleAuthorizedActions.map((a) => [a.id, a]));
+    const filtered = currentSelectedActionIds
+      .map((id) => authorizedMap.get(id))
+      .filter((a): a is ActionItem => !!a);
+
+    if (filtered.length < 2) {
+      return roleAuthorizedActions.slice(0, 4);
+    }
+    return filtered.slice(0, 4);
+  }, [roleAuthorizedActions, currentSelectedActionIds]);
 
   // Tiered Progressive Skeleton Hydration:
   // Tier 1 (Core Balances) -> Tier 2 (Actions) -> Tier 3 (Feed below the fold)
@@ -295,7 +331,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               </Text>
               <TouchableOpacity
                 style={[styles.arrangeBtn, rtlRow(isRTL)]}
-                onPress={onRearrangeActions}
+                onPress={() => {
+                  onRearrangeActions?.();
+                  setArrangeModalVisible(true);
+                }}
+                accessibilityLabel="Open arrange actions modal"
               >
                 <Feather name="sliders" size={13} color={colors.accent} />
                 <Text
@@ -312,11 +352,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 sectionId="actions"
                 colors={colors}
                 isRTL={isRTL}
-                actionCardCount={roleAuthorizedActions.length}
+                actionCardCount={displayedActions.length}
               />
             ) : (
               <View style={[styles.actionsGrid, rtlRow(isRTL)]}>
-                {roleAuthorizedActions.map((act) => (
+                {displayedActions.map((act) => (
                   <TouchableOpacity
                     key={act.id}
                     style={[
@@ -372,15 +412,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 ))}
               </View>
             )}
-
-            <View style={styles.dotsRow}>
-              <View
-                style={[styles.dotActive, { backgroundColor: colors.accent }]}
-              />
-              <View
-                style={[styles.dotInactive, { backgroundColor: colors.border }]}
-              />
-            </View>
           </View>
         );
       }
@@ -784,7 +815,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       onOpenModule,
       onOpenQuickRequest,
       onRearrangeActions,
-      roleAuthorizedActions,
+      displayedActions,
       t,
       tr,
       translateActionLabel,
@@ -1029,6 +1060,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         initialNumToRender={3}
         maxToRenderPerBatch={3}
         windowSize={5}
+      />
+
+      <ArrangeActionsModal
+        visible={arrangeModalVisible}
+        colors={colors}
+        lang={lang}
+        allActions={actions}
+        selectedActionIds={currentSelectedActionIds}
+        onSave={(newIds) => {
+          setCurrentSelectedActionIds(newIds);
+          onSaveSelectedActions?.(newIds);
+        }}
+        onOpenModule={(id) => {
+          setArrangeModalVisible(false);
+          onOpenModule(id);
+        }}
+        onClose={() => setArrangeModalVisible(false)}
       />
     </View>
   );

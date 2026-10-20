@@ -32,6 +32,13 @@ import {
   resolvePermissionsForRole,
 } from '../services/dashboardOptimizationService';
 import { INITIAL_ACTIONS, INITIAL_LEAVE_BALANCES } from '../data/mockData';
+import {
+  DEFAULT_SELECTED_ACTIONS,
+  MAX_SELECTED_ACTIONS,
+  MIN_SELECTED_ACTIONS,
+  resolveDisplayedActions,
+  toggleActionSelection,
+} from '../services/arrangeActionsService';
 import { MACQUIRES_PALETTE, darkColors, lightColors } from '../theme/colors';
 import { rtlRow, rtlText } from '../theme/typography';
 import { TRANSLATIONS } from '../i18n/translations';
@@ -814,6 +821,83 @@ describeSuite(
           annual!.remaining <= annual!.total,
           'Remaining balance cannot exceed total'
         );
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 2: "My Actions" — 4-Card Selection & Interactive "Arrange" Modal',
+  () => {
+    itCase(
+      'TC-P2.1: Enforces default 4-card selection with max 4 cards pinned',
+      () => {
+        assertEqual(DEFAULT_SELECTED_ACTIONS.length, 4);
+        assertEqual(MAX_SELECTED_ACTIONS, 4);
+        assertEqual(MIN_SELECTED_ACTIONS, 2);
+        assertTrue(DEFAULT_SELECTED_ACTIONS.includes('attendance'));
+        assertTrue(DEFAULT_SELECTED_ACTIONS.includes('payroll'));
+      }
+    );
+
+    itCase(
+      'TC-P2.2: Validates toggling: adding when below 4 succeeds and removing when above 2 succeeds',
+      () => {
+        const initial = ['attendance', 'payroll', 'transactions'];
+        // Add schedule (4th card)
+        const resAdd = toggleActionSelection(initial as any, 'schedule' as any);
+        assertEqual(resAdd.error, undefined);
+        assertEqual(resAdd.updatedSelection.length, 4);
+        assertTrue(resAdd.updatedSelection.includes('schedule'));
+
+        // Remove transactions (3 cards left)
+        const resRemove = toggleActionSelection(
+          resAdd.updatedSelection,
+          'transactions' as any
+        );
+        assertEqual(resRemove.error, undefined);
+        assertEqual(resRemove.updatedSelection.length, 3);
+        assertEqual(resRemove.updatedSelection.includes('transactions'), false);
+      }
+    );
+
+    itCase(
+      'TC-P2.3: Rejects selecting more than 4 cards with MAX_REACHED error',
+      () => {
+        const fullSelection = [
+          'attendance',
+          'payroll',
+          'transactions',
+          'schedule',
+        ];
+        const res = toggleActionSelection(fullSelection as any, 'tasks' as any);
+        assertEqual(res.error, 'MAX_REACHED:4');
+        assertEqual(res.updatedSelection.length, 4);
+        assertEqual(res.updatedSelection.includes('tasks'), false);
+      }
+    );
+
+    itCase(
+      'TC-P2.4: Prevents deselecting below minimum 2 cards with MIN_REACHED error',
+      () => {
+        const minSelection = ['attendance', 'payroll'];
+        const res = toggleActionSelection(
+          minSelection as any,
+          'attendance' as any
+        );
+        assertEqual(res.error, 'MIN_REACHED:2');
+        assertEqual(res.updatedSelection.length, 2);
+        assertTrue(res.updatedSelection.includes('attendance'));
+      }
+    );
+
+    itCase(
+      'TC-P2.5: Resolves exactly the user-selected actions on dashboard up to 4 cards',
+      () => {
+        const selected = ['tasks', 'schedule', 'documents', 'attendance'] as any;
+        const displayed = resolveDisplayedActions(INITIAL_ACTIONS, selected, 4);
+        assertEqual(displayed.length, 4);
+        assertEqual(displayed.map((a) => a.id), selected);
       }
     );
   }
