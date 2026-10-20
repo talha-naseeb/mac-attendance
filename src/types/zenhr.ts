@@ -43,6 +43,12 @@ export interface WhosOffEntry {
   durationLabel: string;
   fromDate: string;
   toDate: string;
+  department?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  contactStatus?: 'Reachable' | 'Do Not Disturb' | 'Urgent Only';
+  handoverContact?: string;
 }
 
 export interface BirthdayEntry {

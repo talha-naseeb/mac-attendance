@@ -47,6 +47,10 @@ import {
   DEMO_USERS,
   validateAndAuthenticate,
 } from '../services/authService';
+import {
+  filterWhosOffEntries,
+  getColleagueAvailabilitySummary,
+} from '../services/whosOffService';
 
 // Lightweight zero-dependency test harness compatible with strict TypeScript & Node
 let passedCount = 0;
@@ -898,6 +902,72 @@ describeSuite(
         const displayed = resolveDisplayedActions(INITIAL_ACTIONS, selected, 4);
         assertEqual(displayed.length, 4);
         assertEqual(displayed.map((a) => a.id), selected);
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 3: Who\'s Off & Remote Work Availability Engine',
+  () => {
+    const mockEntries: any[] = [
+      {
+        id: '1',
+        employeeName: 'Zainab Al-Harbi',
+        role: 'UX Designer',
+        type: 'Remote Work',
+        durationLabel: 'Today',
+        fromDate: 'Oct 20, 2026',
+        toDate: 'Oct 20, 2026',
+      },
+      {
+        id: '2',
+        employeeName: 'Faisal Al-Dosari',
+        role: 'Accountant',
+        type: 'Annual Vacation',
+        durationLabel: '3 days',
+        fromDate: 'Oct 20, 2026',
+        toDate: 'Oct 23, 2026',
+      },
+      {
+        id: '3',
+        employeeName: 'Noura Al-Mutairi',
+        role: 'Software Engineer',
+        type: 'Sick Day off',
+        durationLabel: '1 day',
+        fromDate: 'Oct 20, 2026',
+        toDate: 'Oct 20, 2026',
+      },
+    ];
+
+    itCase('TC-P3.1: Filters colleagues by All, Remote Work, and Leave', () => {
+      assertEqual(filterWhosOffEntries(mockEntries, 'all').length, 3);
+      const remote = filterWhosOffEntries(mockEntries, 'remote');
+      assertEqual(remote.length, 1);
+      assertEqual(remote[0].type, 'Remote Work');
+
+      const leave = filterWhosOffEntries(mockEntries, 'leave');
+      assertEqual(leave.length, 2);
+      assertTrue(leave.every((e) => e.type !== 'Remote Work'));
+    });
+
+    itCase(
+      'TC-P3.2: Generates correct colleague availability status and reachability advice',
+      () => {
+        const remoteSummary = getColleagueAvailabilitySummary(mockEntries[0]);
+        assertEqual(remoteSummary.isWorkingRemotely, true);
+        assertEqual(remoteSummary.isReachable, true);
+        assertEqual(remoteSummary.badgeColor, '#10B981');
+
+        const sickSummary = getColleagueAvailabilitySummary(mockEntries[2]);
+        assertEqual(sickSummary.isReachable, false);
+        assertEqual(sickSummary.isOnLeave, true);
+        assertEqual(sickSummary.badgeColor, '#EF4444');
+
+        const vacationSummary = getColleagueAvailabilitySummary(mockEntries[1]);
+        assertEqual(vacationSummary.isReachable, false);
+        assertEqual(vacationSummary.isOnLeave, true);
+        assertEqual(vacationSummary.badgeColor, '#F59E0B');
       }
     );
   }

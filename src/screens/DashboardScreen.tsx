@@ -18,6 +18,11 @@ import {
   ArrangeActionsModal,
   DEFAULT_SELECTED_ACTIONS,
 } from '../components/ArrangeActionsModal';
+import { ColleagueDetailModal } from '../components/ColleagueDetailModal';
+import {
+  filterWhosOffEntries,
+  WhosOffFilterType,
+} from '../services/whosOffService';
 import {
   createInitialHydrationMap,
   DashboardSectionDescriptor,
@@ -105,6 +110,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [arrangeModalVisible, setArrangeModalVisible] = useState(false);
+  const [whosOffFilter, setWhosOffFilter] = useState<WhosOffFilterType>('all');
+  const [selectedColleague, setSelectedColleague] = useState<WhosOffEntry | null>(null);
   const [currentSelectedActionIds, setCurrentSelectedActionIds] = useState<
     ActionModuleId[]
   >(
@@ -156,6 +163,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }
     return filtered.slice(0, 4);
   }, [roleAuthorizedActions, currentSelectedActionIds]);
+
+  const filteredWhosOff = useMemo(
+    () => filterWhosOffEntries(whosOff, whosOffFilter),
+    [whosOff, whosOffFilter]
+  );
+  const remoteColleaguesCount = useMemo(
+    () => whosOff.filter((e) => e.type === 'Remote Work').length,
+    [whosOff]
+  );
+  const leaveColleaguesCount = useMemo(
+    () => whosOff.filter((e) => e.type !== 'Remote Work').length,
+    [whosOff]
+  );
 
   // Tiered Progressive Skeleton Hydration:
   // Tier 1 (Core Balances) -> Tier 2 (Actions) -> Tier 3 (Feed below the fold)
