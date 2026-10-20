@@ -31,7 +31,11 @@ import {
   getAuthorizedDashboardSections,
   resolvePermissionsForRole,
 } from '../services/dashboardOptimizationService';
-import { INITIAL_ACTIONS, INITIAL_LEAVE_BALANCES } from '../data/mockData';
+import {
+  INITIAL_ACTIONS,
+  INITIAL_LEAVE_BALANCES,
+  INITIAL_WHOS_OFF,
+} from '../data/mockData';
 import {
   DEFAULT_SELECTED_ACTIONS,
   MAX_SELECTED_ACTIONS,
@@ -968,6 +972,19 @@ describeSuite(
         assertEqual(vacationSummary.isReachable, false);
         assertEqual(vacationSummary.isOnLeave, true);
         assertEqual(vacationSummary.badgeColor, '#F59E0B');
+      }
+    );
+
+    itCase(
+      'TC-P3.3: Verifies enriched INITIAL_WHOS_OFF metadata has valid roles, locations, and contacts',
+      () => {
+        assertEqual(INITIAL_WHOS_OFF.length, 4);
+        assertTrue(
+          INITIAL_WHOS_OFF.every((e) => Boolean(e.role && e.department && e.location))
+        );
+        assertTrue(
+          INITIAL_WHOS_OFF.some((e) => e.location?.includes('Pakistan'))
+        );
       }
     );
   }

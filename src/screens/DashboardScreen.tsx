@@ -453,6 +453,117 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               </Text>
             </View>
 
+            {/* Quick Filter Pills: All, Remote, On Leave */}
+            <View style={[styles.filterPillsRow, rtlRow(isRTL)]}>
+              <TouchableOpacity
+                onPress={() => setWhosOffFilter('all')}
+                style={[
+                  styles.filterPill,
+                  {
+                    backgroundColor:
+                      whosOffFilter === 'all'
+                        ? colors.primary
+                        : colors.surfaceSubtle,
+                    borderColor:
+                      whosOffFilter === 'all' ? colors.primary : colors.border,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    {
+                      color:
+                        whosOffFilter === 'all'
+                          ? '#FFFFFF'
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {isRTL ? 'الكل' : 'All'} ({whosOff.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setWhosOffFilter('remote')}
+                style={[
+                  styles.filterPill,
+                  {
+                    backgroundColor:
+                      whosOffFilter === 'remote'
+                        ? colors.primary
+                        : colors.surfaceSubtle,
+                    borderColor:
+                      whosOffFilter === 'remote' ? colors.primary : colors.border,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.filterDot,
+                    {
+                      backgroundColor:
+                        whosOffFilter === 'remote' ? '#FFFFFF' : '#10B981',
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    {
+                      color:
+                        whosOffFilter === 'remote'
+                          ? '#FFFFFF'
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {isRTL ? 'عن بعد' : 'Remote'} ({remoteColleaguesCount})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setWhosOffFilter('leave')}
+                style={[
+                  styles.filterPill,
+                  {
+                    backgroundColor:
+                      whosOffFilter === 'leave'
+                        ? colors.primary
+                        : colors.surfaceSubtle,
+                    borderColor:
+                      whosOffFilter === 'leave' ? colors.primary : colors.border,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.filterDot,
+                    {
+                      backgroundColor:
+                        whosOffFilter === 'leave' ? '#FFFFFF' : '#F59E0B',
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    {
+                      color:
+                        whosOffFilter === 'leave'
+                          ? '#FFFFFF'
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {isRTL ? 'في إجازة' : 'On Leave'} ({leaveColleaguesCount})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {!isHydrated ? (
               <DashboardSectionSkeleton
                 sectionId="whos_off"
@@ -465,9 +576,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalCardsRow}
               >
-                {whosOff.map((entry) => (
-                  <View
+                {filteredWhosOff.map((entry) => (
+                  <TouchableOpacity
                     key={entry.id}
+                    onPress={() => setSelectedColleague(entry)}
+                    activeOpacity={0.85}
                     style={[
                       styles.whosOffCard,
                       {
@@ -561,6 +674,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     </Text>
                     <Text
                       style={[
+                        styles.whosOffRole,
+                        { color: colors.accent },
+                        rtlText(isRTL),
+                      ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {entry.role}
+                    </Text>
+                    <Text
+                      style={[
                         styles.whosOffDates,
                         { color: colors.textMuted },
                         rtlText(isRTL),
@@ -570,7 +694,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     >
                       {tr(entry.fromDate)} → {tr(entry.toDate)}
                     </Text>
-                  </View>
+                    <View style={[styles.tapColleagueHintRow, rtlRow(isRTL)]}>
+                      <Text style={[styles.tapColleagueHintText, { color: colors.textMuted }]}>
+                        {isRTL ? 'انقر للتفاصيل والتواصل' : 'Tap for contact details'}
+                      </Text>
+                      <Feather
+                        name={isRTL ? 'chevron-left' : 'chevron-right'}
+                        size={12}
+                        color={colors.textMuted}
+                      />
+                    </View>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
             )}
@@ -841,6 +975,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       translateActionLabel,
       translateLeaveType,
       whosOff,
+      filteredWhosOff,
+      whosOffFilter,
+      remoteColleaguesCount,
+      leaveColleaguesCount,
     ]
   );
 
@@ -1097,6 +1235,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           onOpenModule(id);
         }}
         onClose={() => setArrangeModalVisible(false)}
+      />
+
+      <ColleagueDetailModal
+        visible={!!selectedColleague}
+        colleague={selectedColleague}
+        colors={colors}
+        lang={lang}
+        onClose={() => setSelectedColleague(null)}
       />
     </View>
   );
@@ -1496,5 +1642,47 @@ const styles = StyleSheet.create({
   eventDateText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  filterPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 5,
+  },
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  whosOffRole: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  tapColleagueHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(150, 150, 150, 0.2)',
+  },
+  tapColleagueHintText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
