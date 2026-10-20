@@ -47,6 +47,10 @@ import { MACQUIRES_PALETTE, darkColors, lightColors } from '../theme/colors';
 import { rtlRow, rtlText } from '../theme/typography';
 import { TRANSLATIONS } from '../i18n/translations';
 import {
+  evaluateClockEligibility,
+  formatElapsedWorkingTime,
+} from '../services/clockInService';
+import {
   authenticateWithMicrosoftSso,
   DEMO_USERS,
   validateAndAuthenticate,
@@ -985,6 +989,67 @@ describeSuite(
         assertTrue(
           INITIAL_WHOS_OFF.some((e) => e.location?.includes('Pakistan'))
         );
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 4: Remote Work (Pakistan) vs. Riyadh HQ Clock-In Engine',
+  () => {
+    itCase(
+      'TC-P4.1: Remote Pakistan mode permits clock-in regardless of Riyadh office geofence lockout',
+      () => {
+        // Riyadh geofence disallowed (e.g. 2800km away in Pakistan)
+        const remoteVerdict = evaluateClockEligibility(
+          'remote_pakistan',
+          false,
+          'Islamabad / Remote, Pakistan'
+        );
+        assertEqual(remoteVerdict.canClock, true);
+        assertEqual(remoteVerdict.isRemote, true);
+        assertTrue(remoteVerdict.headquartersLabel.includes('Riyadh, KSA'));
+        assertTrue(remoteVerdict.locationStatusText.includes('Islamabad / Remote, Pakistan'));
+      }
+    );
+
+    itCase(
+      'TC-P4.2: Office Riyadh mode respects strict geofence boundary rules',
+      () => {
+        const allowedVerdict = evaluateClockEligibility(
+          'office_riyadh',
+          true,
+          'Riyadh HQ Branch'
+        );
+        assertEqual(allowedVerdict.canClock, true);
+        assertEqual(allowedVerdict.isRemote, false);
+
+        const deniedVerdict = evaluateClockEligibility(
+          'office_riyadh',
+          false,
+          'Outside Boundary'
+        );
+        assertEqual(deniedVerdict.canClock, false);
+        assertEqual(deniedVerdict.isRemote, false);
+      }
+    );
+
+    itCase(
+      'TC-P4.3: Formats elapsed working minutes correctly starting from 0m and counting accurately',
+      () => {
+        const zeroTime = formatElapsedWorkingTime(0);
+        assertEqual(zeroTime.hours, 0);
+        assertEqual(zeroTime.minutes, 0);
+        assertEqual(zeroTime.formattedString, '0h 0m');
+
+        const activeTime = formatElapsedWorkingTime(145);
+        assertEqual(activeTime.hours, 2);
+        assertEqual(activeTime.minutes, 25);
+        assertEqual(activeTime.formattedString, '2h 25m');
+
+        const safeNegative = formatElapsedWorkingTime(-10);
+        assertEqual(safeNegative.hours, 0);
+        assertEqual(safeNegative.minutes, 0);
       }
     );
   }

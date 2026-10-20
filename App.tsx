@@ -125,14 +125,23 @@ function MacqHRApp() {
     INITIAL_NOTIFICATIONS
   );
 
-  // Clock-in state
-  const [isClockedIn, setIsClockedIn] = useState(true);
+  // Clock-in state (Clean initial state; counts up only after clocking in)
+  const [isClockedIn, setIsClockedIn] = useState(false);
   const [isOnBreak, setIsOnBreak] = useState(false);
-  const [clockInTime, setClockInTime] = useState('10:00 AM');
+  const [clockInTime, setClockInTime] = useState('-- : --');
   const [clockOutTime, setClockOutTime] = useState('-- : --');
   const [breakInTime, setBreakInTime] = useState('-- : --');
   const [breakOutTime, setBreakOutTime] = useState('-- : --');
-  const [elapsedMinutes, setElapsedMinutes] = useState(132); // 2 hours 12 minutes
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+
+  // Live timer counting up while clocked in and not on break
+  useEffect(() => {
+    if (!isClockedIn || isOnBreak) return;
+    const timer = setInterval(() => {
+      setElapsedMinutes((prev) => prev + 1);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [isClockedIn, isOnBreak]);
 
   // Microsoft 365 & Offline Queue State
   const [microsoftAccount, setMicrosoftAccount] =
@@ -243,7 +252,7 @@ function MacqHRApp() {
       setIsClockedIn(true);
       setClockInTime(nowStr);
       setClockOutTime('-- : --');
-      setElapsedMinutes(1);
+      setElapsedMinutes(0);
     }
   };
 

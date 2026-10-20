@@ -14,6 +14,10 @@ import { OfflineAttendancePunch } from '../services/offlineSyncAndCompliance';
 import { TeamsPresenceState } from '../services/microsoftGraph';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText, TYPOGRAPHY } from '../theme/typography';
+import {
+  evaluateClockEligibility,
+  WorkLocationMode,
+} from '../services/clockInService';
 
 interface ClockInScreenProps {
   colors: ThemeColors;
@@ -52,6 +56,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
   onSecurityAuditEvent,
 }) => {
   const [now, setNow] = useState(new Date());
+  const [workMode, setWorkMode] = useState<WorkLocationMode>('remote_pakistan');
   const [autoClockEnabled, setAutoClockEnabled] = useState(true);
   const [securityBannerMsg, setSecurityBannerMsg] = useState<string | null>(
     null
@@ -68,6 +73,12 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
 
   const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
+
+  const eligibility = evaluateClockEligibility(
+    workMode,
+    verdict.allowed,
+    liveAddressLabel
+  );
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -93,7 +104,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
   });
 
   const handleGuardedClockAction = () => {
-    if (!verdict.allowed) {
+    if (!eligibility.canClock) {
       const reason =
         verdict.violationDetails[0] ||
         'Attendance restricted by MacqHR Anti-Spoofing Policy.';
@@ -109,7 +120,9 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
     setSecurityBannerMsg(null);
     onToggleClockInOut();
     onSecurityAuditEvent?.(
-      `Verified punch at ${liveAddressLabel} (Trust: ${verdict.trustScore}%)`,
+      eligibility.isRemote
+        ? `Verified Remote punch (Pakistan) — Sync to Riyadh HQ`
+        : `Verified punch at ${liveAddressLabel} (Trust: ${verdict.trustScore}%)`,
       false
     );
   };
@@ -173,11 +186,118 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
         </TouchableOpacity>
       </View>
 
+      {/* Work Location Mode Selector: Remote (Pakistan) vs Office (Riyadh HQ) */}
+      <View
+        style={[
+          styles.workModeBar,
+          rtlRow(isRTL),
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => setWorkMode('remote_pakistan')}
+          style={[
+            styles.workModePill,
+            {
+              backgroundColor:
+                workMode === 'remote_pakistan'
+                  ? colors.primary
+                  : colors.surfaceSubtle,
+              borderColor:
+                workMode === 'remote_pakistan' ? colors.primary : colors.border,
+            },
+          ]}
+          activeOpacity={0.85}
+        >
+          <Feather
+            name="globe"
+            size={13}
+            color={workMode === 'remote_pakistan' ? '#FFFFFF' : colors.accent}
+          />
+          <Text
+            style={[
+              styles.workModeText,
+              {
+                color:
+                  workMode === 'remote_pakistan'
+                    ? '#FFFFFF'
+                    : colors.textSecondary,
+              },
+            ]}
+          >
+            {isRTL ? 'عن بعد — باكستان' : 'Remote — Pakistan (PKT)'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setWorkMode('office_riyadh')}
+          style={[
+            styles.workModePill,
+            {
+              backgroundColor:
+                workMode === 'office_riyadh'
+                  ? colors.primary
+                  : colors.surfaceSubtle,
+              borderColor:
+                workMode === 'office_riyadh' ? colors.primary : colors.border,
+            },
+          ]}
+          activeOpacity={0.85}
+        >
+          <Feather
+            name="map-pin"
+            size={13}
+            color={workMode === 'office_riyadh' ? '#FFFFFF' : colors.accent}
+          />
+          <Text
+            style={[
+              styles.workModeText,
+              {
+                color:
+                  workMode === 'office_riyadh'
+                    ? '#FFFFFF'
+                    : colors.textSecondary,
+              },
+            ]}
+          >
+            {isRTL ? 'المكتب — المقر الرئيسي (الرياض)' : 'Office — Riyadh HQ (AST)'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Remote Active Reassuring Banner */}
+        {eligibility.isRemote && (
+          <View
+            style={[
+              styles.remoteStatusBanner,
+              rtlRow(isRTL),
+              {
+                backgroundColor: colors.isDark
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : '#ECFDF5',
+                borderColor: '#10B981',
+              },
+            ]}
+          >
+            <Feather name="check-circle" size={16} color="#10B981" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.remoteBannerTitle, { color: '#10B981' }]}>
+                {isRTL ? 'تسجيل حضور عن بعد معتمد' : 'Remote Work Verified'}
+              </Text>
+              <Text style={[styles.remoteBannerSub, { color: colors.textSecondary }]}>
+                {eligibility.headquartersLabel}
+              </Text>
+            </View>
+          </View>
+        )}
         {/* Interactive react-native-maps Viewport Centered on Live GPS Coordinates */}
         <View
           style={[
@@ -237,8 +357,8 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
           </View>
         </View>
 
-        {/* Only shown if an actual Location Security violation occurs */}
-        {(!verdict.allowed || securityBannerMsg) && (
+        {/* Only shown if an actual Location Security violation occurs in Office mode */}
+        {(!eligibility.canClock || securityBannerMsg) && (
           <View
             style={[
               styles.violationAlertBox,
@@ -258,7 +378,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
               >
                 {securityBannerMsg ||
                   (isRTL
-                    ? 'خارج النطاق الجغرافي المسموح'
+                    ? 'خارج النطاق الجغرافي المسموح في الرياض'
                     : 'Outside Authorized Office Zone')}
               </Text>
             </View>
@@ -478,7 +598,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
             styles.primaryActionButton,
             rtlRow(isRTL),
             {
-              backgroundColor: !verdict.allowed
+              backgroundColor: !eligibility.canClock
                 ? MACQUIRES_PALETTE.spanishGrey
                 : isClockedIn
                   ? colors.primary
@@ -490,7 +610,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
           accessibilityLabel={isClockedIn ? t.clockOut : t.clockIn}
         >
           <Feather
-            name={!verdict.allowed ? 'lock' : 'check-circle'}
+            name={!eligibility.canClock ? 'lock' : 'check-circle'}
             size={18}
             color="#FFFFFF"
           />
@@ -562,6 +682,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+  },
+  workModeBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    borderBottomWidth: 1,
+  },
+  workModePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 5,
+  },
+  workModeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  remoteStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
+  remoteBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  remoteBannerSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
   circleBackButton: {
     width: 38,
