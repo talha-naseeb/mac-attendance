@@ -5,7 +5,7 @@ import { ActionItem, ActionModuleId } from '../types/zenhr';
  * Decoded synchronously at 0ms on app launch so no unauthorized card or
  * skeleton ever renders.
  */
-export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN';
+export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'HR' | 'HR_ADMIN' | 'ADMIN';
 
 export type PermissionClaim =
   | 'attendance:self'
@@ -93,6 +93,48 @@ export const ROLE_REGISTRY: Record<UserRole, RoleMetadata> = {
     labelEn: 'HR Admin',
     labelAr: 'مسؤول الموارد البشرية',
     badgeColor: '#10B981',
+    permissions: [
+      'attendance:self',
+      'leaves:self',
+      'transactions:self',
+      'documents:self',
+      'schedule:self',
+      'tasks:self',
+      'payroll:self',
+      'directory:view',
+      'approvals:manage',
+      'team_calendar:view',
+      'celebrations:view',
+      'events:view',
+      'gosi_wps:admin',
+    ],
+  },
+  HR: {
+    role: 'HR',
+    labelEn: 'HR Specialist',
+    labelAr: 'الموارد البشرية',
+    badgeColor: '#10B981',
+    permissions: [
+      'attendance:self',
+      'leaves:self',
+      'transactions:self',
+      'documents:self',
+      'schedule:self',
+      'tasks:self',
+      'payroll:self',
+      'directory:view',
+      'approvals:manage',
+      'team_calendar:view',
+      'celebrations:view',
+      'events:view',
+      'gosi_wps:admin',
+    ],
+  },
+  ADMIN: {
+    role: 'ADMIN',
+    labelEn: 'Executive Admin',
+    labelAr: 'المسؤول الرئيسي',
+    badgeColor: '#031D38',
     permissions: [
       'attendance:self',
       'leaves:self',

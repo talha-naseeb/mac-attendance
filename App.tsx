@@ -31,6 +31,7 @@ import {
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { MacqLogo } from './src/components/MacqLogo';
 import { NotchedBottomBar } from './src/components/NotchedBottomBar';
+import { AdminOrgPanelModal } from './src/components/AdminOrgPanelModal';
 import { TRANSLATIONS } from './src/i18n/translations';
 import { ApprovalsScreen } from './src/screens/ApprovalsScreen';
 import { AttendanceScreen } from './src/screens/AttendanceScreen';
@@ -91,6 +92,7 @@ function MacqHRApp() {
   >('main');
   const [requestTimeOffVisible, setRequestTimeOffVisible] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState<SubModalType>(null);
+  const [adminPanelVisible, setAdminPanelVisible] = useState(false);
 
   // Live Editable Employee Profile State (Option A Sidebar)
   const [employeeProfile, setEmployeeProfile] =
@@ -274,10 +276,93 @@ function MacqHRApp() {
     const target = approvals.find((a) => a.id === id);
     setApprovals((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, status: decision } : item
+        item.id === id
+          ? {
+              ...item,
+              status: decision,
+              stage: decision === 'Approved' ? 'APPROVED' : 'REJECTED',
+            }
+          : item
       )
     );
+
     if (target) {
+      if (
+        decision === 'Approved' &&
+        (target.category === 'Time Off' || target.leaveType)
+      ) {
+        const leaveDays = target.daysCount ?? 1;
+        const targetLeaveType = target.leaveType ?? 'Annual Vacation';
+
+        // 1. Deduct from remaining balance
+        setLeaveBalances((prev) =>
+          prev.map((bal) =>
+            bal.title === targetLeaveType
+              ? {
+                  ...bal,
+                  remaining: Math.max(0, bal.remaining - leaveDays),
+                }
+              : bal
+          )
+        );
+
+        // 2. Add to Who's Off
+        const newOffEntry: WhosOffEntry = {
+          id: `off-${Date.now()}`,
+          employeeName: target.employeeName,
+          role: target.role,
+          avatarInitials: target.avatarInitials,
+          avatarColor: target.avatarColor,
+          type:
+            targetLeaveType === 'Remote Work'
+              ? 'Remote Work'
+              : targetLeaveType === 'Sick Day off'
+                ? 'Sick Day off'
+                : 'Annual Vacation',
+          durationLabel: `${leaveDays} days`,
+          fromDate: target.startDate,
+          toDate: target.endDate,
+          department: 'Software Engineering',
+          location: 'Remote (Pakistan)',
+          contactStatus:
+            targetLeaveType === 'Remote Work' ? 'Reachable' : 'Do Not Disturb',
+        };
+        setWhosOff((prev) => [newOffEntry, ...prev]);
+
+        // 3. Notify HR and Employee
+        setNotifications((prev) => [
+          {
+            id: `notif-hr-${Date.now()}`,
+            title: `HR Log: Leave Approved (${target.employeeName})`,
+            body: `Manager Tariq Al-Ghamdi approved ${targetLeaveType} for ${target.employeeName} (${target.startDate} – ${target.endDate}). Record logged into HR system.`,
+            timeAgo: 'Just now',
+            read: false,
+          },
+          {
+            id: `notif-emp-${Date.now() + 1}`,
+            title: `Leave Request Approved`,
+            body: `Your manager Tariq Al-Ghamdi approved your ${targetLeaveType} request (${leaveDays} days).`,
+            timeAgo: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ]);
+      } else if (
+        decision === 'Rejected' &&
+        (target.category === 'Time Off' || target.leaveType)
+      ) {
+        setNotifications((prev) => [
+          {
+            id: `notif-emp-rej-${Date.now()}`,
+            title: `Leave Request Declined`,
+            body: `Your manager Tariq Al-Ghamdi declined your ${target.leaveType ?? 'leave'} request.`,
+            timeAgo: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ]);
+      }
+
       buildTeamsApprovalAdaptiveCard({
         id: target.id,
         employeeName: target.employeeName,
@@ -289,16 +374,19 @@ function MacqHRApp() {
         amountSar: target.amountSar,
         decision,
       });
-      setNotifications((prev) => [
-        {
-          id: `notif-ms-${Date.now()}`,
-          title: `Teams Adaptive Card: ${decision}`,
-          body: `${target.employeeName}'s ${target.headline} was ${decision.toLowerCase()} and synced to Microsoft Teams.`,
-          timeAgo: 'Just now',
-          read: false,
-        },
-        ...prev,
-      ]);
+
+      if (target.category !== 'Time Off') {
+        setNotifications((prev) => [
+          {
+            id: `notif-ms-${Date.now()}`,
+            title: `Teams Adaptive Card: ${decision}`,
+            body: `${target.employeeName}'s ${target.headline} was ${decision.toLowerCase()} and synced to Microsoft Teams.`,
+            timeAgo: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ]);
+      }
     }
   };
 
@@ -330,36 +418,55 @@ function MacqHRApp() {
     notes: string;
     hasAttachment: boolean;
   }) => {
-    setLeaveBalances((prev) =>
-      prev.map((bal) =>
-        bal.title === payload.leaveType
-          ? {
-              ...bal,
-              remaining: Math.max(0, bal.remaining - payload.daysCount),
-            }
-          : bal
-      )
-    );
-    const newEntry: WhosOffEntry = {
-      id: `off-${Date.now()}`,
-      employeeName:
-        lang === 'ar' ? CURRENT_EMPLOYEE.fullNameAr : CURRENT_EMPLOYEE.fullName,
-      role: lang === 'ar' ? CURRENT_EMPLOYEE.titleAr : CURRENT_EMPLOYEE.title,
-      avatarInitials: 'RA',
-      avatarColor: MACQUIRES_PALETTE.prussianBlue,
-      type:
-        payload.leaveType === 'Remote Work'
-          ? 'Remote Work'
-          : payload.leaveType === 'Sick Day off'
-            ? 'Sick Day off'
-            : 'Annual Vacation',
-      durationLabel: `${payload.daysCount} days`,
-      fromDate: `Jun ${String(payload.fromDay).padStart(2, '0')}, 2026`,
-      toDate: `Jun ${String(payload.toDay).padStart(2, '0')}, 2026`,
-    };
-    setWhosOff((prev) => [newEntry, ...prev]);
+    const empName =
+      lang === 'ar' ? CURRENT_EMPLOYEE.fullNameAr : CURRENT_EMPLOYEE.fullName;
+    const empRole =
+      lang === 'ar' ? CURRENT_EMPLOYEE.titleAr : CURRENT_EMPLOYEE.title;
+    const fromDateStr = `Oct ${String(payload.fromDay).padStart(2, '0')}, 2026`;
+    const toDateStr = `Oct ${String(payload.toDay).padStart(2, '0')}, 2026`;
 
-    // Sync Leave to Microsoft Outlook Calendar (/me/events) per RULES.md Section 3.3
+    // 1. Create ApprovalItem in PENDING_MANAGER stage
+    const newApproval: ApprovalItem = {
+      id: `app-leave-${Date.now()}`,
+      employeeName: empName,
+      role: empRole,
+      avatarInitials: deriveAvatarInitials(CURRENT_EMPLOYEE.fullName),
+      avatarColor:
+        employeeProfile.avatarColor ?? MACQUIRES_PALETTE.prussianBlue,
+      category: 'Time Off',
+      headline: `${payload.leaveType} (${payload.daysCount} days)`,
+      subHeadline: `${fromDateStr} → ${toDateStr}`,
+      status: 'Pending',
+      stage: 'PENDING_MANAGER',
+      leaveType: payload.leaveType,
+      managerName: 'Tariq Al-Ghamdi',
+      startDate: fromDateStr,
+      endDate: toDateStr,
+      daysCount: payload.daysCount,
+      notes: payload.notes,
+    };
+
+    setApprovals((prev) => [newApproval, ...prev]);
+
+    // 2. Direct Manager (Tariq Al-Ghamdi) receives notification
+    setNotifications((prev) => [
+      {
+        id: `notif-mgr-${Date.now()}`,
+        title:
+          lang === 'ar'
+            ? `طلب إجازة جديد: ${empName}`
+            : `New Leave Request: ${empName}`,
+        body:
+          lang === 'ar'
+            ? `قدم ${empName} طلباً لإجازة (${payload.leaveType}) لمدة ${payload.daysCount} أيام (${fromDateStr} إلى ${toDateStr}). بانتظار موافقتك كمدير مباشر.`
+            : `${empName} requested ${payload.daysCount} days of ${payload.leaveType} (${fromDateStr} to ${toDateStr}). Awaiting your manager approval.`,
+        timeAgo: 'Just now',
+        read: false,
+      },
+      ...prev,
+    ]);
+
+    // 3. Sync Leave to Microsoft Outlook Calendar (/me/events) per RULES.md Section 3.3
     const outlookEv = createOutlookLeaveCalendarEvent({
       employeeName: CURRENT_EMPLOYEE.fullName,
       leaveType: payload.leaveType,
@@ -655,6 +762,7 @@ function MacqHRApp() {
                 onLogout={handleLogout}
                 userRole={userRole}
                 onSelectRole={setUserRole}
+                onOpenAdminPanel={() => setAdminPanelVisible(true)}
               />
             )}
           </View>
@@ -712,6 +820,20 @@ function MacqHRApp() {
             onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
             onToggleMicrosoftSso={handleToggleMicrosoftSso}
             onSyncOfflinePunches={handleSyncOfflinePunches}
+          />
+
+          {/* Admin & Organization Hierarchy Panel Modal */}
+          <AdminOrgPanelModal
+            visible={adminPanelVisible}
+            colors={colors}
+            lang={lang}
+            activeRole={userRole}
+            approvals={approvals}
+            onClose={() => setAdminPanelVisible(false)}
+            onSelectRole={(nextRole) => {
+              setUserRole(nextRole);
+            }}
+            onDecideApproval={handleDecideApproval}
           />
         </SafeAreaView>
       </View>

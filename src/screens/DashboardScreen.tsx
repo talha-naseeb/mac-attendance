@@ -75,6 +75,7 @@ interface DashboardScreenProps {
   onLogout?: () => void;
   userRole?: UserRole;
   onSelectRole?: (role: UserRole) => void;
+  onOpenAdminPanel?: () => void;
 }
 
 const ROLES_ORDER: UserRole[] = ['MANAGER', 'EMPLOYEE', 'HR_ADMIN'];
@@ -107,6 +108,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onLogout,
   userRole,
   onSelectRole,
+  onOpenAdminPanel,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [arrangeModalVisible, setArrangeModalVisible] = useState(false);
@@ -1166,9 +1168,41 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             </View>
           </View>
         </View>
+        {/* Admin & Org Hub Pill for Manager/HR/Admin */}
+        {activeRole !== 'EMPLOYEE' && onOpenAdminPanel && (
+          <TouchableOpacity
+            style={[
+              styles.adminHubBanner,
+              rtlRow(isRTL),
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            onPress={onOpenAdminPanel}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.adminHubIcon, { backgroundColor: colors.primary }]}>
+              <Feather name="shield" size={14} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.adminHubTitle, { color: colors.textPrimary }]}>
+                {isRTL ? 'لوحة القيادة والهيكل التنظيمي' : 'Admin & Organization Hub'}
+              </Text>
+              <Text style={[styles.adminHubSub, { color: colors.textSecondary }]}>
+                {isRTL
+                  ? 'عرض الهيكل ومسار الموافقات وحضور الفروع'
+                  : 'Org Tree, Leave Pipeline & Branch Attendance'}
+              </Text>
+            </View>
+            <Feather
+              name={isRTL ? 'chevron-left' : 'chevron-right'}
+              size={16}
+              color={colors.accent}
+            />
+          </TouchableOpacity>
+        )}
       </View>
     ),
     [
+      activeRole,
       colors,
       employeeName,
       employeeProfile.avatarColor,
@@ -1176,6 +1210,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       isRTL,
       lang,
       microsoftConnected,
+      onOpenAdminPanel,
       onOpenMicrosoft365,
       onOpenModule,
       onOpenNotifications,
@@ -1202,6 +1237,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         onToggleLanguage={onToggleLanguage}
         onToggleBiometricLock={onToggleBiometricLock}
         onOpenQuickRequest={onOpenQuickRequest}
+        onOpenAdminPanel={onOpenAdminPanel}
         onLogout={() => {
           setSidebarOpen(false);
           onLogout?.();
@@ -1349,6 +1385,31 @@ const styles = StyleSheet.create({
   viewProfileLink: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  adminHubBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 12,
+    marginBottom: 4,
+    gap: 10,
+  },
+  adminHubIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminHubTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  adminHubSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
   rbacBar: {
     flexDirection: 'row',

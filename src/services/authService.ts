@@ -57,6 +57,32 @@ export const DEMO_USERS: Record<UserRole, EditableEmployeeProfile> = {
     avatarPresetId: 'dark',
     avatarColor: MACQUIRES_PALETTE.oxfordBlue,
   },
+  HR: {
+    ...CURRENT_EMPLOYEE,
+    id: 'HR-3001',
+    fullName: 'Rahaf Al-Mansoor',
+    fullNameAr: 'رهف المنصور',
+    title: 'Senior HR Specialist',
+    department: 'People & Culture',
+    email: 'rahaf.mansoor@macquires.sa',
+    phone: '+966 50 482 9104',
+    avatarInitials: 'RM',
+    avatarPresetId: 'navy',
+    avatarColor: MACQUIRES_PALETTE.prussianBlue,
+  },
+  ADMIN: {
+    ...CURRENT_EMPLOYEE,
+    id: 'ADM-0001',
+    fullName: 'Sultan Al-Otaibi',
+    fullNameAr: 'سلطان العتيبي',
+    title: 'Chief Human Resources Officer & Executive Admin',
+    department: 'Executive Board',
+    email: 'sultan.admin@macquires.sa',
+    phone: '+966 54 112 3344',
+    avatarInitials: 'SO',
+    avatarPresetId: 'dark',
+    avatarColor: MACQUIRES_PALETTE.oxfordBlue,
+  },
 };
 
 /**

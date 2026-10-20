@@ -33,6 +33,7 @@ export interface ExecutiveSidebarDrawerProps {
   onToggleLanguage: () => void;
   onToggleBiometricLock: () => void;
   onOpenQuickRequest: () => void;
+  onOpenAdminPanel?: () => void;
   onLogout?: () => void;
 }
 
@@ -50,6 +51,7 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
   onToggleLanguage,
   onToggleBiometricLock,
   onOpenQuickRequest,
+  onOpenAdminPanel,
   onLogout,
 }) => {
   const isRTL = lang === 'ar';
@@ -412,6 +414,31 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
                     {t.requestTimeOff}
                   </Text>
                 </TouchableOpacity>
+
+                {/* 7. Admin & Organization Hub */}
+                {onOpenAdminPanel && (
+                  <TouchableOpacity
+                    style={[styles.cleanMenuItem, rtlRow(isRTL)]}
+                    onPress={() =>
+                      handleAnimatedClose(() => onOpenAdminPanel())
+                    }
+                  >
+                    <Feather
+                      name="shield"
+                      size={20}
+                      color={MACQUIRES_PALETTE.orangePantone}
+                    />
+                    <Text
+                      style={[
+                        styles.cleanMenuLabel,
+                        { color: colors.textPrimary },
+                        rtlText(isRTL),
+                      ]}
+                    >
+                      {isRTL ? 'لوحة الإدارة والهيكل التنظيمي' : 'Admin & Org Hub'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
 

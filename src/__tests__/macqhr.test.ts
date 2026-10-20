@@ -47,6 +47,13 @@ import { MACQUIRES_PALETTE, darkColors, lightColors } from '../theme/colors';
 import { rtlRow, rtlText } from '../theme/typography';
 import { TRANSLATIONS } from '../i18n/translations';
 import {
+  createLeaveWorkflowRequest,
+  filterApprovalsForRole,
+  getOrganizationAttendanceOverview,
+  ORGANIZATION_TREE,
+  processManagerLeaveDecision,
+} from '../services/organizationWorkflowService';
+import {
   evaluateClockEligibility,
   formatElapsedWorkingTime,
 } from '../services/clockInService';
@@ -1050,6 +1057,144 @@ describeSuite(
         const safeNegative = formatElapsedWorkingTime(-10);
         assertEqual(safeNegative.hours, 0);
         assertEqual(safeNegative.minutes, 0);
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 5: Multi-Role Org Structure, Employee-Manager-HR Leave Pipeline & Admin Overview',
+  () => {
+    itCase(
+      'TC-P5.1: Org Structure hierarchy defines verified reporting lines and remote vs HQ distribution',
+      () => {
+        assertTrue(ORGANIZATION_TREE.length >= 6);
+
+        // Sultan is Executive Admin / root
+        const admin = ORGANIZATION_TREE.find((n) => n.role === 'ADMIN');
+        assertTrue(Boolean(admin));
+        assertEqual(admin!.managerId, null);
+
+        // Tariq is Manager reporting to Admin
+        const manager = ORGANIZATION_TREE.find((n) => n.role === 'MANAGER');
+        assertTrue(Boolean(manager));
+        assertEqual(manager!.managerName, admin!.name);
+
+        // Rayan is Employee in Pakistan reporting to Manager Tariq
+        const emp = ORGANIZATION_TREE.find((n) => n.id === 'EMP-1042');
+        assertTrue(Boolean(emp));
+        assertEqual(emp!.managerName, manager!.name);
+        assertTrue(emp!.location.includes('Pakistan'));
+        assertEqual(emp!.workType, 'Remote');
+      }
+    );
+
+    itCase(
+      'TC-P5.2: Employee submits leave -> initiates PENDING_MANAGER workflow and notifies Manager',
+      () => {
+        const req = createLeaveWorkflowRequest({
+          employeeId: 'EMP-1042',
+          employeeName: 'Rayan Al-Harbi',
+          role: 'Senior Mobile Engineer (Remote)',
+          department: 'Software Engineering',
+          avatarInitials: 'RH',
+          avatarColor: MACQUIRES_PALETTE.bdazzledBlue,
+          leaveType: 'Annual Vacation',
+          fromDay: 12,
+          toDay: 16,
+          daysCount: 5,
+          notes: 'Family event and rest',
+        });
+
+        assertEqual(req.approvalItem.stage, 'PENDING_MANAGER');
+        assertEqual(req.approvalItem.status, 'Pending');
+        assertEqual(req.approvalItem.daysCount, 5);
+        assertEqual(req.approvalItem.managerName, 'Tariq Al-Ghamdi');
+        assertTrue(req.managerNotification.title.includes('Rayan Al-Harbi'));
+        assertTrue(req.managerNotification.body.includes('Annual Vacation'));
+        assertTrue(req.managerNotification.body.includes('5 days'));
+      }
+    );
+
+    itCase(
+      'TC-P5.3: Manager approval authorizes leave balance deduction, logs HR notification and alerts Employee',
+      () => {
+        const initialReq = createLeaveWorkflowRequest({
+          employeeId: 'EMP-1042',
+          employeeName: 'Rayan Al-Harbi',
+          role: 'Senior Mobile Engineer (Remote)',
+          department: 'Software Engineering',
+          avatarInitials: 'RH',
+          avatarColor: MACQUIRES_PALETTE.bdazzledBlue,
+          leaveType: 'Annual Vacation',
+          fromDay: 12,
+          toDay: 16,
+          daysCount: 5,
+        });
+
+        const result = processManagerLeaveDecision({
+          item: initialReq.approvalItem,
+          decision: 'Approved',
+          managerName: 'Tariq Al-Ghamdi',
+        });
+
+        assertEqual(result.updatedItem.status, 'Approved');
+        assertEqual(result.updatedItem.stage, 'APPROVED');
+        assertEqual(result.shouldDeductBalance, true);
+        assertEqual(result.shouldAddToWhosOff, true);
+
+        // HR notification created
+        assertTrue(Boolean(result.hrNotification));
+        assertTrue(result.hrNotification!.title.includes('Leave Approved'));
+        assertTrue(result.hrNotification!.body.includes('Rahaf Al-Mansoor') || result.hrNotification!.body.includes('HR'));
+
+        // Employee notification created
+        assertTrue(result.employeeNotification.title.includes('Approved'));
+      }
+    );
+
+    itCase(
+      'TC-P5.4: Manager rejection declines request, notifies employee, and avoids deducting leave balance',
+      () => {
+        const initialReq = createLeaveWorkflowRequest({
+          employeeId: 'EMP-1042',
+          employeeName: 'Rayan Al-Harbi',
+          role: 'Senior Mobile Engineer',
+          department: 'Software Engineering',
+          avatarInitials: 'RH',
+          avatarColor: MACQUIRES_PALETTE.bdazzledBlue,
+          leaveType: 'Emergency Leave',
+          fromDay: 20,
+          toDay: 21,
+          daysCount: 2,
+        });
+
+        const result = processManagerLeaveDecision({
+          item: initialReq.approvalItem,
+          decision: 'Rejected',
+          managerName: 'Tariq Al-Ghamdi',
+        });
+
+        assertEqual(result.updatedItem.status, 'Rejected');
+        assertEqual(result.updatedItem.stage, 'REJECTED');
+        assertEqual(result.shouldDeductBalance, false);
+        assertEqual(result.shouldAddToWhosOff, false);
+        assertTrue(result.employeeNotification.title.includes('Declined'));
+      }
+    );
+
+    itCase(
+      'TC-P5.5: Branch attendance breakdown provides accurate remote and HQ distribution',
+      () => {
+        const stats = getOrganizationAttendanceOverview();
+        assertEqual(stats.length, 3);
+        const pkRemote = stats.find((s) => s.branchKey === 'pakistan_remote');
+        assertTrue(Boolean(pkRemote));
+        assertEqual(pkRemote!.workingRemotely, 14);
+
+        const riyadhHq = stats.find((s) => s.branchKey === 'riyadh_hq');
+        assertTrue(Boolean(riyadhHq));
+        assertEqual(riyadhHq!.totalHeadcount, 48);
       }
     );
   }

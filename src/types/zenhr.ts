@@ -87,6 +87,12 @@ export interface ApprovalItem {
   endDate: string;
   amountSar?: number;
   notes?: string;
+  stage?: 'PENDING_MANAGER' | 'PENDING_HR' | 'APPROVED' | 'REJECTED';
+  leaveType?: LeaveType;
+  managerName?: string;
+  hrName?: string;
+  daysCount?: number;
+  employeeId?: string;
 }
 
 export interface AttendanceRecord {
