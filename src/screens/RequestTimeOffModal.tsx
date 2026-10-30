@@ -27,7 +27,7 @@ interface RequestTimeOffModalProps {
     daysCount: number;
     notes: string;
     hasAttachment: boolean;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 const LEAVE_TYPES: LeaveType[] = [
@@ -40,8 +40,6 @@ const LEAVE_TYPES: LeaveType[] = [
 
 const WEEKDAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 const WEEKDAYS_AR = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
-const DAYS_IN_MONTH = Array.from({ length: 31 }, (_, i) => i + 1);
-
 export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
   visible,
   colors,
@@ -58,6 +56,12 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
   const [toDay, setToDay] = useState<number>(23);
   const [notes, setNotes] = useState<string>('');
   const [hasAttachment, setHasAttachment] = useState<boolean>(false);
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonthLabel = currentDate.toLocaleDateString('en-US', { month: 'long' });
+  const currentMonthShortLabel = currentDate.toLocaleDateString('en-US', { month: 'short' });
+  const daysInCurrentMonth = new Date(currentYear, currentDate.getMonth() + 1, 0).getDate();
+  const daysInMonth = Array.from({ length: daysInCurrentMonth }, (_, i) => i + 1);
 
   const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
@@ -84,8 +88,8 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
     }
   };
 
-  const handleSubmit = () => {
-    onSubmitRequest({
+  const handleSubmit = async () => {
+    await onSubmitRequest({
       leaveType: selectedLeaveType,
       fromDay,
       toDay: rangeMode === 'single' ? fromDay : toDay,
@@ -93,7 +97,6 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
       notes,
       hasAttachment,
     });
-    onClose();
   };
 
   return (
@@ -203,7 +206,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
               onPress={() => setDateSheetOpen((prev) => !prev)}
             >
               <Text style={[styles.inputValue, { color: colors.textPrimary }, rtlText(isRTL)]}>
-                {tr(`Jan ${fromDay}, 2026`)} - {tr(`Jan ${rangeMode === 'single' ? fromDay : toDay}, 2026`)}
+                 {tr(`${currentMonthShortLabel} ${fromDay}, ${currentYear}`)} - {tr(`${currentMonthShortLabel} ${rangeMode === 'single' ? fromDay : toDay}, ${currentYear}`)}
               </Text>
               <Feather name="calendar" size={18} color={colors.accent} />
             </TouchableOpacity>
@@ -358,7 +361,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                       <Text
                         style={[styles.fromToValue, { color: colors.textPrimary }]}
                       >
-                        {tr(`Jan ${fromDay}, 2026`)}
+                         {tr(`${currentMonthShortLabel} ${fromDay}, ${currentYear}`)}
                       </Text>
                     </View>
                   </View>
@@ -378,7 +381,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                       <Text
                         style={[styles.fromToValue, { color: colors.textPrimary }]}
                       >
-                        {tr(`Jan ${rangeMode === 'single' ? fromDay : toDay}, 2026`)}
+                         {tr(`${currentMonthShortLabel} ${rangeMode === 'single' ? fromDay : toDay}, ${currentYear}`)}
                       </Text>
                     </View>
                   </View>
@@ -392,7 +395,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                     color={colors.textPrimary}
                   />
                   <Text style={[styles.monthTitle, { color: colors.textPrimary }]}>
-                    {tr("January 2026")}
+                     {tr(`${currentMonthLabel} ${currentYear}`)}
                   </Text>
                   <Feather
                     name="chevron-right"
@@ -415,7 +418,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
 
                 {/* Days Grid */}
                 <View style={styles.daysGrid}>
-                  {DAYS_IN_MONTH.map((day) => {
+                  {daysInMonth.map((day) => {
                     const effectiveTo =
                       rangeMode === 'single' ? fromDay : toDay;
                     const isEndpoint = day === fromDay || day === effectiveTo;
@@ -461,7 +464,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                     styles.applyButton,
                     { backgroundColor: colors.primary },
                   ]}
-                  onPress={handleSubmit}
+                  onPress={() => void handleSubmit()}
                 >
                   <Text style={styles.applyButtonText}>
                     {t.apply} ({daysCount.toFixed(2)} {t.days})

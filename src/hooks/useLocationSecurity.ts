@@ -9,14 +9,6 @@ import {
   RawLocationTelemetry,
 } from '../services/locationSecurity';
 
-export type SimulationPreset =
-  | 'LIVE_VERIFIED_HQ'
-  | 'REAL_DEVICE_GPS'
-  | 'SIMULATE_SPOOF_MOCK_GPS'
-  | 'SIMULATE_OUTSIDE_GEOFENCE'
-  | 'SIMULATE_POOR_ACCURACY'
-  | 'SIMULATE_COMPROMISED_ROOT';
-
 export type WorkLocationMode = 'REMOTE_HOME' | 'OFFICE_BRANCH';
 
 export interface UseLocationSecurityResult {
@@ -26,11 +18,7 @@ export interface UseLocationSecurityResult {
   loadingLocation: boolean;
   liveAddressLabel: string;
   workLocationMode: WorkLocationMode;
-  simulationPreset: SimulationPreset;
-  setSimulationPreset: (preset: SimulationPreset) => void;
   refreshLiveLocation: () => Promise<void>;
-  toggleBiometricVerified: () => void;
-  toggleWifiConnected: () => void;
 }
 
 const DEFAULT_HQ = MACQUIRES_BRANCHES[0];
@@ -122,8 +110,6 @@ async function resolveHumanReadableAddress(
 }
 
 export function useLocationSecurity(): UseLocationSecurityResult {
-  const [simulationPreset, setSimulationPresetState] =
-    useState<SimulationPreset>('REAL_DEVICE_GPS');
   const [permissionStatus, setPermissionStatus] = useState<
     'granted' | 'denied' | 'undetermined'
   >('undetermined');
@@ -213,30 +199,6 @@ export function useLocationSecurity(): UseLocationSecurityResult {
     []
   );
 
-  const applyPreset = useCallback((preset: SimulationPreset) => {
-    setSimulationPresetState(preset);
-    const now = Date.now();
-
-    if (preset === 'LIVE_VERIFIED_HQ') {
-      setAssignedHomeOrLiveBranch(null);
-      setLiveAddressLabel(DEFAULT_HQ.name);
-      setTelemetry({
-        latitude: DEFAULT_HQ.latitude + 0.00012,
-        longitude: DEFAULT_HQ.longitude + 0.00008,
-        accuracy: 8.4,
-        altitude: 612,
-        speed: 0.2,
-        mocked: false,
-        timestamp: now,
-        wifiSsid: DEFAULT_HQ.allowedWifiSsid,
-        wifiBssid: DEFAULT_HQ.allowedWifiBssids[0],
-        bleBeaconDetected: true,
-        isJailbrokenOrRooted: false,
-        biometricVerified: true,
-      });
-    }
-  }, []);
-
   const refreshLiveLocation = useCallback(async () => {
     setLoadingLocation(true);
     try {
@@ -271,7 +233,6 @@ export function useLocationSecurity(): UseLocationSecurityResult {
         accuracy: Location.Accuracy.Highest,
       });
 
-      setSimulationPresetState('REAL_DEVICE_GPS');
       await updateWithExactHardwareCoords({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
@@ -354,29 +315,6 @@ export function useLocationSecurity(): UseLocationSecurityResult {
     };
   }, [refreshLiveLocation, updateWithExactHardwareCoords]);
 
-  const toggleBiometricVerified = useCallback(() => {
-    setTelemetry((prev) => ({
-      ...prev,
-      biometricVerified: !prev.biometricVerified,
-      timestamp: Date.now(),
-    }));
-  }, []);
-
-  const toggleWifiConnected = useCallback(() => {
-    setTelemetry((prev) => {
-      const isCorp = prev.wifiBssid === DEFAULT_HQ.allowedWifiBssids[0];
-      return {
-        ...prev,
-        wifiSsid: isCorp ? 'Public-Cellular-Data' : DEFAULT_HQ.allowedWifiSsid,
-        wifiBssid: isCorp
-          ? '00:00:00:00:00:00'
-          : DEFAULT_HQ.allowedWifiBssids[0],
-        bleBeaconDetected: !isCorp,
-        timestamp: Date.now(),
-      };
-    });
-  }, []);
-
   const activeBranches = assignedHomeOrLiveBranch
     ? [assignedHomeOrLiveBranch, ...MACQUIRES_BRANCHES]
     : MACQUIRES_BRANCHES;
@@ -408,10 +346,6 @@ export function useLocationSecurity(): UseLocationSecurityResult {
     loadingLocation,
     liveAddressLabel,
     workLocationMode,
-    simulationPreset,
-    setSimulationPreset: applyPreset,
     refreshLiveLocation,
-    toggleBiometricVerified,
-    toggleWifiConnected,
   };
 }

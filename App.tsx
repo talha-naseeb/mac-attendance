@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   BackHandler,
   Platform,
@@ -41,6 +41,17 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { RequestTimeOffModal } from './src/screens/RequestTimeOffModal';
 import { SubModalType, SubModuleModal } from './src/screens/SubModuleModal';
 import { AuthSession } from './src/services/authService';
+import {
+  clearStoredAuthSession,
+  loadStoredAuthSession,
+  saveAuthSession,
+} from './src/services/authStorage';
+import {
+  decideLeaveToBackend,
+  loadMobileApiData,
+  submitLeaveToBackend,
+  submitPunchToBackend,
+} from './src/services/backendApi';
 import { UserRole } from './src/services/dashboardOptimizationService';
 import {
   buildTeamsApprovalAdaptiveCard,
@@ -77,12 +88,26 @@ if (Platform.OS === 'web') {
   require('./src/theme/palette.css');
 }
 
+function formatDateForNotification(value: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function toLocalIsoDate(year: number, monthIndex: number, day: number): string {
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 function MacqHRApp() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<AppLanguage>('en');
   const [showOpeningSplash, setShowOpeningSplash] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>('MANAGER');
+  const [userRole, setUserRole] = useState<UserRole>('EMPLOYEE');
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [assignedBranchId, setAssignedBranchId] = useState<string | undefined>();
+  const [isRemoteAllowed, setIsRemoteAllowed] = useState(false);
   const [biometricLocked, setBiometricLocked] = useState(false);
   const [activeBottomTab, setActiveBottomTab] = useState<'dashboard' | 'clock'>(
     'dashboard'
@@ -119,6 +144,11 @@ function MacqHRApp() {
   const [myAttendance, setMyAttendance] = useState<AttendanceRecord[]>(
     INITIAL_MY_ATTENDANCE
   );
+  const [subordinatesAttendance, setSubordinatesAttendance] = useState<AttendanceRecord[]>(
+    INITIAL_SUBORDINATES_ATTENDANCE
+  );
+  const [directory, setDirectory] = useState(INITIAL_DIRECTORY);
+  const [salarySlips, setSalarySlips] = useState(INITIAL_SALARY_SLIPS);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>(
     INITIAL_TRANSACTIONS
   );
@@ -135,6 +165,63 @@ function MacqHRApp() {
   const [breakInTime, setBreakInTime] = useState('-- : --');
   const [breakOutTime, setBreakOutTime] = useState('-- : --');
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadStoredAuthSession().then((session) => {
+      if (!mounted || !session) return;
+      setUserRole(session.role);
+      setEmployeeProfile(session.profile);
+      setAuthToken(session.token);
+      setAssignedBranchId(session.branchId);
+      setIsRemoteAllowed(session.isRemoteAllowed);
+      setIsAuthenticated(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const applyMobileApiData = useCallback((data: Awaited<ReturnType<typeof loadMobileApiData>>) => {
+    setLeaveBalances(data.leaveBalances);
+    setApprovals(data.approvals);
+    setMyAttendance(data.myAttendance);
+    setSubordinatesAttendance(data.subordinatesAttendance);
+    setWhosOff(data.whosOff);
+    setDirectory(data.directory);
+    setSalarySlips(data.salarySlips);
+  }, []);
+
+  const refreshMobileApiData = useCallback(async (token: string, role: UserRole) => {
+    const data = await loadMobileApiData(token, role);
+    applyMobileApiData(data);
+    return data;
+  }, [applyMobileApiData]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    let mounted = true;
+    void loadMobileApiData(authToken, userRole)
+      .then((data) => {
+        if (mounted) applyMobileApiData(data);
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        setNotifications((prev) => [
+          {
+            id: `api-load-${Date.now()}`,
+            title: 'Some live data could not be loaded',
+            body: error instanceof Error ? error.message : 'Please try again later.',
+            timeAgo: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [authToken, userRole, applyMobileApiData]);
 
   // Live timer counting up while clocked in and not on break
   useEffect(() => {
@@ -258,6 +345,27 @@ function MacqHRApp() {
     }
   };
 
+  const handleSubmitAttendancePunch = async (punch: {
+    type: 'CHECK_IN' | 'CHECK_OUT';
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number;
+    isMockLocation: boolean;
+    isDeviceRooted: boolean;
+    biometricVerified: boolean;
+    workMode: 'OFFICE' | 'REMOTE';
+  }) => {
+    if (!authToken) throw new Error('Your session has expired. Please sign in again.');
+    if (!assignedBranchId) throw new Error('No attendance branch is assigned to this account.');
+    await submitPunchToBackend(authToken, {
+      ...punch,
+      clientTimestamp: new Date().toISOString(),
+      branchId: assignedBranchId,
+      workMode: punch.workMode,
+    });
+    await refreshMobileApiData(authToken, userRole);
+  };
+
   const handleToggleBreak = () => {
     const nowStr = formatNowTime();
     if (!isOnBreak) {
@@ -269,11 +377,29 @@ function MacqHRApp() {
     }
   };
 
-  const handleDecideApproval = (
+  const handleDecideApproval = async (
     id: string,
     decision: 'Approved' | 'Rejected'
   ) => {
     const target = approvals.find((a) => a.id === id);
+    if (authToken && target?.category === 'Time Off' && !id.startsWith('apr-')) {
+      try {
+        await decideLeaveToBackend(authToken, id, decision === 'Approved' ? 'APPROVED' : 'REJECTED');
+        await refreshMobileApiData(authToken, userRole);
+      } catch (error) {
+        setNotifications((prev) => [
+          {
+            id: `approval-error-${Date.now()}`,
+            title: 'Approval was not saved',
+            body: error instanceof Error ? error.message : 'Please try again.',
+            timeAgo: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ]);
+      }
+      return;
+    }
     setApprovals((prev) =>
       prev.map((item) =>
         item.id === id
@@ -410,7 +536,7 @@ function MacqHRApp() {
     }
   };
 
-  const handleSubmitTimeOff = (payload: {
+  const handleSubmitTimeOff = async (payload: {
     leaveType: LeaveType;
     fromDay: number;
     toDay: number;
@@ -418,37 +544,45 @@ function MacqHRApp() {
     notes: string;
     hasAttachment: boolean;
   }) => {
-    const empName =
-      lang === 'ar' ? CURRENT_EMPLOYEE.fullNameAr : CURRENT_EMPLOYEE.fullName;
-    const empRole =
-      lang === 'ar' ? CURRENT_EMPLOYEE.titleAr : CURRENT_EMPLOYEE.title;
-    const fromDateStr = `Oct ${String(payload.fromDay).padStart(2, '0')}, 2026`;
-    const toDateStr = `Oct ${String(payload.toDay).padStart(2, '0')}, 2026`;
-
-    // 1. Create ApprovalItem in PENDING_MANAGER stage
-    const newApproval: ApprovalItem = {
-      id: `app-leave-${Date.now()}`,
-      employeeName: empName,
-      role: empRole,
-      avatarInitials: deriveAvatarInitials(CURRENT_EMPLOYEE.fullName),
-      avatarColor:
-        employeeProfile.avatarColor ?? MACQUIRES_PALETTE.prussianBlue,
-      category: 'Time Off',
-      headline: `${payload.leaveType} (${payload.daysCount} days)`,
-      subHeadline: `${fromDateStr} → ${toDateStr}`,
-      status: 'Pending',
-      stage: 'PENDING_MANAGER',
-      leaveType: payload.leaveType,
-      managerName: 'Tariq Al-Ghamdi',
-      startDate: fromDateStr,
-      endDate: toDateStr,
-      daysCount: payload.daysCount,
-      notes: payload.notes,
-    };
-
-    setApprovals((prev) => [newApproval, ...prev]);
-
-    // 2. Direct Manager (Tariq Al-Ghamdi) receives notification
+    if (!authToken) {
+      return;
+    }
+    const apiLeaveType = {
+      'Annual Vacation': 'ANNUAL',
+      'Sick Day off': 'SICK',
+      'Sick on file': 'SICK',
+      'Remote Work': 'REMOTE_WORK',
+      'Emergency Leave': 'UNPAID',
+      'Unpaid Leave': 'UNPAID',
+    }[payload.leaveType] || 'UNPAID';
+    const selectedYear = new Date().getFullYear();
+    const selectedMonth = new Date().getMonth();
+    const startDate = toLocalIsoDate(selectedYear, selectedMonth, payload.fromDay);
+    const endDate = toLocalIsoDate(selectedYear, selectedMonth, payload.toDay);
+    try {
+      await submitLeaveToBackend(authToken, {
+        type: apiLeaveType,
+        startDate,
+        endDate,
+        reason: payload.notes || payload.leaveType,
+      });
+      await refreshMobileApiData(authToken, userRole);
+    } catch (error) {
+      setNotifications((prev) => [
+        {
+          id: `leave-error-${Date.now()}`,
+          title: 'Leave request was not submitted',
+          body: error instanceof Error ? error.message : 'Please try again.',
+          timeAgo: 'Just now',
+          read: false,
+        },
+        ...prev,
+      ]);
+      return;
+    }
+    const empName = lang === 'ar' ? employeeProfile.fullNameAr : employeeProfile.fullName;
+    const fromDateStr = formatDateForNotification(startDate);
+    const toDateStr = formatDateForNotification(endDate);
     setNotifications((prev) => [
       {
         id: `notif-mgr-${Date.now()}`,
@@ -465,16 +599,6 @@ function MacqHRApp() {
       },
       ...prev,
     ]);
-
-    // 3. Sync Leave to Microsoft Outlook Calendar (/me/events) per RULES.md Section 3.3
-    const outlookEv = createOutlookLeaveCalendarEvent({
-      employeeName: CURRENT_EMPLOYEE.fullName,
-      leaveType: payload.leaveType,
-      fromDay: payload.fromDay,
-      toDay: payload.toDay,
-      notes: payload.notes,
-    });
-    setOutlookEvents((prev) => [outlookEv, ...prev]);
 
     setRequestTimeOffVisible(false);
   };
@@ -543,6 +667,10 @@ function MacqHRApp() {
   const handleLoginSuccess = (session: AuthSession) => {
     setUserRole(session.role);
     setEmployeeProfile(session.profile);
+    setAuthToken(session.token);
+    setAssignedBranchId(session.branchId);
+    setIsRemoteAllowed(session.isRemoteAllowed);
+    void saveAuthSession(session);
     if (session.authMethod === 'MICROSOFT_365_SSO') {
       setMicrosoftAccount((prev) => ({
         ...prev,
@@ -557,6 +685,10 @@ function MacqHRApp() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setAuthToken(null);
+    setAssignedBranchId(undefined);
+    setIsRemoteAllowed(false);
+    void clearStoredAuthSession();
     setActiveScreen('main');
     setActiveBottomTab('dashboard');
   };
@@ -703,7 +835,7 @@ function MacqHRApp() {
                 colors={colors}
                 lang={lang}
                 myAttendance={myAttendance}
-                subordinatesAttendance={INITIAL_SUBORDINATES_ATTENDANCE}
+                 subordinatesAttendance={subordinatesAttendance}
                 onBack={() => setActiveScreen('main')}
               />
             ) : activeBottomTab === 'clock' ? (
@@ -717,9 +849,11 @@ function MacqHRApp() {
                 breakInTime={breakInTime}
                 breakOutTime={breakOutTime}
                 elapsedMinutes={elapsedMinutes}
+                isRemoteAllowed={isRemoteAllowed}
                 teamsPresence={teamsPresence}
                 offlineQueueCount={offlinePunches.length}
                 onToggleClockInOut={handleToggleClockInOut}
+                onSubmitAttendancePunch={handleSubmitAttendancePunch}
                 onToggleBreak={handleToggleBreak}
                 onOpenAttendanceHistory={() => setActiveScreen('attendance')}
                 onBackToDashboard={() => setActiveBottomTab('dashboard')}
@@ -761,7 +895,6 @@ function MacqHRApp() {
                 teamsAvailability={teamsPresence.availability}
                 onLogout={handleLogout}
                 userRole={userRole}
-                onSelectRole={setUserRole}
                 onOpenAdminPanel={() => setAdminPanelVisible(true)}
               />
             )}
@@ -797,8 +930,8 @@ function MacqHRApp() {
             lang={lang}
             employeeProfile={employeeProfile}
             transactions={transactions}
-            salarySlips={INITIAL_SALARY_SLIPS}
-            directory={INITIAL_DIRECTORY}
+             salarySlips={salarySlips}
+             directory={directory}
             documents={INITIAL_DOCUMENTS}
             schedule={INITIAL_SCHEDULE}
             tasks={tasks}
@@ -830,9 +963,6 @@ function MacqHRApp() {
             activeRole={userRole}
             approvals={approvals}
             onClose={() => setAdminPanelVisible(false)}
-            onSelectRole={(nextRole) => {
-              setUserRole(nextRole);
-            }}
             onDecideApproval={handleDecideApproval}
           />
         </SafeAreaView>

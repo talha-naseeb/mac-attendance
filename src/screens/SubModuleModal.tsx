@@ -1652,8 +1652,8 @@ export const SubModuleModal: React.FC<SubModuleModalProps> = ({
                     ]}
                   >
                     {isRTL
-                      ? 'يتم ختم كل سجل حضور بتوقيع رقمي مشفر لمنع التلاعب بالوقت أو الإحداثيات.'
-                      : 'Each offline punch is sealed with an FNV-1a cryptographic signature to prevent timestamp or coordinate tampering.'}
+                      ? 'تساعد البصمات المحلية على اكتشاف التغييرات العرضية فقط ولا تمنع التلاعب. مزامنة الخادم معطلة حاليًا حتى دعم التوقيع الآمن للأجهزة.'
+                      : 'Offline punch checksums only detect accidental local changes; they do not prevent tampering. Server sync is currently disabled until secure device signing is supported.'}
                   </Text>
                   {offlinePunches.map((p) => (
                     <View

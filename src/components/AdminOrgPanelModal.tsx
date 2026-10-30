@@ -26,7 +26,6 @@ interface AdminOrgPanelModalProps {
   activeRole: UserRole;
   approvals: ApprovalItem[];
   onClose: () => void;
-  onSelectRole: (role: UserRole) => void;
   onDecideApproval: (id: string, decision: 'Approved' | 'Rejected') => void;
 }
 
@@ -39,7 +38,6 @@ export const AdminOrgPanelModal: React.FC<AdminOrgPanelModalProps> = ({
   activeRole,
   approvals,
   onClose,
-  onSelectRole,
   onDecideApproval,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminPanelTab>('hierarchy');
@@ -48,13 +46,6 @@ export const AdminOrgPanelModal: React.FC<AdminOrgPanelModalProps> = ({
 
   const isRTL = lang === 'ar';
   const attendanceStats = getOrganizationAttendanceOverview();
-
-  const rolePills: { role: UserRole; labelEn: string; labelAr: string; icon: string }[] = [
-    { role: 'EMPLOYEE', labelEn: 'Employee (Remote PK)', labelAr: 'موظف (عن بعد)', icon: 'user' },
-    { role: 'MANAGER', labelEn: 'Manager (Tariq)', labelAr: 'المدير (طارق)', icon: 'briefcase' },
-    { role: 'HR', labelEn: 'HR (Rahaf)', labelAr: 'الموارد البشرية (رهف)', icon: 'users' },
-    { role: 'ADMIN', labelEn: 'Executive Admin', labelAr: 'المسؤول التنفيذي', icon: 'shield' },
-  ];
 
   const pendingApprovals = approvals.filter((a) => a.status === 'Pending');
   const approvedApprovals = approvals.filter((a) => a.status === 'Approved');
@@ -99,54 +90,6 @@ export const AdminOrgPanelModal: React.FC<AdminOrgPanelModalProps> = ({
           <View style={styles.activeRoleBadge}>
             <Text style={styles.activeRoleText}>{activeRole}</Text>
           </View>
-        </View>
-
-        {/* Quick Role Switcher Row */}
-        <View
-          style={[
-            styles.roleSwitcherRow,
-            rtlRow(isRTL),
-            { backgroundColor: colors.surface, borderBottomColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.switchLabel, { color: colors.textSecondary }]}>
-            {isRTL ? 'تبديل الدور:' : 'Persona:'}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rolePillsScroll}>
-            {rolePills.map((p) => {
-              const active =
-                activeRole === p.role ||
-                (p.role === 'HR' && activeRole === 'HR_ADMIN');
-              return (
-                <TouchableOpacity
-                  key={p.role}
-                  style={[
-                    styles.rolePill,
-                    {
-                      backgroundColor: active ? colors.primary : colors.surfaceSubtle,
-                      borderColor: active ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => onSelectRole(p.role)}
-                  activeOpacity={0.8}
-                >
-                  <Feather
-                    name={p.icon as any}
-                    size={12}
-                    color={active ? '#FFFFFF' : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.rolePillText,
-                      { color: active ? '#FFFFFF' : colors.textPrimary },
-                    ]}
-                  >
-                    {isRTL ? p.labelAr : p.labelEn}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
         </View>
 
         {/* Tab Navigation Navigation Bar */}

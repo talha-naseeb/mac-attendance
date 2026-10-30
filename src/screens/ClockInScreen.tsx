@@ -29,9 +29,20 @@ interface ClockInScreenProps {
   breakInTime: string;
   breakOutTime: string;
   elapsedMinutes: number;
+  isRemoteAllowed?: boolean;
   teamsPresence?: TeamsPresenceState;
   offlineQueueCount?: number;
   onToggleClockInOut: () => void;
+  onSubmitAttendancePunch?: (punch: {
+    type: 'CHECK_IN' | 'CHECK_OUT';
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number;
+    isMockLocation: boolean;
+    isDeviceRooted: boolean;
+    biometricVerified: boolean;
+    workMode: 'OFFICE' | 'REMOTE';
+  }) => Promise<void>;
   onToggleBreak: () => void;
   onOpenAttendanceHistory: () => void;
   onBackToDashboard: () => void;
@@ -49,14 +60,18 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
   breakInTime,
   breakOutTime,
   elapsedMinutes,
+  isRemoteAllowed = false,
   onToggleClockInOut,
+  onSubmitAttendancePunch,
   onToggleBreak,
   onOpenAttendanceHistory,
   onBackToDashboard,
   onSecurityAuditEvent,
 }) => {
   const [now, setNow] = useState(new Date());
-  const [workMode, setWorkMode] = useState<WorkLocationMode>('remote_pakistan');
+  const [workMode, setWorkMode] = useState<WorkLocationMode>(
+    isRemoteAllowed ? 'remote_pakistan' : 'office_riyadh',
+  );
   const [autoClockEnabled, setAutoClockEnabled] = useState(true);
   const [securityBannerMsg, setSecurityBannerMsg] = useState<string | null>(
     null
@@ -103,7 +118,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
     year: 'numeric',
   });
 
-  const handleGuardedClockAction = () => {
+  const handleGuardedClockAction = async () => {
     if (!eligibility.canClock) {
       const reason =
         verdict.violationDetails[0] ||
@@ -118,13 +133,29 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
     }
 
     setSecurityBannerMsg(null);
-    onToggleClockInOut();
-    onSecurityAuditEvent?.(
-      eligibility.isRemote
-        ? `Verified Remote punch (Pakistan) — Sync to Riyadh HQ`
-        : `Verified punch at ${liveAddressLabel} (Trust: ${verdict.trustScore}%)`,
-      false
-    );
+    try {
+      await onSubmitAttendancePunch?.({
+        type: isClockedIn ? 'CHECK_OUT' : 'CHECK_IN',
+        latitude: telemetry.latitude,
+        longitude: telemetry.longitude,
+        accuracyMeters: telemetry.accuracy ?? Number.POSITIVE_INFINITY,
+        isMockLocation: Boolean(telemetry.mocked),
+        isDeviceRooted: Boolean(telemetry.isJailbrokenOrRooted),
+        biometricVerified: Boolean(telemetry.biometricVerified),
+        workMode: workMode === 'remote_pakistan' ? 'REMOTE' : 'OFFICE',
+      });
+      onToggleClockInOut();
+      onSecurityAuditEvent?.(
+        eligibility.isRemote
+          ? 'Verified Remote punch — synchronized to the HR API'
+          : `Verified punch at ${liveAddressLabel} (Trust: ${verdict.trustScore}%)`,
+        false,
+      );
+    } catch (error) {
+      setSecurityBannerMsg(
+        error instanceof Error ? error.message : 'Unable to save this attendance punch.',
+      );
+    }
   };
 
   return (
@@ -198,7 +229,8 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
         ]}
       >
         <TouchableOpacity
-          onPress={() => setWorkMode('remote_pakistan')}
+          onPress={() => isRemoteAllowed && setWorkMode('remote_pakistan')}
+          disabled={!isRemoteAllowed}
           style={[
             styles.workModePill,
             {

@@ -2,6 +2,11 @@ import { CURRENT_EMPLOYEE } from '../data/mockData';
 import { UserRole } from './dashboardOptimizationService';
 import { deriveAvatarInitials, EditableEmployeeProfile } from './profileSettingsService';
 import { MACQUIRES_PALETTE } from '../theme/colors';
+import {
+  ApiAuthSession,
+  authenticateWithBackend,
+  BackendApiError,
+} from './backendApi';
 
 export interface AuthCredentials {
   email: string;
@@ -15,6 +20,8 @@ export interface AuthSession {
   profile: EditableEmployeeProfile;
   authenticatedAt: number;
   authMethod: 'PASSWORD' | 'MICROSOFT_365_SSO';
+  branchId?: string;
+  isRemoteAllowed: boolean;
 }
 
 export const DEMO_USERS: Record<UserRole, EditableEmployeeProfile> = {
@@ -136,13 +143,14 @@ export function validateAndAuthenticate(
 
   return {
     valid: true,
-    session: {
-      token: `macqhr-jwt-${resolvedRole.toLowerCase()}-${Date.now()}`,
-      role: resolvedRole,
-      profile: userProfile,
-      authenticatedAt: Date.now(),
-      authMethod: 'PASSWORD',
-    },
+      session: {
+        token: `macqhr-jwt-${resolvedRole.toLowerCase()}-${Date.now()}`,
+        role: resolvedRole,
+        profile: userProfile,
+        authenticatedAt: Date.now(),
+        authMethod: 'PASSWORD',
+        isRemoteAllowed: false,
+      },
   };
 }
 
@@ -157,5 +165,33 @@ export function authenticateWithMicrosoftSso(role: UserRole = 'EMPLOYEE'): AuthS
     profile,
     authenticatedAt: Date.now(),
     authMethod: 'MICROSOFT_365_SSO',
+    isRemoteAllowed: false,
+  };
+}
+
+/**
+ * Authenticates the mobile app against the NestJS API and maps its corporate
+ * user record into the app's existing profile contract.
+ */
+export async function authenticateWithPasswordApi(
+  credentials: AuthCredentials,
+): Promise<AuthSession> {
+  const validation = validateAndAuthenticate(credentials);
+  if (!validation.valid) {
+    throw new BackendApiError('Enter a valid work email and a password of at least 6 characters.');
+  }
+
+  const backendSession: ApiAuthSession = await authenticateWithBackend(
+    credentials.email.trim().toLowerCase(),
+    credentials.password || '',
+  );
+  return {
+    token: backendSession.token,
+    role: backendSession.role,
+    profile: backendSession.profile,
+    branchId: backendSession.branchId,
+    isRemoteAllowed: backendSession.isRemoteAllowed,
+    authenticatedAt: Date.now(),
+    authMethod: 'PASSWORD',
   };
 }

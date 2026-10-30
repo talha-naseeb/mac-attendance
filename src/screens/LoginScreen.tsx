@@ -15,16 +15,16 @@ import { MacqLogo } from '../components/MacqLogo';
 import {
   AuthCredentials,
   AuthSession,
-  validateAndAuthenticate,
-  authenticateWithMicrosoftSso,
+  authenticateWithPasswordApi,
 } from '../services/authService';
+import { BackendApiError } from '../services/backendApi';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText, TYPOGRAPHY } from '../theme/typography';
 
 interface LoginScreenProps {
   colors: ThemeColors;
   lang: AppLanguage;
-  onLoginSuccess: (session: AuthSession) => void;
+  onLoginSuccess: (session: AuthSession) => void | Promise<void>;
   onToggleLanguage: () => void;
   onToggleTheme: () => void;
 }
@@ -36,65 +36,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onToggleLanguage,
   onToggleTheme,
 }) => {
-  const [email, setEmail] = useState('rahaf.mansoor@macquires.sa');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isRTL = lang === 'ar';
+  const msTenantId = process.env.EXPO_PUBLIC_MS_ENTRA_TENANT_ID;
+  const msClientId = process.env.EXPO_PUBLIC_MS_ENTRA_CLIENT_ID;
+  const isMicrosoftSsoConfigured = Boolean(msTenantId && msClientId);
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     setIsSubmitting(true);
     setErrorMessage(null);
-
-    const res = validateAndAuthenticate({
-      email,
-      password,
-    });
-
-    setTimeout(() => {
+    try {
+      const session = await authenticateWithPasswordApi({ email, password });
+      await onLoginSuccess(session);
+    } catch (error) {
+      const message =
+        error instanceof BackendApiError
+          ? error.message
+          : 'Invalid credentials. Please try again.';
+      setErrorMessage(isRTL ? `تعذر تسجيل الدخول: ${message}` : message);
+    } finally {
       setIsSubmitting(false);
-      if (!res.valid || !res.session) {
-        if (res.error === 'EMPTY_EMAIL') {
-          setErrorMessage(
-            isRTL
-              ? 'الرجاء إدخال البريد الإلكتروني للعمل'
-              : 'Please enter your work email.'
-          );
-        } else if (res.error === 'INVALID_EMAIL') {
-          setErrorMessage(
-            isRTL
-              ? 'صيغة البريد الإلكتروني غير صحيحة'
-              : 'Please enter a valid work email address.'
-          );
-        } else if (res.error === 'SHORT_PASSWORD') {
-          setErrorMessage(
-            isRTL
-              ? 'كلمة المرور يجب أن لا تقل عن 6 خانات'
-              : 'Password must be at least 6 characters.'
-          );
-        } else {
-          setErrorMessage(
-            isRTL
-              ? 'بيانات الاعتماد غير صالحة'
-              : 'Invalid credentials. Please try again.'
-          );
-        }
-        return;
-      }
-
-      onLoginSuccess(res.session);
-    }, 450);
-  };
-
-  const handleMicrosoftSso = () => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const session = authenticateWithMicrosoftSso();
-      onLoginSuccess(session);
-    }, 550);
+    }
   };
 
   return (
@@ -328,53 +295,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             )}
           </TouchableOpacity>
 
-          {/* Or Divider */}
-          <View style={styles.dividerRow}>
-            <View
-              style={[styles.dividerLine, { backgroundColor: colors.border }]}
-            />
-            <Text
-              style={[
-                styles.dividerText,
-                { color: colors.textMuted, backgroundColor: colors.surface },
-              ]}
-            >
-              {isRTL ? 'أو عبر الهوية الموحدة' : 'or continue with'}
-            </Text>
-            <View
-              style={[styles.dividerLine, { backgroundColor: colors.border }]}
-            />
-          </View>
+          {/* Microsoft 365 Entra ID SSO Button (only when configured) */}
+          {isMicrosoftSsoConfigured && (
+            <>
+              {/* Or Divider */}
+              <View style={styles.dividerRow}>
+                <View
+                  style={[styles.dividerLine, { backgroundColor: colors.border }]}
+                />
+                <Text
+                  style={[
+                    styles.dividerText,
+                    { color: colors.textMuted, backgroundColor: colors.surface },
+                  ]}
+                >
+                  {isRTL ? 'أو عبر الهوية الموحدة' : 'or continue with'}
+                </Text>
+                <View
+                  style={[styles.dividerLine, { backgroundColor: colors.border }]}
+                />
+              </View>
 
-          {/* Microsoft 365 Entra ID SSO Button */}
-          <TouchableOpacity
-            style={[
-              styles.msSsoBtn,
-              rtlRow(isRTL),
-              {
-                backgroundColor: colors.isDark ? '#001D38' : '#F8FAFC',
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={handleMicrosoftSso}
-            activeOpacity={0.85}
-          >
-            {/* Microsoft 4-square icon representation */}
-            <View style={styles.msLogoSquare}>
-              <View style={[styles.msSubSquare, { backgroundColor: '#F25022' }]} />
-              <View style={[styles.msSubSquare, { backgroundColor: '#7FBA00' }]} />
-              <View style={[styles.msSubSquare, { backgroundColor: '#00A4EF' }]} />
-              <View style={[styles.msSubSquare, { backgroundColor: '#FFB900' }]} />
-            </View>
-            <Text
-              style={[styles.msSsoBtnText, { color: colors.textPrimary }]}
-              numberOfLines={1}
-            >
-              {isRTL
-                ? 'تسجيل الدخول بواسطة Microsoft 365'
-                : 'Sign in with Microsoft 365'}
-            </Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.msSsoBtn,
+                  rtlRow(isRTL),
+                  {
+                    backgroundColor: colors.isDark ? '#001D38' : '#F8FAFC',
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  setErrorMessage(
+                    isRTL
+                      ? 'تسجيل الدخول عبر Microsoft 365 غير مهيأ لهذا الجهاز.'
+                      : 'Microsoft 365 SSO is not configured for this build yet.',
+                  );
+                }}
+                activeOpacity={0.85}
+              >
+                {/* Microsoft 4-square icon representation */}
+                <View style={styles.msLogoSquare}>
+                  <View style={[styles.msSubSquare, { backgroundColor: '#F25022' }]} />
+                  <View style={[styles.msSubSquare, { backgroundColor: '#7FBA00' }]} />
+                  <View style={[styles.msSubSquare, { backgroundColor: '#00A4EF' }]} />
+                  <View style={[styles.msSubSquare, { backgroundColor: '#FFB900' }]} />
+                </View>
+                <Text
+                  style={[styles.msSsoBtnText, { color: colors.textPrimary }]}
+                  numberOfLines={1}
+                >
+                  {isRTL
+                    ? 'تسجيل الدخول بواسطة Microsoft 365'
+                    : 'Sign in with Microsoft 365'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Footer info */}

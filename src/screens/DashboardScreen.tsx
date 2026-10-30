@@ -74,11 +74,8 @@ interface DashboardScreenProps {
   teamsAvailability?: string;
   onLogout?: () => void;
   userRole?: UserRole;
-  onSelectRole?: (role: UserRole) => void;
   onOpenAdminPanel?: () => void;
 }
-
-const ROLES_ORDER: UserRole[] = ['MANAGER', 'EMPLOYEE', 'HR_ADMIN'];
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   colors,
@@ -107,7 +104,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   teamsAvailability = 'Available',
   onLogout,
   userRole,
-  onSelectRole,
   onOpenAdminPanel,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -121,17 +117,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       ? selectedActionIds
       : DEFAULT_SELECTED_ACTIONS
   );
-  const [internalRole, setInternalRole] = useState<UserRole>(userRole ?? 'MANAGER');
-  const activeRole = userRole ?? internalRole;
+  const activeRole: UserRole = userRole ?? 'EMPLOYEE';
   const [hydratedSections, setHydratedSections] = useState<SectionHydrationMap>(
     () => createInitialHydrationMap(false)
   );
-
-  useEffect(() => {
-    if (userRole) {
-      setInternalRole(userRole);
-    }
-  }, [userRole]);
 
   useEffect(() => {
     if (selectedActionIds && selectedActionIds.length > 0) {
@@ -195,14 +184,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       timers.forEach((timer) => clearTimeout(timer));
     };
   }, [activeRole, authorizedSections]);
-
-  const handleSelectRole = useCallback(
-    (nextRole: UserRole) => {
-      setInternalRole(nextRole);
-      onSelectRole?.(nextRole);
-    },
-    [onSelectRole]
-  );
 
   // Ensure avatars never blend into the card surface (e.g. Prussian Blue on Prussian Blue in dark mode).
   const avatarBg = useCallback(
