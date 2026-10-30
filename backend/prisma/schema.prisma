@@ -1,0 +1,264 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  EMPLOYEE
+  MANAGER
+  HR_ADMIN
+  SUPER_ADMIN
+}
+
+enum AttendanceStatus {
+  VERIFIED
+  FLAGGED
+  REJECTED
+  INCOMPLETE
+  ON_LEAVE
+}
+
+enum WorkMode {
+  OFFICE
+  REMOTE
+}
+
+enum LeaveType {
+  ANNUAL_VACATION
+  SICK_LEAVE
+  HAJJ_LEAVE
+  PATERNITY_LEAVE
+  MATERNITY_LEAVE
+  MARRIAGE_LEAVE
+  BEREAVEMENT_LEAVE
+  REMOTE_WORK
+  CASUAL_LEAVE
+  UNPAID_LEAVE
+}
+
+enum LeaveStatus {
+  PENDING
+  PENDING_MANAGER
+  PENDING_HR
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                    String              @id @default(uuid())
+  employeeId            String              @unique
+  email                 String              @unique
+  passwordHash          String
+  role                  UserRole            @default(EMPLOYEE)
+  
+  // Profile Identity
+  firstName             String
+  lastName              String
+  fullName              String
+  fullNameAr            String
+  jobTitle              String
+  titleAr               String?
+  department            String
+  departmentAr          String?
+  phone                 String?
+  avatarUrl             String?
+  avatarInitials        String              @default("MA")
+  avatarPresetId        String              @default("navy")
+  avatarColor           String              @default("#002C52")
+  
+  // Saudi Labor Law & Payroll
+  isSaudi               Boolean             @default(true)
+  nationalId            String?
+  iqamaNumber           String?
+  basicSalarySar        Float               @default(10000.0)
+  housingAllowanceSar   Float               @default(2500.0)
+  transportAllowanceSar Float               @default(1000.0)
+  isActive              Boolean             @default(true)
+
+  // Remote Work & Platform Privileges
+  isRemoteAllowed       Boolean             @default(false)
+  remoteLocation        String?             // e.g. "Lahore, Pakistan (Remote Hub)"
+  isAttendanceExempt    Boolean             @default(false) // e.g. Executive Super Admins
+  canAccessWebAdmin     Boolean             @default(false) // True for SUPER_ADMIN & HR_ADMIN
+  
+  // Organization Hierarchy
+  managerId             String?
+  manager               User?               @relation("TeamHierarchy", fields: [managerId], references: [id])
+  subordinates          User[]              @relation("TeamHierarchy")
+  directReports         User[]              @relation("DirectReports")
+  reportsToId           String?
+  reportsTo             User?               @relation("DirectReports", fields: [reportsToId], references: [id])
+
+  // Branch Assignment
+  branchId              String?
+  branch                Branch?             @relation(fields: [branchId], references: [id])
+
+  // Relations
+  attendance            AttendanceRecord[]
+  leaveBalances         LeaveBalance[]
+  leaveRequests         LeaveRequest[]      @relation("EmployeeRequests")
+  decidedLeaves         LeaveRequest[]      @relation("DecidedByManager")
+  offlinePunches        OfflinePunchQueue[]
+  auditLogs             AuditLog[]
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([role])
+  @@index([managerId])
+  @@index([branchId])
+}
+
+model Branch {
+  id                   String              @id @default(uuid())
+  name                 String              @unique
+  nameAr               String
+  code                 String?             @unique
+  city                 String
+  cityAr               String
+  address              String?
+  latitude             Float
+  longitude            Float
+  geofenceRadiusMeters Float               @default(150.0)
+  radiusMeters         Float               @default(150.0)
+  wifiBssids           String[]            @default([])
+  bleBeacons           String[]            @default([])
+  isActive             Boolean             @default(true)
+
+  users                User[]
+  attendance           AttendanceRecord[]
+
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+model AttendanceRecord {
+  id                 String              @id @default(uuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  branchId           String?
+  branch             Branch?             @relation(fields: [branchId], references: [id])
+
+  type               String              @default("CHECK_IN") // CHECK_IN | CHECK_OUT
+  timestamp          DateTime            @default(now())
+  dateIso            String?             // e.g. "2026-10-24"
+  clockInTime        String?             // e.g. "09:02 AM"
+  clockOutTime       String?             // e.g. "05:14 PM"
+  
+  status             AttendanceStatus    @default(VERIFIED)
+  workMode           WorkMode            @default(OFFICE)
+  
+  // GPS & Telemetry verification
+  latitude           Float
+  longitude          Float
+  accuracyMeters     Float
+  distanceToBranch   Float?
+  isMockLocation     Boolean             @default(false)
+  isDeviceRooted     Boolean             @default(false)
+  wifiBssid          String?
+  biometricVerified  Boolean             @default(true)
+  
+  // Offline Punch tracking
+  wasOfflineSynced   Boolean             @default(false)
+  offlineSignature   String?
+  notes              String?
+  
+  // Anti-Spoofing Security Flags (Array of triggered rules)
+  securityFlags      String[]            @default([])
+  
+  // Duration Metrics
+  workingMinutes     Int                 @default(0)
+  breakMinutes       Int                 @default(0)
+  
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model LeaveBalance {
+  id            String              @id @default(uuid())
+  userId        String
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  leaveType     String
+  totalDays     Int
+  usedDays      Int                 @default(0)
+  remainingDays Int                 @default(30)
+  year          Int                 @default(2026)
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([userId, leaveType, year])
+}
+
+model LeaveRequest {
+  id                          String              @id @default(uuid())
+  userId                      String
+  user                        User                @relation("EmployeeRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  type                        String              @default("ANNUAL")
+  startDate                   DateTime
+  endDate                     DateTime
+  daysCount                   Int
+  reason                      String?
+  attachmentUrl               String?
+
+  status                      String              @default("PENDING") // PENDING, APPROVED, REJECTED
+
+  reviewedBy                  String?
+  reviewedAt                  DateTime?
+  decidedById                 String?
+  decidedBy                   User?               @relation("DecidedByManager", fields: [decidedById], references: [id])
+  decidedAt                   DateTime?
+  rejectionReason             String?
+
+  // MS 365 Cloud Sync Identifiers
+  teamsAdaptiveCardMessageId  String?
+  outlookCalendarEventId      String?
+
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OfflinePunchQueue {
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rawTelemetryJson  Json
+  fnv1aSignature    String
+  isTampered        Boolean             @default(false)
+  isSynced          Boolean             @default(false)
+  syncedAt          DateTime?
+
+  createdAt         DateTime            @default(now())
+
+  @@index([userId, isSynced])
+}
+
+model AuditLog {
+  id            String              @id @default(uuid())
+  actorUserId   String?
+  actorUser     User?               @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  action        String              // e.g. "GEOFENCE_BREACH_DETECTED", "MOCK_LOCATION_BLOCKED"
+  resource      String              // e.g. "AttendanceRecord", "LeaveRequest"
+  detailsJson   Json?
+  ipAddress     String?
+
+  createdAt     DateTime            @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+}
