@@ -194,7 +194,7 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 - `git status` is clean after setup; no required source file is untracked.
 - A database created only from committed migrations matches the Prisma schema.
 
-**Phase 6 status (2026-10-31)**: M1.1, M1.2, M1.4–M1.7 are implemented. M1.3 is partial: backend unit/service coverage was added, but isolated-database API tests and admin unit/component tests are outstanding. The baseline migration has not yet been exercised against an existing database copy. G1 is pending.
+**Phase 6 status (2026-10-31)**: M1.1, M1.2, M1.4–M1.7 are implemented. M1.3 is partial: backend unit/service coverage was added, but isolated-database API tests and admin unit/component tests are outstanding. The baseline migration was adopted on the existing local database on 2026-10-31: the live schema diffed clean against the Prisma schema, `migrate resolve --applied` recorded it, and row counts were unchanged. Applying it with `migrate deploy` to a pristine database is still to be exercised at G1. G1 is pending.
 
 **Out of scope**: deployment infrastructure and production hosting (M10).
 

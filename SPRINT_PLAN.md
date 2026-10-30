@@ -69,7 +69,7 @@ Status: **implemented, awaiting G1**. Automated verification is green; the devic
 | M1.1 All code tracked (backend, admin, docs, API clients, iOS source) | Done | Focused commits; `ios/Pods` and `ios/build` ignored |
 | M1.2 `verify:all` in CI | Done | `.github/workflows/verify.yml` |
 | M1.3 API tests with isolated DB; admin tests | **Partial** | 18 new backend unit/service tests (31 total); isolated DB API tests and admin tests remain |
-| M1.4 Prisma migration history | Done (baseline) | `backend/prisma/migrations/20261031000000_baseline` |
+| M1.4 Prisma migration history | Done (baseline; adopted on the local DB) | `backend/prisma/migrations/20261031000000_baseline` |
 | M1.5 Fail-fast secrets and CORS | Done | `configuration.ts`, `cors.ts`, `.env.example` files |
 | M1.6 SHA-bound push hook | Done | `.githooks/pre-push`, `npm run hooks:install` |
 | M1.7 Monorepo README | Done | `README.md` |
@@ -79,7 +79,7 @@ Status: **implemented, awaiting G1**. Automated verification is green; the devic
 
 Decisions applied with the recommended defaults: R-02 (version iOS source), R-03 (delete `data.db`, ignore personal tooling, commit `metro.config.js`), R-04 (port 4000), R-06 (remove dead demo controls), R-07 (hide SSO until configured). R-05, R-08, R-09 and R-10 remain open for their phases.
 
-Known Phase 6 residue: no isolated database API suite, no admin test suite, and the migration has not yet been exercised against an existing database copy.
+Known Phase 6 residue: no isolated database API suite and no admin test suite. The baseline was adopted on the existing local database on 2026-10-31 (empty schema diff, `migrate resolve --applied`, data intact); applying it with `migrate deploy` to a pristine database is still to be exercised at G1.
 
 ---
 

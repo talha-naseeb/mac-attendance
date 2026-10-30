@@ -316,10 +316,11 @@ Decide and document:
 - The employee detail endpoint returns compensation and identity fields only to the employee themselves, HR Admin or Super Admin.
 - The client role switcher, prefilled login credentials, dead location simulation controls and the unconfigured SSO button were removed or hidden.
 - A Prisma baseline migration, a `verify:all` CI workflow and a SHA-bound pre-push hook were added.
+- The baseline was adopted on the existing local database on 2026-10-31: the live schema diffed clean against `schema.prisma`, `migrate resolve --applied 20261031000000_baseline` recorded it, `migrate status` reports up to date, and row counts were unchanged.
 
 **Still open:**
 
 - G1 device checklist and Talha's signature for Phase 6.
 - M1.3: isolated-database API tests and admin unit/component tests.
-- Migration adoption against an existing database copy.
+- `migrate deploy` on a pristine database (the fresh-environment half of the migration path).
 - Decisions R-05, R-08, R-09 and R-10.
