@@ -1,0 +1,33 @@
+%% MacqHR — Sign-in and workspace authorization flow (TARGET STATE, PROPOSED)
+%% Two layers: authentication (who you are) vs workspace authorization (what you can do).
+%% Reading order: README.md §6.
+
+flowchart TD
+  A["Open mobile app or admin console"] --> B["Enter work email"]
+  B --> C["POST /auth/discover"]
+  C --> D{"Enforced SSO<br/>for this email domain?"}
+
+  D -- "No" --> E["Password or social sign-in"]
+  D -- "Yes" --> F["Redirect to provider<br/>Google Workspace or Microsoft Entra"]
+
+  F --> G["Verify OIDC token<br/>Google hd or Microsoft tid"]
+  G -- "mismatch" --> H["Reject: wrong domain or tenant"]
+
+  G -- "valid" --> I{"Membership exists?"}
+  I -- "Yes" --> J["Issue workspace token<br/>workspaceId, membershipId, role, sv"]
+  I -- "No" --> K{"autoProvision enabled?"}
+  K -- "Yes" --> L["Create User if new<br/>create Membership with defaultRole<br/>apply group mapping"]
+  K -- "No" --> M["403 INVITE_REQUIRED"]
+  L --> J
+  M --> S["Request invite or contact admin"]
+
+  E --> N["Verify credentials"]
+  N -- "invalid" --> O["Reject: generic auth error"]
+  N -- "valid" --> P{"Memberships greater than 1?"}
+  P -- "Yes" --> Q["Workspace picker"]
+  P -- "No" --> J
+  Q --> J
+
+  J --> R["API guard on every request<br/>membership ACTIVE + role + entitlement + tenant match"]
+  R --> T["Workspace-scoped data only"]
+  R -- "removed or suspended" --> U["401 session invalidated<br/>sv incremented"]

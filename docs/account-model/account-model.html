@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MacqHR — Account Model Blueprint</title>
+<style>
+  :root {
+    --macq-oxford: #001629;
+    --macq-prussian: #002c52;
+    --macq-indigo: #293f66;
+    --macq-bdazzled: #3f5678;
+    --macq-davys: #555555;
+    --macq-spanish: #999999;
+    --macq-orange: #fe5800;
+
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-raised: #f8fafc;
+    --surface-subtle: #ebf0f5;
+    --border: #dce3ec;
+    --border-strong: #c3cedb;
+    --text-primary: #001629;
+    --text-secondary: #555555;
+    --text-muted: #6b7a8c;
+    --accent: #fe5800;
+    --accent-fg: #001629;
+    --accent-soft: #fff0e8;
+    --focus: #fe5800;
+    --success: #137333;
+    --success-bg: #e6f4ea;
+    --warning: #8a4b00;
+    --warning-bg: #fff0e8;
+    --danger: #c5221f;
+    --danger-bg: #fce8e6;
+
+    --role-owner-bg: #ffe9dc;
+    --role-owner-fg: #8a2d00;
+    --role-hr-bg: #e6ecf2;
+    --role-hr-fg: #002c52;
+    --role-manager-bg: #eaeef5;
+    --role-manager-fg: #293f66;
+    --role-employee-bg: #f0f2f5;
+    --role-employee-fg: #3f5678;
+
+    --plan-individual-bg: #eaeef5;
+    --plan-individual-fg: #293f66;
+    --plan-business-bg: #e6ecf2;
+    --plan-business-fg: #002c52;
+    --plan-enterprise-bg: #001629;
+    --plan-enterprise-fg: #ffffff;
+
+    --shadow: 0 1px 2px rgba(0, 22, 41, 0.05), 0 12px 32px rgba(0, 22, 41, 0.06);
+    --topbar-bg: rgba(244, 246, 249, 0.88);
+    --radius: 16px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  [data-theme="dark"] {
+    --bg: #07111e;
+    --surface: #0e1c2e;
+    --surface-raised: #13263d;
+    --surface-subtle: #13263d;
+    --border: #243b57;
+    --border-strong: #35506f;
+    --text-primary: #f3f7fb;
+    --text-secondary: #c7d3e1;
+    --text-muted: #93a4b8;
+    --accent: #fe5800;
+    --accent-fg: #001629;
+    --accent-soft: #37200f;
+    --focus: #ff8547;
+    --success: #6ee7b7;
+    --success-bg: #064e3b;
+    --warning: #ffb68c;
+    --warning-bg: #3a2218;
+    --danger: #fca5a5;
+    --danger-bg: #450a0a;
+
+    --role-owner-bg: #3a2113;
+    --role-owner-fg: #ffb68c;
+    --role-hr-bg: #132b47;
+    --role-hr-fg: #b9d4f2;
+    --role-manager-bg: #1a2c4a;
+    --role-manager-fg: #c3d2ea;
+    --role-employee-bg: #1b2838;
+    --role-employee-fg: #afc0d4;
+
+    --plan-individual-bg: #1a2c4a;
+    --plan-individual-fg: #c3d2ea;
+    --plan-business-bg: #132b47;
+    --plan-business-fg: #b9d4f2;
+    --plan-enterprise-bg: #f3f7fb;
+    --plan-enterprise-fg: #001629;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.28);
+    --topbar-bg: rgba(7, 17, 30, 0.86);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  ::selection { background: var(--accent); color: var(--accent-fg); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+  .skip {
+    position: absolute; left: 16px; top: -60px;
+    background: var(--surface); color: var(--text-primary);
+    padding: 10px 14px; border-radius: 8px; z-index: 100;
+    border: 1px solid var(--border);
+  }
+  .skip:focus { top: 12px; }
+
+  .shell { width: 100%; max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--topbar-bg);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner { display: flex; align-items: center; gap: 24px; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; flex-shrink: 0; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(145deg, var(--macq-prussian), var(--macq-oxford));
+    color: #fff; display: grid; place-items: center;
+    font-weight: 800; font-size: 16px; letter-spacing: -0.5px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+  }
+  .brand-text { display: flex; flex-direction: column; line-height: 1.2; }
+  .brand-text strong { font-size: 14px; letter-spacing: 0.2px; }
+  .brand-text small { font-size: 11px; color: var(--text-muted); letter-spacing: 0.3px; }
+
+  .nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; margin-left: auto; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a {
+    text-decoration: none; font-size: 13px; font-weight: 600;
+    color: var(--text-secondary); padding: 7px 10px; border-radius: 8px;
+    white-space: nowrap;
+  }
+  .nav a:hover { background: var(--surface-subtle); color: var(--text-primary); }
+  .nav a[aria-current="true"] { background: var(--accent-soft); color: var(--accent-fg); }
+
+  .theme-toggle {
+    flex-shrink: 0; font: inherit; font-size: 12px; font-weight: 700;
+    color: var(--text-primary); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 7px 13px; cursor: pointer;
+  }
+  .theme-toggle:hover { border-color: var(--border-strong); }
+
+  .hero { padding-top: 72px; padding-bottom: 52px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 {
+    margin: 18px 0 18px; font-size: clamp(38px, 5.4vw, 60px);
+    line-height: 1.04; letter-spacing: -1.8px; font-weight: 800;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { max-width: 780px; margin: 0; font-size: 18px; color: var(--text-secondary); }
+  .lead strong { color: var(--text-primary); }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; margin: 40px 0 0;
+  }
+  .stat { background: var(--surface); padding: 18px 20px; }
+  .stat b { display: block; font-size: 22px; letter-spacing: -0.6px; line-height: 1.2; }
+  .stat span { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+  .decision {
+    margin-top: 28px; padding: 22px 24px;
+    background: linear-gradient(180deg, var(--accent-soft), transparent 160%);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: var(--radius);
+  }
+  .decision h2 {
+    margin: 0 0 8px; font-size: 14px; text-transform: uppercase;
+    letter-spacing: 1.1px; font-family: var(--mono);
+  }
+  .decision p { margin: 0; font-size: 16px; }
+  .decision p + p { margin-top: 8px; color: var(--text-secondary); font-size: 14px; }
+
+  section.block { padding-top: 58px; padding-bottom: 58px; border-top: 1px solid var(--border); scroll-margin-top: 84px; }
+  section#top { scroll-margin-top: 84px; }
+  .sec-head { display: flex; gap: 18px; align-items: baseline; margin-bottom: 28px; }
+  .sec-num {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--accent); letter-spacing: 1px; padding-top: 6px;
+  }
+  .sec-head h2 { margin: 0; font-size: clamp(25px, 3vw, 33px); letter-spacing: -0.9px; line-height: 1.15; }
+  .sec-head p { margin: 7px 0 0; color: var(--text-secondary); max-width: 780px; font-size: 15px; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 24px; padding: 0 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .badge.individual { background: var(--plan-individual-bg); color: var(--plan-individual-fg); }
+  .badge.business { background: var(--plan-business-bg); color: var(--plan-business-fg); }
+  .badge.enterprise { background: var(--plan-enterprise-bg); color: var(--plan-enterprise-fg); }
+  .badge.neutral { background: var(--surface-subtle); color: var(--text-secondary); }
+  .badge.success { background: var(--success-bg); color: var(--success); }
+  .badge.warn { background: var(--warning-bg); color: var(--warning); }
+
+  .package { display: flex; flex-direction: column; gap: 14px; position: relative; }
+  .package .badge { align-self: flex-start; }
+  .package.business { border-top: 4px solid var(--accent); }
+  .package h3 { margin: 2px 0 0; font-size: 23px; letter-spacing: -0.5px; }
+  .package > p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+  .package ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 9px; }
+  .package li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+  .package li::before {
+    content: ""; flex-shrink: 0; width: 6px; height: 6px; margin-top: 7px;
+    border-radius: 2px; background: var(--accent);
+  }
+  .package .foot {
+    margin-top: auto; padding-top: 14px; border-top: 1px dashed var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .package .foot code { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); }
+
+  .note-strip {
+    margin-top: 20px; display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 18px; border-radius: 12px;
+    background: var(--surface-raised); border: 1px solid var(--border);
+    font-size: 14px; color: var(--text-secondary);
+  }
+  .note-strip strong { color: var(--text-primary); }
+  .note-strip .mark { color: var(--accent); font-weight: 800; }
+
+  /* Entity flow */
+  .entity-flow {
+    display: grid; grid-template-columns: 1fr 54px 1fr 54px 1fr;
+    align-items: stretch; gap: 0; margin-bottom: 20px;
+  }
+  .entity {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  }
+  .entity.mid { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); }
+  .entity .kicker {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .entity h3 { margin: 7px 0 6px; font-size: 20px; letter-spacing: -0.4px; }
+  .entity p { margin: 0 0 12px; font-size: 13px; color: var(--text-secondary); }
+  .entity ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; }
+  .entity li { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); }
+  .entity li::before { content: "· "; color: var(--accent); }
+  .connector {
+    display: grid; place-items: center; position: relative;
+    font-family: var(--mono); font-size: 9px; color: var(--text-muted);
+    text-align: center; line-height: 1.4;
+  }
+  .connector::before {
+    content: ""; position: absolute; left: 6px; right: 6px; top: 50%;
+    height: 1px; background: var(--border-strong);
+  }
+  .connector span {
+    position: relative; background: var(--bg); padding: 4px 2px;
+    font-size: 9px; letter-spacing: 0.4px; max-width: 52px;
+  }
+
+  .satellites { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .satellite {
+    border: 1px dashed var(--border-strong); border-radius: 12px;
+    padding: 16px 18px; background: transparent;
+  }
+  .satellite h4 { margin: 0 0 5px; font-size: 14px; }
+  .satellite p { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+
+  /* Tables */
+  .scroll-hint { display: none; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; font-size: 14px; }
+  caption { text-align: left; padding: 14px 18px 0; font-size: 12px; color: var(--text-muted); }
+  th, td { padding: 11px 16px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  thead th {
+    background: var(--surface-subtle); font-size: 11px; letter-spacing: 0.7px;
+    text-transform: uppercase; color: var(--text-secondary); font-weight: 800;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: color-mix(in srgb, var(--surface-subtle) 55%, transparent); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .yes { color: var(--success); font-weight: 800; }
+  .no { color: var(--text-muted); }
+  .muted { color: var(--text-muted); }
+  .mono { font-family: var(--mono); font-size: 12px; }
+
+  .chip {
+    display: inline-flex; align-items: center; height: 24px; padding: 0 9px;
+    border-radius: 999px; font-size: 11.5px; font-weight: 800; white-space: nowrap;
+  }
+  .chip.owner { background: var(--role-owner-bg); color: var(--role-owner-fg); }
+  .chip.hr { background: var(--role-hr-bg); color: var(--role-hr-fg); }
+  .chip.manager { background: var(--role-manager-bg); color: var(--role-manager-fg); }
+  .chip.employee { background: var(--role-employee-bg); color: var(--role-employee-fg); }
+
+  .rules { margin: 20px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+  .rules li { display: flex; gap: 12px; font-size: 14px; color: var(--text-secondary); }
+  .rules b { color: var(--text-primary); }
+  .rules .n {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--accent-soft);
+    color: var(--accent-fg); font-size: 11px; font-weight: 800;
+  }
+
+  .approval {
+    display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+    align-items: center; gap: 8px; margin-top: 20px;
+  }
+  .approval .node {
+    border: 1px solid var(--border); background: var(--surface);
+    border-radius: 10px; padding: 12px 14px; text-align: center;
+  }
+  .approval .node b { display: block; font-size: 13px; }
+  .approval .node span { font-size: 11px; color: var(--text-muted); }
+  .approval .arrow { color: var(--text-muted); font-size: 16px; }
+
+  /* Flow timeline */
+  .flow { display: grid; gap: 0; margin-top: 8px; }
+  .step { display: grid; grid-template-columns: 34px 1fr; gap: 16px; padding: 0 0 26px; position: relative; }
+  .step:last-child { padding-bottom: 0; }
+  .step::before {
+    content: ""; position: absolute; left: 16px; top: 34px; bottom: 0;
+    width: 1px; background: var(--border);
+  }
+  .step:last-child::before { display: none; }
+  .step .circle {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 12px; font-weight: 800;
+    background: var(--surface-subtle); color: var(--text-secondary);
+    border: 1px solid var(--border); position: relative; z-index: 1;
+  }
+  .step.key .circle { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .step h4 { margin: 5px 0 4px; font-size: 15px; }
+  .step p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+  .step code { font-family: var(--mono); font-size: 11.5px; background: var(--surface-subtle); padding: 2px 6px; border-radius: 5px; }
+  .branches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  .branch {
+    border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px;
+    background: var(--surface-raised); font-size: 12.5px;
+  }
+  .branch b { display: block; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px; }
+  .branch.error { background: var(--danger-bg); border-color: color-mix(in srgb, var(--danger) 30%, var(--border)); }
+  .branch.ok { background: var(--success-bg); border-color: color-mix(in srgb, var(--success) 30%, var(--border)); }
+
+  .providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+  .provider { display: flex; flex-direction: column; gap: 10px; }
+  .provider-head { display: flex; align-items: center; gap: 12px; }
+  .provider-logo {
+    width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--surface-subtle); font-weight: 800; font-size: 15px;
+    border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .provider h4 { margin: 0; font-size: 15px; }
+  .provider small { color: var(--text-muted); font-size: 12px; }
+  .provider dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 12.5px; }
+  .provider dt { color: var(--text-muted); }
+  .provider dd { margin: 0; font-family: var(--mono); font-size: 11.5px; }
+
+  /* Plans */
+  .plan-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+
+  /* Wireframes */
+  .wf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .wf {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .wf-bar {
+    display: flex; align-items: center; gap: 6px; padding: 11px 14px;
+    border-bottom: 1px solid var(--border); background: var(--surface-raised);
+  }
+  .wf-bar i { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); display: block; }
+  .wf-bar span { margin-left: 6px; font-size: 10.5px; color: var(--text-muted); font-family: var(--mono); }
+  .wf-body { padding: 18px; }
+  .wf-body h5 { margin: 0 0 3px; font-size: 14.5px; }
+  .wf-body .sub { margin: 0 0 14px; font-size: 11.5px; color: var(--text-muted); }
+  .wf-option {
+    display: flex; gap: 11px; align-items: flex-start; padding: 12px;
+    border: 1px solid var(--border); border-radius: 11px; margin-bottom: 9px;
+  }
+  .wf-option.sel { border: 2px solid var(--accent); padding: 11px; background: var(--accent-soft); }
+  .wf-radio { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--border-strong); flex-shrink: 0; margin-top: 2px; }
+  .wf-option.sel .wf-radio { border: 4px solid var(--accent); background: var(--surface); }
+  .wf-option b { font-size: 12.5px; display: block; }
+  .wf-option small { font-size: 11px; color: var(--text-muted); }
+  .wf-field { margin-bottom: 9px; }
+  .wf-field label { display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 3px; }
+  .wf-input {
+    height: 30px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--surface-raised); display: flex; align-items: center;
+    padding: 0 9px; font-size: 11px; color: var(--text-secondary);
+  }
+  .wf-btn {
+    height: 32px; border-radius: 8px; background: var(--accent); color: var(--accent-fg);
+    display: grid; place-items: center; font-size: 11.5px; font-weight: 800;
+    margin-top: 12px;
+  }
+  .wf-row {
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px;
+    align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .wf-row:last-child { border-bottom: none; }
+  .wf-row.head { color: var(--text-muted); font-size: 9px; text-transform: uppercase; letter-spacing: 0.7px; }
+  .wf-person { display: flex; align-items: center; gap: 7px; }
+  .wf-avatar {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--macq-indigo);
+    color: #fff; font-size: 8px; font-weight: 800; display: grid; place-items: center;
+  }
+  .wf-toggle { width: 30px; height: 17px; border-radius: 999px; background: var(--border-strong); position: relative; }
+  .wf-toggle.on { background: var(--accent); }
+  .wf-toggle::after { content: ""; position: absolute; width: 13px; height: 13px; border-radius: 50%; background: #fff; top: 2px; left: 2px; }
+  .wf-toggle.on::after { left: 15px; }
+  .wf-line { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 6px 0; }
+
+  /* Tokens */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+  .swatch { border: 1px solid var(--border); border-radius: 11px; overflow: hidden; background: var(--surface); }
+  .swatch .color { height: 48px; }
+  .swatch .meta { padding: 8px 10px; }
+  .swatch .meta b { display: block; font-size: 11px; font-family: var(--mono); font-weight: 600; }
+  .swatch .meta span { display: block; font-size: 10px; color: var(--text-muted); font-family: var(--mono); }
+  .token-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+  .contrast {
+    margin-top: 18px; padding: 14px 16px; border-radius: 10px;
+    background: var(--warning-bg); color: var(--warning);
+    border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--border));
+    font-size: 13px;
+  }
+  .contrast b { color: var(--text-primary); }
+
+  /* Migration */
+  .phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .phase { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 18px; }
+  .phase .p { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
+  .phase h4 { margin: 6px 0 7px; font-size: 14.5px; }
+  .phase p { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+
+  .decisions { counter-reset: d; list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+  .decisions li { counter-increment: d; display: flex; gap: 12px; font-size: 13.5px; color: var(--text-secondary); }
+  .decisions li::before {
+    content: counter(d); flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px;
+    display: grid; place-items: center; background: var(--surface-subtle);
+    color: var(--text-secondary); font-size: 10px; font-weight: 800;
+  }
+  .decisions b { color: var(--text-primary); }
+
+  footer {
+    padding-top: 34px; padding-bottom: 50px;
+    border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px;
+  }
+  .foot-grid { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  footer a { color: var(--text-secondary); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+  footer ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+
+  @media (max-width: 960px) {
+    .nav { display: none; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .entity-flow { grid-template-columns: 1fr; gap: 10px; }
+    .connector { height: 30px; }
+    .connector::before { left: 50%; right: auto; top: 4px; bottom: 4px; width: 1px; height: auto; }
+    .connector span { padding: 2px 4px; }
+    .satellites, .grid-3, .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .approval { grid-template-columns: 1fr; }
+    .approval .arrow { transform: rotate(90deg); justify-self: center; }
+  }
+  @media (max-width: 720px) {
+    .grid-2, .wf-grid, .providers, .rules, .decisions, .satellites, .grid-3, .phases { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .hero { padding-top: 48px; padding-bottom: 36px; }
+    .sec-head { gap: 12px; }
+    .branches { grid-template-columns: 1fr; }
+    .scroll-hint {
+      display: flex; align-items: center; gap: 6px;
+      margin: 0 0 6px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.4px; text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .table-scroll { -webkit-overflow-scrolling: touch; }
+    .table-scroll th:first-child,
+    .table-scroll td:first-child {
+      position: sticky; left: 0; z-index: 2;
+      background: var(--surface);
+      min-width: 132px; max-width: 168px;
+    }
+    .table-scroll thead th:first-child {
+      background: var(--surface-subtle); z-index: 3;
+    }
+    .table-scroll tbody tr:hover td:first-child { background: var(--surface-subtle); }
+
+    /* Permission matrix becomes a stacked card list instead of a wide table */
+    #roles .scroll-hint { display: none; }
+    #roles .table-scroll { border: none; background: transparent; overflow: visible; }
+    #roles table, #roles tbody { display: block; min-width: 0; }
+    #roles thead { display: none; }
+    #roles caption { display: block; padding: 0 0 10px; background: transparent; }
+    #roles tbody tr {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; margin-bottom: 10px;
+    }
+    #roles tbody td {
+      display: block; padding: 10px 12px;
+      background: var(--surface); border: none;
+    }
+    #roles tbody td:first-child {
+      grid-column: 1 / -1; position: static;
+      min-width: 0; max-width: none;
+      background: var(--surface-subtle);
+      font-weight: 700; font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    #roles tbody td:not(:first-child)::before {
+      content: attr(data-label);
+      display: block; margin-bottom: 3px;
+      font-size: 9px; font-weight: 800; letter-spacing: 0.7px;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    #roles tbody tr:hover { background: var(--border); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation: none !important; transition: none !important; }
+  }
+  @media print {
+    .topbar, .skip, .theme-toggle { display: none; }
+    body { background: #fff; color: #000; }
+    section.block { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="#top" aria-label="MacqHR blueprint home">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span class="brand-text">
+        <strong>MacqHR</strong>
+        <small>Account model blueprint</small>
+      </span>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#packages">Packages</a>
+      <a href="#model">Model</a>
+      <a href="#roles">Roles</a>
+      <a href="#signin">Sign-in</a>
+      <a href="#plans">Plans</a>
+      <a href="#ux">UX</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#migration">Migration</a>
+    </nav>
+    <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">Dark mode</button>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero shell" id="top">
+    <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Target state · proposed · 30 Oct 2026</span>
+    <h1>Two packages.<br /><em>One tenant spine.</em></h1>
+    <p class="lead">
+      Individual and Business should not be two products. Both are <strong>workspaces</strong>; a role belongs to a
+      <strong>membership</strong>, not to a person. That one decision makes Google and Microsoft identity, team roles,
+      approvals and billing fall into place without forking the codebase.
+    </p>
+
+    <div class="stats" role="list" aria-label="Model at a glance">
+      <div class="stat" role="listitem"><b>1</b><span>workspace model</span></div>
+      <div class="stat" role="listitem"><b>4</b><span>roles per membership</span></div>
+      <div class="stat" role="listitem"><b>2</b><span>identity providers + email</span></div>
+      <div class="stat" role="listitem"><b>n</b><span>workspaces per person</span></div>
+    </div>
+
+    <div class="decision">
+      <h2>Core decision</h2>
+      <p>An Individual account is a <b>PERSONAL workspace with one member</b>. A Business account is a <b>BUSINESS workspace with N members</b>. Same schema, same guards — different entitlements.</p>
+      <p>Consequences: a freelancer can also be an employee elsewhere; switching companies never mixes data; seat billing is a count, not a special case; “HR / Manager / Employee” is workspace-scoped authorization.</p>
+    </div>
+  </section>
+
+  <section class="block shell" id="packages">
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <div>
+        <h2>Two packages, one shape</h2>
+        <p>The choice at sign-up only sets the workspace type and plan. Everything else — authentication, membership, documents, notifications, audit — is shared.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <article class="card package">
+        <span class="badge individual">Individual</span>
+        <h3>For a solo professional</h3>
+        <p>A one-seat workspace where the member is the owner. Personal record-keeping, not people management.</p>
+        <ul>
+          <li>Personal clock-in, timesheet and work-hour insights</li>
+          <li>Personal leave and absence calendar</li>
+          <li>Payslip and document vault, self-uploaded</li>
+          <li>Reminders, exports and local notifications</li>
+          <li>No approvals, payroll administration, geofence admin or SSO</li>
+        </ul>
+        <div class="foot">
+          <span>Workspace <code>PERSONAL</code></span>
+          <span>Plan <code>INDIVIDUAL_*</code> · 1 seat</span>
+        </div>
+      </article>
+
+      <article class="card package business">
+        <span class="badge business">Business</span>
+        <h3>For a company and its team</h3>
+        <p>The owner creates the company profile, invites members, assigns roles and reporting lines, and connects the company’s identity provider.</p>
+        <ul>
+          <li>Team directory, org chart and reporting lines</li>
+          <li>Roles: owner, HR admin, manager, employee</li>
+          <li>Leave approvals, attendance, branches and geofences</li>
+          <li>Payroll, GOSI and Mudad/WPS exports on higher plans</li>
+          <li>Google Workspace or Microsoft 365 SSO, group mapping, audit</li>
+        </ul>
+        <div class="foot">
+          <span>Workspace <code>BUSINESS</code></span>
+          <span>Plans <code>STARTER</code> → <code>ENTERPRISE</code></span>
+        </div>
+      </article>
+    </div>
+
+    <div class="note-strip">
+      <span class="mark" aria-hidden="true">→</span>
+      <span><strong>Upgrade is a conversion, not a migration.</strong> A personal workspace becomes a business workspace in place, keeping its data. A business can only return to personal when one member remains.</span>
+    </div>
+  </section>
+
+  <section class="block shell" id="model">
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <div>
+        <h2>The spine: User → Membership → Workspace</h2>
+        <p>Employment facts live on the membership. The user is only a global identity. This is the fix for today’s global <code class="mono">User.role</code>.</p>
+      </div>
+    </div>
+
+    <div class="entity-flow" aria-label="Core entity relationships">
+      <div class="entity">
+        <div class="kicker">Global identity</div>
+        <h3>User</h3>
+        <p>One person. One login across every workspace they belong to.</p>
+        <ul>
+          <li>email (unique)</li>
+          <li>displayName, locale</li>
+          <li>AuthIdentity[]</li>
+        </ul>
+      </div>
+      <div class="connector"><span>1..n<br />memberships</span></div>
+      <div class="entity mid">
+        <div class="kicker">Authorization + employment</div>
+        <h3>Membership</h3>
+        <p>The join that carries role, title, branch, salary and reporting line.</p>
+        <ul>
+          <li>role: OWNER · HR · MANAGER · EMPLOYEE</li>
+          <li>reportsToMembershipId</li>
+          <li>status: INVITED · ACTIVE · SUSPENDED</li>
+        </ul>
+      </div>
+      <div class="connector"><span>n<br />members</span></div>
+      <div class="entity">
+        <div class="kicker">Tenant + billing</div>
+        <h3>Workspace</h3>
+        <p>Data and plan boundary. Personal has one seat; business has many.</p>
+        <ul>
+          <li>type: PERSONAL | BUSINESS</li>
+          <li>planCode, timezone, country</li>
+          <li>ownerMembershipId</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="satellites">
+      <div class="satellite">
+        <h4>AuthIdentity</h4>
+        <p>Links a user to local, Google, Microsoft or Apple sign-in. Multiple identities, one person.</p>
+      </div>
+      <div class="satellite">
+        <h4>SsoConnection + GroupMapping</h4>
+        <p>Per-workspace Google domain or Microsoft tenant, enforcement, JIT provisioning, group → role rules.</p>
+      </div>
+      <div class="satellite">
+        <h4>Invite + SeatMeter</h4>
+        <p>Single-use, expiring invitations with a proposed role. Pending invites reserve a seat until they expire.</p>
+      </div>
+    </div>
+
+    <p class="scroll-hint">Swipe the table sideways for more columns →</p>
+    <div class="table-scroll" style="margin-top: 20px">
+      <table>
+        <caption>What moves: today’s global user fields become workspace-scoped membership fields.</caption>
+        <thead>
+          <tr><th scope="col">Today</th><th scope="col">Target</th><th scope="col">Why it matters</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">User.role</td><td class="mono">Membership.role</td><td>One person can be an employee in two companies with different roles.</td></tr>
+          <tr><td class="mono">User.managerId</td><td class="mono">Membership.reportsToMembershipId</td><td>Reporting lines are org-specific; approval scope follows them.</td></tr>
+          <tr><td class="mono">User.branchId</td><td class="mono">Membership.branchId</td><td>Branch assignment is employment, not identity.</td></tr>
+          <tr><td class="mono">User.employeeId, salary, GOSI</td><td class="mono">Membership.*</td><td>A user may have no employment record, or several.</td></tr>
+          <tr><td class="mono">—</td><td class="mono">Workspace, Invite, AuthIdentity, SsoConnection</td><td>New tenancy, onboarding and identity layers.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block shell" id="roles">
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <div>
+        <h2>Who is HR, who is a manager, who is an employee</h2>
+        <p>Four base roles. The owner assigns them during onboarding and can change them later. Reporting lines decide whose work a manager can see — not the job title.</p>
+      </div>
+    </div>
+
+    <p class="scroll-hint">Swipe the table sideways for more columns →</p>
+    <div class="table-scroll">
+      <table>
+        <caption>Permission matrix. “RW” = read/write, “R” = read, “—” = no access.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Capability</th>
+            <th scope="col"><span class="chip employee">Employee</span></th>
+            <th scope="col"><span class="chip manager">Manager</span></th>
+            <th scope="col"><span class="chip hr">HR Admin</span></th>
+            <th scope="col"><span class="chip owner">Owner</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Own profile, attendance, leave, payslips</td><td class="yes" data-label="Employee">RW</td><td class="yes" data-label="Manager">RW</td><td class="yes" data-label="HR Admin">RW</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>Company directory (name, title, department)</td><td data-label="Employee">R</td><td data-label="Manager">R</td><td class="yes" data-label="HR Admin">RW</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>Team attendance and timesheets</td><td class="no" data-label="Employee">—</td><td data-label="Manager">R team</td><td class="yes" data-label="HR Admin">RW all</td><td data-label="Owner">R all</td></tr>
+          <tr><td>Approve direct reports’ leave</td><td class="no" data-label="Employee">—</td><td class="yes" data-label="Manager">RW</td><td class="yes" data-label="HR Admin">RW</td><td data-label="Owner">override</td></tr>
+          <tr><td>Approve anyone’s leave</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td class="yes" data-label="HR Admin">RW</td><td data-label="Owner">override</td></tr>
+          <tr><td>Employee records and contracts</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td class="yes" data-label="HR Admin">RW</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>Salary and payroll data</td><td data-label="Employee">own</td><td data-label="Manager">own</td><td class="yes" data-label="HR Admin">RW</td><td data-label="Owner">R*</td></tr>
+          <tr><td>Leave policy, holidays, work week</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td class="yes" data-label="HR Admin">RW</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>Branches, geofences, remote rules</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td class="yes" data-label="HR Admin">RW</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>Invite members</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td data-label="HR Admin">MGR/EMP</td><td class="yes" data-label="Owner">any role</td></tr>
+          <tr><td>Change roles and reporting lines</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td data-label="HR Admin">MGR/EMP</td><td class="yes" data-label="Owner">any role</td></tr>
+          <tr><td>Billing, plan, seats</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td class="no" data-label="HR Admin">—</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>SSO connection and group mapping</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td data-label="HR Admin">R</td><td class="yes" data-label="Owner">RW</td></tr>
+          <tr><td>Audit log</td><td class="no" data-label="Employee">—</td><td class="no" data-label="Manager">—</td><td data-label="HR Admin">R</td><td data-label="Owner">R</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size: 12px; margin-top: 8px">* Salary visibility for owners is a workspace policy; default is HR-only, with owner access to totals.</p>
+
+    <ol class="rules">
+      <li><span class="n">1</span><span><b>Owner grants everything.</b> HR can assign manager and employee, but cannot mint peers or owners — no privilege escalation.</span></li>
+      <li><span class="n">2</span><span><b>The last owner is protected.</b> Demoting or removing them is rejected; ownership must be transferred explicitly.</span></li>
+      <li><span class="n">3</span><span><b>Role changes are audited</b> and invalidate the member’s sessions immediately via a session-version bump.</span></li>
+      <li><span class="n">4</span><span><b>A manager is made by a reporting line.</b> The role unlocks approvals; reports-to decides whose requests appear.</span></li>
+      <li><span class="n">5</span><span><b>Group mapping is limited.</b> Google/Microsoft groups can grant employee or manager; HR requires owner opt-in; owner is never automatic.</span></li>
+      <li><span class="n">6</span><span><b>No self-approval</b> — including HR and owners. If the manager is the requester, route to HR.</span></li>
+    </ol>
+
+    <div class="approval" aria-label="Leave approval chain">
+      <div class="node"><b>Employee</b><span>submits request</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node"><b>Direct manager</b><span>PENDING_MANAGER</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node"><b>HR finalizes</b><span>only if policy requires</span></div>
+    </div>
+    <p class="muted" style="font-size: 12.5px; margin-top: 10px">Policy per workspace: <span class="mono">MANAGER_ONLY</span> (default) or <span class="mono">MANAGER_THEN_HR</span>. No manager → HR queue. This removes the current enum/service drift.</p>
+  </section>
+
+  <section class="block shell" id="signin">
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <div>
+        <h2>Google or Microsoft, per company</h2>
+        <p>Authentication answers “who are you”; workspace authorization answers “what can you do here”. SSO is a workspace connection, not a global app setting.</p>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="step key">
+        <div class="circle">1</div>
+        <div>
+          <h4>Enter the work email</h4>
+          <p>The client calls <code>POST /auth/discover</code>. The response includes the matching workspaces and whether SSO is enforced for that domain.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="circle">2</div>
+        <div>
+          <h4>Branch on the workspace policy</h4>
+          <div class="branches">
+            <div class="branch ok"><b>No enforced SSO</b>Password or social sign-in remains available. Existing memberships are listed after verification.</div>
+            <div class="branch"><b>Enforced SSO</b>Redirect to Google Workspace or Microsoft Entra. Password login is refused for that workspace.</div>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="circle">3</div>
+        <div>
+          <h4>Verify the provider proof</h4>
+          <p>Google: require <code>hd</code> to equal the configured domain. Microsoft: require <code>tid</code> to equal the configured tenant. Mismatch is rejected before any membership lookup.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="circle">4</div>
+        <div>
+          <h4>Resolve the membership</h4>
+          <div class="branches">
+            <div class="branch ok"><b>Existing</b>Load role and reporting line from <code>Membership</code>; issue a workspace-scoped token.</div>
+            <div class="branch error"><b>Missing + JIT off</b>Return <code>403 INVITE_REQUIRED</code>. Never auto-create a member without consent.</div>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="circle">5</div>
+        <div>
+          <h4>Provision or map roles</h4>
+          <p>When JIT is on and the domain/tenant is proven, create the user and membership with <code>defaultRole</code>. Apply group mapping (for example <span class="mono">managers@</span> → Manager). HR mapping needs an explicit owner opt-in.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="circle">6</div>
+        <div>
+          <h4>Choose the workspace</h4>
+          <p>One membership enters directly. Several memberships show a picker. The token carries <code>workspaceId</code>, <code>membershipId</code>, <code>role</code> and a session version.</p>
+        </div>
+      </div>
+      <div class="step key">
+        <div class="circle">7</div>
+        <div>
+          <h4>Guard every request</h4>
+          <p>The API revalidates that the membership is active, belongs to the claimed workspace, and holds the required permission and plan entitlement. A workspace ID in a request body is never trusted.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="providers">
+      <div class="card provider">
+        <div class="provider-head">
+          <div class="provider-logo" aria-hidden="true">G</div>
+          <div><h4>Google Workspace</h4><small>OIDC · optional Directory sync</small></div>
+          <span class="badge neutral" style="margin-left: auto">Draft</span>
+        </div>
+        <dl>
+          <dt>Domain</dt><dd>macquires.com</dd>
+          <dt>Proof</dt><dd>hd claim + DNS verification</dd>
+          <dt>Enforcement</dt><dd>on / off</dd>
+          <dt>Auto-provision</dt><dd>on / off · default role</dd>
+          <dt>Groups</dt><dd>managers → MANAGER</dd>
+        </dl>
+      </div>
+      <div class="card provider">
+        <div class="provider-head">
+          <div class="provider-logo" aria-hidden="true">M</div>
+          <div><h4>Microsoft Entra ID</h4><small>OIDC · Graph directory · Teams</small></div>
+          <span class="badge success" style="margin-left: auto">Connected</span>
+        </div>
+        <dl>
+          <dt>Tenant</dt><dd>contoso.onmicrosoft.com</dd>
+          <dt>Proof</dt><dd>tid claim + admin consent</dd>
+          <dt>Enforcement</dt><dd>on / off</dd>
+          <dt>Auto-provision</dt><dd>on / off · default role</dd>
+          <dt>Groups</dt><dd>HR group → HR (opt-in)</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="note-strip">
+      <span class="mark" aria-hidden="true">!</span>
+      <span><strong>Teams is not an identity provider.</strong> A company can sign in with Google and still receive leave approvals in Microsoft Teams. Keep SSO and collaboration integrations on separate connections.</span>
+    </div>
+  </section>
+
+  <section class="block shell" id="plans">
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <div>
+        <h2>Plans are entitlements, not feature flags</h2>
+        <p>Every gate reads the same object: <code class="mono">maxSeats</code>, <code class="mono">payroll</code>, <code class="mono">sso</code>, <code class="mono">directorySync</code>, <code class="mono">auditLog</code>, <code class="mono">apiAccess</code>.</p>
+      </div>
+    </div>
+
+    <p class="scroll-hint">Swipe the table sideways for more columns →</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Plan</th><th scope="col" class="num">Seats</th><th scope="col">Org &amp; approvals</th>
+            <th scope="col">Payroll / GOSI</th><th scope="col">SSO</th><th scope="col">Directory sync</th><th scope="col">Audit / API</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="plan-name"><span class="badge individual">Free</span> Individual</span></td><td class="num">1</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+          <tr><td><span class="plan-name"><span class="badge individual">Pro</span> Individual</span></td><td class="num">1</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+          <tr><td><span class="plan-name"><span class="badge business">Starter</span> Business</span></td><td class="num">10</td><td class="yes">Yes</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+          <tr><td><span class="plan-name"><span class="badge business">Growth</span> Business</span></td><td class="num">50</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Google / MS</td><td class="no">—</td><td class="yes">Yes</td></tr>
+          <tr><td><span class="plan-name"><span class="badge enterprise">Ent</span> Enterprise</span></td><td class="num">Custom</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Google / MS</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size: 12.5px; margin-top: 10px">Billable seats = active memberships + outstanding invites. Invites expire in 14 days and release the seat. The 11th member on a 10-seat plan is blocked server-side, not hidden in the UI.</p>
+  </section>
+
+  <section class="block shell" id="ux">
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <div>
+        <h2>What the owner actually does</h2>
+        <p>Four screens carry the whole setup: package choice, company profile, team and roles, identity connection. Everything else is configuration inside the admin console.</p>
+      </div>
+    </div>
+
+    <div class="wf-grid">
+      <div class="wf" aria-label="Wireframe: package choice">
+        <div class="wf-bar"><i></i><i></i><i></i><span>onboarding / step 1 of 5</span></div>
+        <div class="wf-body">
+          <h5>How will you use MacqHR?</h5>
+          <p class="sub">You can upgrade a personal workspace later.</p>
+          <div class="wf-option sel">
+            <span class="wf-radio" aria-hidden="true"></span>
+            <span><b>For my company</b><small>Team, roles, approvals, payroll</small></span>
+          </div>
+          <div class="wf-option">
+            <span class="wf-radio" aria-hidden="true"></span>
+            <span><b>For myself</b><small>Personal time, leave and documents</small></span>
+          </div>
+          <div class="wf-btn">Continue</div>
+        </div>
+      </div>
+
+      <div class="wf" aria-label="Wireframe: company profile">
+        <div class="wf-bar"><i></i><i></i><i></i><span>onboarding / step 2 of 5</span></div>
+        <div class="wf-body">
+          <h5>Tell us about your company</h5>
+          <p class="sub">This becomes your workspace and billing account.</p>
+          <div class="wf-field"><label>Company name</label><div class="wf-input">Macquires</div></div>
+          <div class="wf-field"><label>Country</label><div class="wf-input">Saudi Arabia</div></div>
+          <div class="wf-field"><label>Time zone</label><div class="wf-input">Asia/Riyadh (GMT+3)</div></div>
+          <div class="wf-field"><label>Team size</label><div class="wf-input">11–50 people</div></div>
+          <div class="wf-btn">Create workspace</div>
+        </div>
+      </div>
+
+      <div class="wf" aria-label="Wireframe: team and roles">
+        <div class="wf-bar"><i></i><i></i><i></i><span>admin / team</span></div>
+        <div class="wf-body">
+          <h5>Who’s on your team?</h5>
+          <p class="sub">Invite by email or import from Google / Microsoft.</p>
+          <div class="wf-row head"><span>Member</span><span>Role</span><span>Reports to</span></div>
+          <div class="wf-row">
+            <span class="wf-person"><span class="wf-avatar">SA</span>Sara A.</span>
+            <span><span class="chip hr">HR Admin</span></span>
+            <span class="muted">Owner</span>
+          </div>
+          <div class="wf-row">
+            <span class="wf-person"><span class="wf-avatar" style="background: var(--macq-bdazzled)">TG</span>Tariq G.</span>
+            <span><span class="chip manager">Manager</span></span>
+            <span class="muted">Sara A.</span>
+          </div>
+          <div class="wf-row">
+            <span class="wf-person"><span class="wf-avatar" style="background: var(--macq-davys)">RM</span>Rahaf M.</span>
+            <span><span class="chip employee">Employee</span></span>
+            <span class="muted">Tariq G.</span>
+          </div>
+          <div class="wf-btn">Invite teammates</div>
+        </div>
+      </div>
+
+      <div class="wf" aria-label="Wireframe: identity provider">
+        <div class="wf-bar"><i></i><i></i><i></i><span>admin / settings / identity</span></div>
+        <div class="wf-body">
+          <h5>How does your team sign in?</h5>
+          <p class="sub">Connect a provider, or invite by email.</p>
+          <div class="wf-option sel">
+            <span class="wf-radio" aria-hidden="true"></span>
+            <span><b>Microsoft 365</b><small>Entra tenant · Teams notifications</small></span>
+          </div>
+          <div class="wf-line"><span>Tenant</span><span class="mono">contoso.onmicrosoft.com</span></div>
+          <div class="wf-line"><span>Require SSO</span><span class="wf-toggle on" aria-hidden="true"></span></div>
+          <div class="wf-line"><span>Auto-create accounts</span><span class="wf-toggle on" aria-hidden="true"></span></div>
+          <div class="wf-line"><span>Managers group</span><span><span class="chip manager">Manager</span></span></div>
+          <div class="wf-btn">Finish setup</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note-strip" style="margin-top: 20px">
+      <span class="mark" aria-hidden="true">→</span>
+      <span><strong>Flow:</strong> package → company → sign-in method → invites → roles and managers → policies. Each step is skippable except package and company; the owner can finish roles later from the team table.</span>
+    </div>
+  </section>
+
+  <section class="block shell" id="tokens">
+    <div class="sec-head">
+      <span class="sec-num">07</span>
+      <div>
+        <h2>Design tokens for the new surfaces</h2>
+        <p>Primitive → semantic → component. Components never use raw hex; light and dark share the same token names.</p>
+      </div>
+    </div>
+
+    <div class="swatches">
+      <div class="swatch"><div class="color" style="background: var(--macq-oxford)"></div><div class="meta"><b>--macq-oxford</b><span>#001629</span></div></div>
+      <div class="swatch"><div class="color" style="background: var(--macq-prussian)"></div><div class="meta"><b>--macq-prussian</b><span>#002C52</span></div></div>
+      <div class="swatch"><div class="color" style="background: var(--macq-indigo)"></div><div class="meta"><b>--macq-indigo</b><span>#293F66</span></div></div>
+      <div class="swatch"><div class="color" style="background: var(--macq-bdazzled)"></div><div class="meta"><b>--macq-bdazzled</b><span>#3F5678</span></div></div>
+      <div class="swatch"><div class="color" style="background: var(--macq-orange)"></div><div class="meta"><b>--accent</b><span>#FE5800</span></div></div>
+      <div class="swatch"><div class="color" style="background: var(--surface); border-bottom: 1px solid var(--border)"></div><div class="meta"><b>--surface</b><span>theme-aware</span></div></div>
+    </div>
+
+    <div class="token-row" aria-label="Role chip examples">
+      <span class="chip owner">Owner</span>
+      <span class="chip hr">HR Admin</span>
+      <span class="chip manager">Manager</span>
+      <span class="chip employee">Employee</span>
+      <span class="badge individual">Individual</span>
+      <span class="badge business">Business</span>
+      <span class="badge enterprise">Enterprise</span>
+      <span class="badge success">Connected</span>
+      <span class="badge warn">Draft</span>
+    </div>
+
+    <p class="scroll-hint">Swipe the table sideways for more columns →</p>
+    <div class="table-scroll" style="margin-top: 20px">
+      <table>
+        <caption>PlanPickerCard states — used on the package screen and the plan page.</caption>
+        <thead><tr><th scope="col">State</th><th scope="col">Border</th><th scope="col">Ring</th><th scope="col">Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Default</td><td>1px <span class="mono">--border</span></td><td class="no">—</td><td>Hover raises border to <span class="mono">--border-strong</span>.</td></tr>
+          <tr><td>Selected</td><td>2px <span class="mono">--accent</span></td><td>3px accent 18%</td><td>Check icon plus visible radio; never color alone.</td></tr>
+          <tr><td>Recommended</td><td>1px <span class="mono">--border</span> + badge</td><td class="no">—</td><td>Badge says “Recommended”; no border competition.</td></tr>
+          <tr><td>Disabled</td><td>1px <span class="mono">--border</span></td><td class="no">—</td><td>Muted text; tooltip explains the plan/seat limit.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="contrast">
+      <b>Contrast check:</b> white on #FE5800 is ≈3.18:1 and fails WCAG AA for normal text. Put <span class="mono">--accent-fg</span> (#001629) on orange (≈5.75:1), or use orange only for icons, borders, large bold labels and focus rings.
+    </div>
+  </section>
+
+  <section class="block shell" id="migration">
+    <div class="sec-head">
+      <span class="sec-num">08</span>
+      <div>
+        <h2>How to get there from the current repo</h2>
+        <p>Schema first, guards second, surfaces third. The existing Macquires data becomes the first business workspace; personal sign-ups create one-seat workspaces.</p>
+      </div>
+    </div>
+
+    <div class="phases">
+      <div class="phase"><div class="p">Phase 0</div><h4>Design sign-off</h4><p>Accept the five decisions, confirm individual scope, approval default and salary visibility.</p></div>
+      <div class="phase"><div class="p">Phase 1</div><h4>Schema and backfill</h4><p>Workspace, Membership, Invite, AuthIdentity, SSO, PayrollRun. Add workspaceId to domain tables; composite uniques; backfill Macquires.</p></div>
+      <div class="phase"><div class="p">Phase 2</div><h4>Auth and guards</h4><p>Workspace-scoped JWT, discovery, invite accept, switch endpoint, permission guard. Google adapter added; Entra verification reused.</p></div>
+      <div class="phase"><div class="p">Phase 3</div><h4>Mobile surfaces</h4><p>Package onboarding, workspace switcher, real membership role replacing the client-side switcher, personal mode hides org modules.</p></div>
+      <div class="phase"><div class="p">Phase 4</div><h4>Admin console</h4><p>Team table, role and reporting-line editing, invites, SSO settings, group mapping, seat meter, plan page.</p></div>
+      <div class="phase"><div class="p">Phase 5</div><h4>Commercialization</h4><p>Billing webhooks, entitlement guards, directory sync, audit export, rate limits, retention policies.</p></div>
+    </div>
+
+    <div class="note-strip" style="margin-top: 18px">
+      <span class="mark" aria-hidden="true">!</span>
+      <span><strong>Blockers to fix while the schema is open:</strong> unguarded <span class="mono">GET /employees/:id</span> exposing salary and national ID; single-stage leave approvals; UTC date bucketing for Riyadh/Pakistan punches; duplicate <span class="mono">reportsToId</span> and <span class="mono">radiusMeters</span> fields; shared default password.</span>
+    </div>
+  </section>
+
+  <section class="block shell" id="decisions">
+    <div class="sec-head">
+      <span class="sec-num">09</span>
+      <div>
+        <h2>Decisions still open</h2>
+        <p>These change the build order or the commercial model. Everything else is specified in the README.</p>
+      </div>
+    </div>
+    <ol class="decisions">
+      <li><span><b>Individual scope.</b> Is it free, freemium, or paid? Does it include personal payroll tracking or only time, leave and documents?</span></li>
+      <li><span><b>Ownership.</b> One owner per workspace, or co-owners? Recommendation: one owner with explicit transfer.</span></li>
+      <li><span><b>Manager model.</b> Role plus reporting line (recommended), or derive manager purely from direct reports?</span></li>
+      <li><span><b>Approval default.</b> <span class="mono">MANAGER_ONLY</span> or <span class="mono">MANAGER_THEN_HR</span> for new businesses?</span></li>
+      <li><span><b>Salary visibility.</b> Can the owner see individual salaries, or only HR and aggregate totals?</span></li>
+      <li><span><b>Directory sync.</b> Ship Google/Microsoft group sync in v1, or SSO plus manual invites first?</span></li>
+      <li><span><b>One identity provider per workspace.</b> Restrict to one for clarity, or allow Google identity with Microsoft Teams notifications (recommended)?</span></li>
+    </ol>
+  </section>
+</main>
+
+<footer class="shell">
+  <div class="foot-grid">
+    <div>
+      <strong style="color: var(--text-secondary)">MacqHR account model</strong>
+      <ul>
+        <li><a href="./README.md">README — decisions, model, migration</a></li>
+        <li><a href="./design-spec.md">Design spec — tokens and components</a></li>
+      </ul>
+    </div>
+    <div>
+      <strong style="color: var(--text-secondary)">Diagram sources</strong>
+      <ul>
+        <li><a href="./context.mmd">context.mmd</a></li>
+        <li><a href="./data-model.mmd">data-model.mmd</a></li>
+        <li><a href="./sign-in-flow.mmd">sign-in-flow.mmd</a></li>
+      </ul>
+    </div>
+    <div>
+      <strong style="color: var(--text-secondary)">Status</strong>
+      <ul>
+        <li>Target state — not implemented</li>
+        <li>Proposed 30 Oct 2026</li>
+        <li>Next: confirm open decisions</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var toggle = document.getElementById('themeToggle');
+    var stored = null;
+    try { stored = localStorage.getItem('macqhr-theme'); } catch (e) {}
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var theme = stored || (prefersDark ? 'dark' : 'light');
+    root.setAttribute('data-theme', theme);
+
+    function sync() {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      toggle.textContent = dark ? 'Light mode' : 'Dark mode';
+      toggle.setAttribute('aria-pressed', String(dark));
+    }
+    sync();
+
+    toggle.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('macqhr-theme', next); } catch (e) {}
+      sync();
+    });
+
+    var links = Array.prototype.slice.call(document.querySelectorAll('.nav a'));
+    var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          links.forEach(function (link) {
+            var match = link.getAttribute('href') === '#' + entry.target.id;
+            if (match) link.setAttribute('aria-current', 'true');
+            else link.removeAttribute('aria-current');
+          });
+        });
+      }, { rootMargin: '-40% 0px -55% 0px' });
+
+      sections.forEach(function (section) { observer.observe(section); });
+    }
+  })();
+</script>
+</body>
+</html>

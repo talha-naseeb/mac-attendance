@@ -1,0 +1,61 @@
+%% MacqHR — Account, Workspace & Identity Context (TARGET STATE, PROPOSED)
+%% Not a description of the current implementation.
+%% Audience: founder, product, engineering. Reading order: README.md §1–§2.
+
+flowchart TB
+  subgraph People["People"]
+    P["Person<br/>email identity"]
+    SOLO["Solo professional"]
+    MGR["Manager"]
+    HR["HR Admin"]
+    EMP["Employee"]
+  end
+
+  subgraph Platform["MacqHR platform (system boundary)"]
+    USER["User<br/>global identity"]
+    IDENT["AuthIdentity<br/>local · Google · Microsoft · Apple"]
+    WS_P["Workspace PERSONAL<br/>1 seat · individual plan"]
+    WS_B["Workspace BUSINESS<br/>N seats · business plan"]
+    MEM["Membership<br/>role · reports-to · branch · salary"]
+    SSO["SsoConnection<br/>provider · domain/tenant · enforcement"]
+    GMAP["SsoGroupMapping<br/>provider group to role"]
+    INV["Invite<br/>single use · expiring"]
+    ENT["Entitlements<br/>maxSeats · payroll · sso · audit"]
+    MOB["Mobile ESS<br/>employee surface"]
+    ADMIN["Admin console<br/>owner · HR · team · SSO"]
+    API["REST API<br/>workspace-scoped guards"]
+    DB[("PostgreSQL<br/>Prisma")]
+  end
+
+  subgraph External["External providers"]
+    GOOG["Google Workspace<br/>OIDC · Directory"]
+    MS["Microsoft Entra ID<br/>OIDC · Graph"]
+    TEAMS["Microsoft Teams<br/>notifications · calendar"]
+    BILL["Billing provider<br/>subscriptions"]
+  end
+
+  P --> USER
+  USER --> IDENT
+  SOLO -->|"owns"| WS_P
+  MGR --> MEM
+  HR --> MEM
+  EMP --> MEM
+  WS_P -->|"1 membership"| MEM
+  WS_B -->|"1..n memberships"| MEM
+  USER -->|"1..n memberships"| MEM
+  WS_B --> SSO
+  SSO --> GMAP
+  WS_B --> INV
+  WS_B --> ENT
+  MEM --> MOB
+  MEM --> ADMIN
+  MOB --> API
+  ADMIN --> API
+  API --> DB
+  IDENT -.->|"OIDC"| GOOG
+  IDENT -.->|"OIDC"| MS
+  SSO -.->|"verify domain or tenant"| GOOG
+  SSO -.->|"verify tenant"| MS
+  GMAP -.->|"read groups"| MS
+  WS_B -.->|"plan and seats"| BILL
+  WS_B -.->|"integration, not identity"| TEAMS

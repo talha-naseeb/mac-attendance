@@ -1,0 +1,166 @@
+%% MacqHR — Target data model (PROPOSED)
+%% Cardinality is workspace-scoped: every employment fact hangs off Membership.
+%% Reading order: README.md §3, then this diagram.
+
+erDiagram
+  USER ||--o{ AUTH_IDENTITY : "authenticates with"
+  USER ||--o{ MEMBERSHIP : "joins"
+  WORKSPACE ||--o{ MEMBERSHIP : "contains"
+  WORKSPACE ||--o| SSO_CONNECTION : "configures"
+  SSO_CONNECTION ||--o{ SSO_GROUP_MAPPING : "maps groups"
+  WORKSPACE ||--o{ INVITE : "issues"
+  WORKSPACE ||--o{ DEPARTMENT : "owns"
+  WORKSPACE ||--o{ BRANCH : "owns"
+  WORKSPACE ||--o| SUBSCRIPTION : "billed by"
+  WORKSPACE ||--o{ PAYROLL_RUN : "generates"
+  MEMBERSHIP ||--o| MEMBERSHIP : "reports to"
+  MEMBERSHIP ||--o{ ATTENDANCE_RECORD : "punches"
+  MEMBERSHIP ||--o{ LEAVE_REQUEST : "requests"
+  MEMBERSHIP ||--o{ LEAVE_BALANCE : "holds"
+  MEMBERSHIP ||--o{ OFFLINE_PUNCH : "queues"
+  MEMBERSHIP ||--o{ AUDIT_LOG : "acts"
+  MEMBERSHIP }o--o| BRANCH : "assigned"
+  MEMBERSHIP }o--o| DEPARTMENT : "belongs to"
+
+  USER {
+    uuid id PK
+    string email UK
+    string passwordHash
+    string displayName
+    string locale
+  }
+
+  AUTH_IDENTITY {
+    uuid id PK
+    uuid userId FK
+    string provider
+    string providerAccountId
+  }
+
+  WORKSPACE {
+    uuid id PK
+    string type
+    string name
+    string slug UK
+    string country
+    string timezone
+    string planCode
+    string ownerMembershipId
+  }
+
+  MEMBERSHIP {
+    uuid id PK
+    uuid workspaceId FK
+    uuid userId FK
+    string role
+    string employeeId
+    uuid reportsToMembershipId FK
+    uuid branchId FK
+    uuid departmentId FK
+    string status
+    float basicSalarySar
+  }
+
+  SSO_CONNECTION {
+    uuid id PK
+    uuid workspaceId FK
+    string provider
+    string domain
+    string tenantId
+    bool enforced
+    bool autoProvision
+    string defaultRole
+  }
+
+  SSO_GROUP_MAPPING {
+    uuid id PK
+    uuid workspaceId FK
+    string providerGroupId
+    string role
+  }
+
+  INVITE {
+    uuid id PK
+    uuid workspaceId FK
+    string email
+    string role
+    string tokenHash
+    datetime expiresAt
+    datetime acceptedAt
+  }
+
+  DEPARTMENT {
+    uuid id PK
+    uuid workspaceId FK
+    string name
+    uuid parentId FK
+  }
+
+  BRANCH {
+    uuid id PK
+    uuid workspaceId FK
+    string name
+    float latitude
+    float longitude
+    float geofenceRadiusMeters
+  }
+
+  ATTENDANCE_RECORD {
+    uuid id PK
+    uuid workspaceId FK
+    uuid membershipId FK
+    string dateIso
+    string type
+    string status
+    string workMode
+  }
+
+  LEAVE_REQUEST {
+    uuid id PK
+    uuid workspaceId FK
+    uuid membershipId FK
+    string type
+    string status
+    int daysCount
+  }
+
+  LEAVE_BALANCE {
+    uuid id PK
+    uuid workspaceId FK
+    uuid membershipId FK
+    string leaveType
+    int year
+    int totalDays
+    int usedDays
+  }
+
+  PAYROLL_RUN {
+    uuid id PK
+    uuid workspaceId FK
+    string period
+    string status
+    float totalNetSar
+  }
+
+  OFFLINE_PUNCH {
+    uuid id PK
+    uuid workspaceId FK
+    uuid membershipId FK
+    bool isSynced
+  }
+
+  AUDIT_LOG {
+    uuid id PK
+    uuid workspaceId FK
+    uuid actorMembershipId FK
+    string action
+    string resource
+  }
+
+  SUBSCRIPTION {
+    uuid id PK
+    uuid workspaceId FK
+    string provider
+    int seatsPurchased
+    string status
+  }
