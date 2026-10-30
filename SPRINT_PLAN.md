@@ -1,188 +1,221 @@
-# MacqHR Sprint Task Board, Test Suite & Delivery Tracker
+# MacqHR Delivery Tracker
 
-> **Project**: MacqHR (ZenHR Enterprise Clone & Enhancement for Macquires)  
-> **Status**: Frontend Sprints Completed • Automated Tests Passing (16/16) • Awaiting Manual QA Sign-off Before Git Push  
-> **Last Updated**: 2026-10-17  
-> **Legend**:  
-> - `[x]` Completed & Verified  
-> - `[/]` In Progress / Active Manual QA  
-> - `[ ]` Pending / Backlog  
+> **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off.
+> **Verification**: 48 mobile tests, 31 backend tests in 7 suites, admin production build passing.
+> **Release status**: Not production-ready. Phase 7 is next after G1.
+> **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
+> **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
+> **Last updated**: 2026-10-31
 
----
+## Legend
 
-## Mandatory Repository Push Restriction Policy
-1. **Complete Sprint Development** per [`RULES.md`](RULES.md).
-2. **Write Automated Test Cases** in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts).
-3. **Run & Pass Automated Verification** (`npm run verify` -> `tsc --noEmit` + 16 unit/integration tests).
-4. **User Manual Testing Gate**: User tests the application manually and approves.
-5. **Git Push**: Only after user manual QA approval may code be pushed to the remote repository (enforced by `.git/hooks/pre-push`).
+- `[x]` Implemented and verified by the available evidence.
+- `[/]` Implemented with known gaps or awaiting re-verification.
+- `[ ]` Not implemented or not usable in production.
+- **Demo only**: UI or payload exists, but no production-grade behavior is connected.
+- **Target**: Required by the product rules, not yet implemented.
 
 ---
 
-## Sprint 1: Security Rules, Foundations & Project Audit (Week 1)
+## Mandatory delivery policy
 
-- [x] **Task 1.1: Codebase Audit & Gap Analysis**
-  - [x] Review current screens (`DashboardScreen`, `ClockInScreen`, `ApprovalsScreen`, `AttendanceScreen`, `RequestTimeOffModal`, `SubModuleModal`).
-  - [x] Assess mock data structures in `mockData.ts` and identify ZenHR parity gaps.
-- [x] **Task 1.2: Architecture & Development Rules Definition**
-  - [x] Establish official project rules file ([`RULES.md`](RULES.md)) including Section 0 Repository Push Restrictions.
-  - [x] Document brand design system (Macquires color palette, RTL bilingual guidelines).
-  - [x] Define multi-tier anti-spoofing security protocol.
-  - [x] Define Microsoft 365 / Teams integration specs.
-- [x] **Task 1.3: Sprints & Task Tracking Setup**
-  - [x] Create project task tracking board ([`SPRINT_PLAN.md`](SPRINT_PLAN.md)).
+1. **Implement the phase scope** and its acceptance criteria from the PRD.
+2. **Add automated tests** at the correct layer (unit, API, admin, or mobile logic).
+3. **Run `npm run verify:all`** (mobile + backend + admin). Zero failures are required.
+4. **Execute the phase manual checklist** on staging and a physical device, covering light/dark and English/Arabic.
+5. **Record approval** in `docs/qa/gates/phase-<N>.md` with the full commit SHA, build identifier, device, results, defects, and your decision.
+6. **Push only when the gate matches `HEAD`.** No `--no-verify`, no presence-only approval, no reused approval.
+
+Any new commit invalidates the previous gate. See [RULES.md](RULES.md) Section 0 and the [gate template](docs/qa/gates/TEMPLATE.md).
 
 ---
 
-## Sprint 2: Live Location, Google Maps & Anti-Spoofing Attendance (Week 2)
+## Current verification baseline (2026-10-31)
 
-### Development
-- [x] **Task 2.1: Location Service Setup**
-  - [x] Install and configure `expo-location` and permissions workflow (Foreground & Background).
-  - [x] Configure Android `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_WIFI_STATE` and iOS `NSLocationWhenInUseUsageDescription` in [`app.json`](app.json).
-- [x] **Task 2.2: Anti-Spoofing & Mock Location Detection Engine**
-  - [x] Implement [`src/services/locationSecurity.ts`](src/services/locationSecurity.ts) and [`src/hooks/useLocationSecurity.ts`](src/hooks/useLocationSecurity.ts) inspecting hardware mock location flags (`mocked` / `isFromMockProvider`).
-  - [x] Implement Haversine distance engine and GPS accuracy filter (rejects accuracy radius $> 50\text{ m}$).
-  - [x] Implement mock app detection, root/jailbreak environment check, and NTP clock-drift check.
-  - [x] Implement Office Wi-Fi BSSID / SSID and BLE Beacon cross-check helper.
-- [x] **Task 2.3: Live Interactive Google Maps & Radar Clock-In Screen**
-  - [x] Upgrade [`src/screens/ClockInScreen.tsx`](src/screens/ClockInScreen.tsx) with live Google Maps embed / Geofence Radar toggle.
-  - [x] Render office geofence radius circle and live user coordinate pin with distance offset.
-  - [x] Add 4-pill Anti-Spoofing Telemetry Matrix (Hardware GPS, Corp Wi-Fi, Face ID Liveness, Geofence Zone) + Trust Score badge.
-  - [x] Add Interactive QA Simulator Strip so manual testers can simulate Fake/Mock GPS, Outside Fence, Low Accuracy, and Rooted devices on the fly.
+| Surface | Command | Result |
+|---|---|---|
+| Mobile | `npm run verify` | Typecheck passed; 48 tests passed, 0 failed |
+| Backend | `npm run typecheck && npm test && npm run build` | Typecheck passed; 7 suites, 31 tests passed; build passed |
+| Admin | `npm run build` | Production build passed |
+| Repository | `git status` | All application surfaces tracked; `ios/` source versioned; baseline migration committed |
+| CI | `.github/workflows/verify.yml` | Runs `verify:all` on pull requests and `main` |
 
-### Automated & Manual Testing
-- [x] **Task 2.4: Geofence & Anti-Spoofing Automated Tests**
-  - [x] `TC-2.1` to `TC-2.8` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **8/8 PASSED**.
-- [x] **Task 2.5: User Manual Testing (Approved)**
-  - [x] Test QA Simulator presets on `Clock-in` tab (`Verified Riyadh HQ`, `Test Fake/Mock GPS`, `Test Outside Fence`, `Test Low Accuracy`, `Test Root/Jailbreak`) and verify Clock-In/Out button locks when spoofed.
+Phase 6 added CI, the Prisma baseline migration and the SHA-bound push hook. Isolated database API tests and admin unit/component tests (M1.3) remain open.
 
 ---
 
-## Sprint 3: Microsoft 365, Teams & Entra ID Integration (Week 3)
+## Delivery phases (forward plan)
 
-### Development
-- [x] **Task 3.1: Microsoft Entra ID (Azure AD) SSO Frontend Integration**
-  - [x] Configure Macquires Microsoft App Registration config (`MACQUIRES_ENTRA_CONFIG`) in [`src/services/microsoftGraph.ts`](src/services/microsoftGraph.ts).
-  - [x] Add Microsoft 365 & Teams Hub modal (`activeModal === 'microsoft365'`) accessible directly from the Dashboard greeting pill.
-- [x] **Task 3.2: Microsoft Teams Communications & Presence**
-  - [x] Automatically compute and sync Teams user presence (`Available`, `BeRightBack`, `Away`, `OutOfOffice`) when user clocks in, starts break, or clocks out.
-  - [x] Generate Microsoft Teams Adaptive Cards (v1.5) in [`src/screens/ApprovalsScreen.tsx`](src/screens/ApprovalsScreen.tsx) and notify inbox on manager approval/rejection.
-- [x] **Task 3.3: Outlook Calendar Synchronization**
-  - [x] Automatically push Out-of-Office (`showAs: 'oof'`) calendar events to Microsoft Outlook Calendar whenever a user submits a Time Off request.
-- [x] **Task 3.4: Offline Anti-Tamper Queue & Saudi Labor Law GOSI/WPS**
-  - [x] Implement FNV-1a cryptographic signature sealing for offline attendance punches in [`src/services/offlineSyncAndCompliance.ts`](src/services/offlineSyncAndCompliance.ts).
-  - [x] Implement Saudi GOSI (9.75% employee / 11.75% employer) and Mudad WPS IBAN compliance breakdown in Payroll modal.
+The detailed modules, rules, risks, and decisions are in the [PRD](docs/prd/README.md). This table is the tracking view.
 
-### Automated & Manual Testing
-- [x] **Task 3.5: Microsoft 365, Offline Sync & GOSI Automated Tests**
-  - [x] `TC-3.1` to `TC-5.1` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **8/8 PASSED**.
-- [x] **Task 3.6: User Manual Testing (Approved)**
-  - [x] Tap `MS Teams: Available` pill on Dashboard to inspect Microsoft Entra ID SSO, Teams Presence, Outlook OOF Calendar events, and Offline Signed Punch Queue.
+| Phase | Name | Scope | Exit criteria | Gate | Status |
+|---|---|---|---|---|---|
+| **6** | Foundation & trust | M1, M2 stopgaps, M9 demo-control removal | Code fully tracked; `verify:all` in CI; migrations committed; secrets/CORS hardened; role switcher and prefilled credentials removed; employee PII guarded; SHA-bound push hook | G1 | `[/]` Implemented, awaiting G1 |
+| **7** | Identity & employee lifecycle | M2, M3 | Refresh/revocation; forced password change; rate limiting; admin employee CRUD; role/manager/branch/remote changes; SSO decision executed | G2 | `[ ]` |
+| **8** | Attendance integrity | M4 | Verifiable evidence; local-day boundary; break persistence; offline decision; corrections; admin attendance view/export | G3 | `[ ]` |
+| **9** | Leave & approvals v2 | M5, M9 leave UX | Two-stage pipeline; balance ledger; holidays; overlap/half-day; cancellation; attachments; full calendar and types | G4 | `[ ]` |
+| **10** | Admin console & notifications | M6, M7.1–M7.2 | Employee/attendance/leave admin complete; reports; audit viewer; persisted notifications and push | G5 | `[ ]` |
+| **11** | Payroll, integrations & release | M7.3–M7.7, M8, M10 | Payroll run + WPS validation; Teams/Outlook dispatch; EAS builds; pinning; monitoring/backup; store/MDM | G6 | `[ ]` |
+| **12+** | Workspace & tenancy | Account model D1–D5 | Separate PRD and migration plan | — | `[ ]` Later |
 
 ---
 
-## Sprint 4: Backend API, PostGIS & Database Layer (Upcoming Phase)
+## Phase 6 implementation (2026-10-31)
 
-- [ ] **Task 4.1: Backend Service Initialization (NestJS / PostgreSQL + PostGIS)**
-- [ ] **Task 4.2: Relational Schema & Migration**
-- [ ] **Task 4.3: Production Attendance & Anti-Spoofing Endpoints**
-- [ ] **Task 4.4: Leave & Multi-Tier Approvals Engine**
+Status: **implemented, awaiting G1**. Automated verification is green; the device checklist and your signature are still required.
 
----
+| Requirement | Result | Evidence |
+|---|---|---|
+| M1.1 All code tracked (backend, admin, docs, API clients, iOS source) | Done | Focused commits; `ios/Pods` and `ios/build` ignored |
+| M1.2 `verify:all` in CI | Done | `.github/workflows/verify.yml` |
+| M1.3 API tests with isolated DB; admin tests | **Partial** | 18 new backend unit/service tests (31 total); isolated DB API tests and admin tests remain |
+| M1.4 Prisma migration history | Done (baseline) | `backend/prisma/migrations/20261031000000_baseline` |
+| M1.5 Fail-fast secrets and CORS | Done | `configuration.ts`, `cors.ts`, `.env.example` files |
+| M1.6 SHA-bound push hook | Done | `.githooks/pre-push`, `npm run hooks:install` |
+| M1.7 Monorepo README | Done | `README.md` |
+| M2 Role comes from the verified session | Done | Client role switcher removed from App, Dashboard and Admin panel |
+| M2 Employee PII guarded | Done | Full record only for self/HR/Super Admin; limited shape for colleagues and managers; tests added |
+| M9 Demo controls removed | Done | Presets and biometric/Wi-Fi toggles deleted; login prefill removed; SSO button hidden until configured |
 
-## Sprint 5: Production Build, Hardening & Final Release (Upcoming Phase)
+Decisions applied with the recommended defaults: R-02 (version iOS source), R-03 (delete `data.db`, ignore personal tooling, commit `metro.config.js`), R-04 (port 4000), R-06 (remove dead demo controls), R-07 (hide SSO until configured). R-05, R-08, R-09 and R-10 remain open for their phases.
 
-- [ ] **Task 5.1: App Configuration & EAS Standalone Build (`eas.json`)**
-- [ ] **Task 5.2: SSL Certificate Pinning & ProGuard Hardening**
-- [ ] **Task 5.3: Physical Device Field Testing & Store Release**
-
----
-
-## Sprint 6: Option A Smooth Bezier Cradle Bottom Navigation Bar Redesign
-
-### Development
-- [x] **Task 6.1: SVG Smooth Bezier Cradle Geometry Engine**
-  - [x] Install `react-native-svg` and build [`src/services/bottomNavGeometry.ts`](src/services/bottomNavGeometry.ts).
-  - [x] Compute S-curve Bezier cutout dipping cleanly underneath the center `+` FAB (`depth = 36px`, `halfWidth = 58px`).
-- [x] **Task 6.2: Flush Bottom Edge Attachment (Zero Bottom Gap/Shadow)**
-  - [x] Create [`src/components/NotchedBottomBar.tsx`](src/components/NotchedBottomBar.tsx) extending through `useSafeAreaInsets().bottom` so the bar attaches flush to the physical bottom of mobile screens.
-  - [x] Remove `bottom` from root `<SafeAreaView>` edges in [`App.tsx`](App.tsx) and eliminate downward bottom shadow.
-
-### Automated & Manual Testing
-- [x] **Task 6.3: Option A Bottom Nav Automated Tests**
-  - [x] `TC-6.1` & `TC-6.2` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **PASSED**.
-- [x] **Task 6.4: User Manual Testing (Completed & Approved)**
-  - [x] Verify on mobile/web that the bottom navigation bar is flush with the bottom edge, has no bottom shadow, and curves smoothly under the center `+` button in both Light and Dark modes.
+Known Phase 6 residue: no isolated database API suite, no admin test suite, and the migration has not yet been exercised against an existing database copy.
 
 ---
 
-## Sprint 7: Official MacqHR Concept A ("People + M Crown") Logo & App Icon
+## Product phase log (prototype)
 
-### Development
-- [x] **Task 7.1: Concept A Vector Logo Specification & Standalone Asset**
-  - [x] Create [`src/services/logoSpec.ts`](src/services/logoSpec.ts) defining the Concept A ("People + M Crown") SVG geometry, squircle badge gradient (`#002C52` → `#001629`), architectural white `M` pillars (`#FFFFFF`), Orange Pantone (`#FE5800`) human apex pulse node, and base verification bar.
-  - [x] Export standalone high-resolution SVG icon asset at [`assets/macqhr-icon.svg`](assets/macqhr-icon.svg).
-- [x] **Task 7.2: Reusable `<MacqLogo />` Component & UI Integration**
-  - [x] Create [`src/components/MacqLogo.tsx`](src/components/MacqLogo.tsx) supporting `icon`, `horizontal`, and `stacked` variants across `sm`, `md`, `lg`, and `xl` sizes plus RTL layout compatibility.
-  - [x] Integrate `<MacqLogo />` into the top header bar of [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx) and the Biometric Security Lock Screen in [`App.tsx`](App.tsx).
+These are the phases that produced the current code. They are **not** the same as delivery Phases 6–11.
 
-### Automated & Manual Testing
-- [x] **Task 7.3: Concept A Logo Automated Tests**
-  - [x] `TC-7.1` & `TC-7.2` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **PASSED**.
-- [x] **Task 7.4: User Manual Testing (Completed & Approved)**
-  - [x] Verify the new Concept A MacqHR logo in the Dashboard top header (icon only) and Opening/Biometric Lock Screen (full logo + wordmark).
+| Product phase | Commit(s) | Scope | Evidence | Gate status |
+|---|---|---|---|---|
+| Phase 1 | `a03fb7e` | Dashboard header, TS contracts | 48-test suite includes phase-1 cases | Legacy manual check; no SHA-bound record |
+| Phase 2 | `8af771a` | Four-card actions layout, arrange modal | TC-P2.1–P2.5 | Legacy manual check |
+| Phase 3 | `35a399e`, `88d7f29` | Who's Off modal, filters, metadata | TC-P3.1–P3.3 | Legacy manual check |
+| Phase 4 | `0d4701a` | Pakistan remote clock-in, Riyadh HQ awareness | TC-P4.1–P4.3 | Legacy manual check |
+| Phase 5 | `4c41454` | Org structure, Employee–Manager–HR leave pipeline, admin panel | TC-P5.1–P5.5 | **Invalid**: `.manual-qa-approved` predates this commit and is not SHA-bound |
+| Sprints 6–9 | `87d3975` | Bottom nav, logo, sidebar, profile, RBAC skeleton | TC-6.x–TC-9.x | Legacy manual check |
+| Maps/GPS | `5a4f190` | Maps, street tiles, geofence, app config | TC-2.x | Legacy manual check |
 
----
-
-## Sprint 8: Option A Executive Sidebar Drawer & Live Profile Editor
-
-### Development
-- [x] **Task 8.1: Header Three-Dots Removal & Logo Click Trigger**
-  - [x] Remove the `more-vertical` (3-dots) button and floating overflow menu from [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx).
-  - [x] Make the Concept A `<MacqLogo />` in the header clickable to open the **Option A Executive Sidebar Drawer**.
-- [x] **Task 8.2: Option A Executive Sidebar Drawer & Live Profile Editing**
-  - [x] Create [`src/services/profileSettingsService.ts`](src/services/profileSettingsService.ts) and [`src/components/ExecutiveSidebarDrawer.tsx`](src/components/ExecutiveSidebarDrawer.tsx).
-  - [x] Support live **Avatar Style change**, **Full Name change**, and **Mobile Phone Number change** inside the sidebar with instant state synchronization across [`App.tsx`](App.tsx), [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx), and [`src/screens/SubModuleModal.tsx`](src/screens/SubModuleModal.tsx).
-  - [x] Move Dark/Light Mode, Language (`EN/عربي`), Biometric Security Lock, Request Time Off, and Employment/GOSI Record controls into the Sidebar.
-
-### Automated & Manual Testing
-- [x] **Task 8.3: Option A Sidebar & Profile Editor Automated Tests**
-  - [x] `TC-8.1`, `TC-8.2` & `TC-8.3` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **PASSED**.
-- [x] **Task 8.4: User Manual Testing (Completed & Approved)**
-  - [x] Tap the MacqHR logo in the top header to open the Option A Sidebar, test changing Avatar style, Full Name, and Phone Number, and verify the Settings switches.
+Phase 5 must be re-verified at G1 against the production rules in the PRD. The existing approval file is historical only and must not authorize a new push.
 
 ---
 
-## Sprint 9: Frontend Optimization, RBAC Role Filtering & Tiered Skeleton Shimmer Hydration
+## Historical prototype log
 
-### Development
-- [x] **Task 9.1: Role-Based Access Control (RBAC) & Tiered Hydration Service**
-  - [x] Create [`src/services/dashboardOptimizationService.ts`](src/services/dashboardOptimizationService.ts) with synchronous JWT role permission claims (`EMPLOYEE`, `MANAGER`, `HR_ADMIN`), section-level authorization (`getAuthorizedDashboardSections`), Quick Action module filtering (`filterActionsByRole`), and tiered cold-start latency descriptors (`TIER_1_CORE`, `TIER_2_ACTIONS`, `TIER_3_FEED`).
-- [x] **Task 9.2: Geometry-Matched Skeleton Shimmer Component & Virtualized `<FlatList>` Dashboard**
-  - [x] Create [`src/components/DashboardSkeleton.tsx`](src/components/DashboardSkeleton.tsx) with 60 FPS `Animated` pulse/shimmer placeholders matching the exact dimensions (`borderRadius: 16`) of Balances, Actions Grid, Who's Off, Birthdays, and Events cards.
-  - [x] Upgrade [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx) from a monolithic `<ScrollView>` to a windowed `<FlatList>` (`initialNumToRender={3}`, `maxToRenderPerBatch={3}`, `windowSize={5}`) with an interactive RBAC Role Switcher (`Line Manager` / `Employee` / `HR Admin`) and Skeleton Replay button.
+### Sprint 1 — Audit, rules, tracking
 
-### Automated & Manual Testing
-- [x] **Task 9.3: RBAC & Progressive Skeleton Hydration Automated Tests**
-  - [x] `TC-9.1`, `TC-9.2` & `TC-9.3` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) — **26/26 TOTAL PASSED**.
-- [x] **Task 9.4: User Manual Testing (Completed & Approved)**
-  - [x] Switch between `Line Manager`, `Employee`, and `HR Admin` pills on the Dashboard (or tap the refresh button) to verify tiered Skeleton Shimmer hydration and role-filtered cards.
+- `[x]` Codebase audit, rules definition, sprint tracking.
+- Evidence: this repository's early documentation.
+- Note: the rules describe target behavior; they were not a production verification.
+
+### Sprint 2 — Location, maps, anti-spoofing prototype
+
+- `[x]` `expo-location`, permissions, map/radar screen, Haversine, accuracy filter, mock/root/drift checks.
+- `[/]` QA simulation presets exist in `useLocationSecurity.ts`, but no UI strip is exposed. **Phase 6 removed the unused presets and biometric/Wi-Fi toggles.**
+- **Demo only**: mock/root/biometric outcomes are client-reported. Server attestation is a Phase 8 requirement.
+- Tests: `TC-2.1`–`TC-2.9` (9/9 passing at the utility layer).
+
+### Sprint 3 — Microsoft 365, offline checksum, GOSI prototype
+
+- `[x]` Teams presence mapping, Adaptive Card payload, Outlook OOO payload, FNV-1a checksum, GOSI/WPS math.
+- **Demo only**: no Graph network dispatch, no token flow, no SSO session. **Phase 6 hides the SSO button until the Entra client is configured.**
+- **Demo only**: offline queue signing is a 32-bit non-keyed checksum, not cryptographic signing. Sync is disabled server-side.
+- Tests: `TC-3.1`–`TC-3.3`, `TC-4.1`, `TC-5.1` (5/5).
+
+### Sprint 4 — Backend API and database
+
+Superseded by delivery Phases 6–7.
+
+- `[x]` NestJS + Prisma + PostgreSQL backend exists with auth, attendance, leave, employee, payroll, and directory endpoints.
+- `[/]` PostgreSQL without PostGIS; geofencing uses Haversine in application code.
+- `[x]` A baseline Prisma migration is committed in Phase 6.
+- `[ ]` API end-to-end tests with an isolated database and production hardening.
+- `[ ]` Multi-tier approvals.
+
+### Sprint 5 — Production build and release
+
+Superseded by delivery Phase 11.
+
+- `[ ]` EAS build profiles and signed artifacts.
+- `[ ]` Certificate pinning and native hardening.
+- `[ ]` Store/MDM release and field testing.
+
+### Sprint 6 — Bottom navigation
+
+- `[x]` Bezier cradle geometry and flush safe-area attachment.
+- `[x]` Light/dark visual verification recorded during prototyping.
+
+### Sprint 7 — Concept A logo
+
+- `[x]` SVG logo specification, standalone asset, reusable component, header/lock-screen integration.
+- `[x]` `TC-7.1`–`TC-7.2`.
+
+### Sprint 8 — Executive sidebar and profile editor
+
+- `[x]` Logo-triggered sidebar, avatar/full name/phone editing, settings relocation.
+- `[x]` `TC-8.1`–`TC-8.3`.
+- `[/]` Profile edits are local to the session until backend synchronization is added.
+
+### Sprint 9 — Dashboard optimization and RBAC filtering
+
+- `[x]` Tiered skeleton hydration, virtualized list, role-filtered dashboard sections.
+- `[/]` RBAC filtering is **client-side presentation only**. It is not authorization. Server authority is a Phase 6–7 requirement.
+- Historical milestone: 26 tests at that point; current suite is 48.
+
+### Sprint 10 — Login screen and session
+
+- `[x]` Login screen, backend password login, session restore, logout.
+- `[/]` Task 10.4 manual verification is unresolved; the existing approval record is stale.
+- **Demo only**: Microsoft 365 sign-in button is not configured.
+- Historical milestone: 30 tests at that point; current suite is 48.
 
 ---
 
-## Sprint 10: Dedicated Login Screen, Microsoft 365 SSO Sign-In & Complete Session Flow
+## Known gaps (summarized)
 
-### Development
-- [x] **Task 10.1: Login Screen & Authentication Architecture**
-  - [x] Create [`src/screens/LoginScreen.tsx`](src/screens/LoginScreen.tsx) with Concept A branding, synchronized input containers for Work Email and Password, Password visibility toggle, quick role selector (`Employee`, `Line Manager`, `HR Admin`), and a dedicated **Sign in with Microsoft 365** button.
-  - [x] Implement validation service in [`src/services/authService.ts`](src/services/authService.ts) supporting email formatting, mock credentials verification, role claim generation, and error handling.
-- [x] **Task 10.2: Global Session Management & Logout Flow**
-  - [x] Connect [`App.tsx`](App.tsx) authentication state (`isAuthenticated`, `userRole`, `employeeProfile`) to render `LoginScreen` when unauthenticated.
-  - [x] Update [`src/components/ExecutiveSidebarDrawer.tsx`](src/components/ExecutiveSidebarDrawer.tsx) and [`src/screens/DashboardScreen.tsx`](src/screens/DashboardScreen.tsx) to wire the bottom **Logout** pill to trigger a full session sign-out back to `LoginScreen`.
-- [x] **Task 10.3: Authentication & Session Automated Tests**
-  - [x] Write `TC-10.1`, `TC-10.2` & `TC-10.3` in [`src/__tests__/macqhr.test.ts`](src/__tests__/macqhr.test.ts) covering login validation, role claim resolution, and Microsoft 365 Entra ID SSO session lifecycle — **30/30 PASSED**.
-- [ ] **Task 10.4: User Manual Testing (Ready for User Verification)**
-  - [ ] Verify Login screen UI, test logging in with different roles, confirm sidebar Logout returns to Login, and test Microsoft 365 button.
+| Gap | Impact | Owner phase |
+|---|---|---|
+| M1.3 incomplete: no isolated-DB API tests or admin tests | Server and console regressions rely on manual gates | 6 (G1 condition) |
+| Migration upgrade not exercised on an existing database copy | Adoption risk for the current local database | 6 (G1 condition) |
+| Client-asserted anti-spoofing | Attendance verdicts are spoofable | 8 |
+| Single-stage leave, no balance ledger | Policy mismatch and drift | 9 |
+| UTC day boundary; no breaks/working minutes | Wrong day and summaries | 8 |
+| Offline sync disabled but UI queues | Possible data loss | 8 |
+| Teams/Outlook not dispatched | Payloads are generated but nothing is sent | 10–11 |
+| Payroll has no period run or lock | WPS totals are unstable | 11 |
+| Swagger is exposed in all environments | API surface disclosure | 7 |
 
+Full findings and proposed fixes: [document review](docs/prd/document-review.md).
 
+---
+
+## How to verify locally
+
+```bash
+# Mobile (typecheck + 48 tests)
+npm run verify
+
+# Backend (typecheck + 31 tests + build)
+cd backend && npm run typecheck && npm test && npm run build
+
+# Admin (production build)
+cd web-admin && npm run build
+
+# Everything
+npm run verify:all
+```
+
+The pre-push hook is installed with `npm run hooks:install`. It runs `verify:all` and requires an APPROVED gate in `docs/qa/gates/` matching the pushed commit SHA. No `--no-verify`.
+
+---
+
+## Definition of done (per phase)
+
+- Acceptance criteria met and demonstrated on staging.
+- Automated tests added at the correct layer.
+- Manual checklist executed on a device.
+- Light/dark and English/Arabic verified for every changed screen.
+- No S1/S2 defect; S3/S4 logged with workaround.
+- Migration and rollback verified if the schema changed.
+- Gate file signed by Talha with the exact commit SHA.
