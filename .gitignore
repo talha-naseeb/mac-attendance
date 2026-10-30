@@ -9,9 +9,10 @@ dist/
 web-build/
 
 # Native builds
+# ios/ source is tracked so the required AppDelegate/scene fix stays visible.
+# Pods, build output and local Xcode state are ignored by ios/.gitignore.
 *.orig.*
 android/
-ios/
 
 # Metro / cache
 .metro/
@@ -30,3 +31,14 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+.test-dist/
+coverage/
+
+# Local databases & approval markers
+data.db
+data.db-*
+.manual-qa-approved
+
+# Personal tooling (not part of the project)
+.gravitas/
+opencode.jsonc
