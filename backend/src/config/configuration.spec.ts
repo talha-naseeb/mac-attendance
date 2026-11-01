@@ -58,6 +58,25 @@ describe('configuration', () => {
     expect(config.jwt.secret).toHaveLength(48);
   });
 
+  it('parses TRUST_PROXY into an express-compatible value', () => {
+    delete process.env.TRUST_PROXY;
+    expect(configuration().security.trustProxy).toBe(false);
+
+    process.env.TRUST_PROXY = 'true';
+    expect(configuration().security.trustProxy).toBe(true);
+
+    for (const off of ['false', 'FALSE', 'off', 'no']) {
+      process.env.TRUST_PROXY = off;
+      expect(configuration().security.trustProxy).toBe(false);
+    }
+
+    process.env.TRUST_PROXY = '2';
+    expect(configuration().security.trustProxy).toBe(2);
+
+    process.env.TRUST_PROXY = 'loopback, linklocal';
+    expect(configuration().security.trustProxy).toBe('loopback, linklocal');
+  });
+
   it('enables Microsoft Entra SSO only for an explicit true flag', () => {
     delete process.env.SSO_ENABLED;
     expect(configuration().sso.enabled).toBe(false);

@@ -1,7 +1,10 @@
 import { EditableEmployeeProfile, deriveAvatarInitials } from './profileSettingsService';
 import { UserRole } from './dashboardOptimizationService';
 import { MACQUIRES_PALETTE } from '../theme/colors';
-import { notifySessionExpired, refreshStoredSession } from './sessionManager';
+import {
+  notifySessionExpired,
+  refreshStoredSessionOutcome,
+} from './sessionManager';
 import {
   ApprovalItem,
   AttendanceRecord,
@@ -410,15 +413,15 @@ async function request<T>(
   // A wrong current password on the change-password endpoint is also a 401, so
   // that path must not trigger a token refresh and rotate the session on typo.
   if (response.status === 401 && token && !isCredentialRoute) {
-    const refreshed = await refreshStoredSession();
-    if (refreshed?.token) {
-      response = await send(refreshed.token);
+    const outcome = await refreshStoredSessionOutcome();
+    if (outcome.status === 'ok') {
+      response = await send(outcome.session.token);
+    } else if (outcome.status === 'dead') {
+      // The server rejected the refresh token: expired beyond recovery,
+      // revoked, or deactivated. A transient refresh failure is `unavailable`
+      // and must leave the stored session intact for the next attempt.
+      notifySessionExpired();
     }
-  }
-
-  if (response.status === 401 && token && !isCredentialRoute) {
-    // Dead session: expired beyond recovery, revoked, or deactivated.
-    notifySessionExpired();
   }
 
   const body = (await response.json().catch(() => null)) as {

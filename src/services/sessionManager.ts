@@ -45,7 +45,13 @@ function authStorage(): AuthStorageModule {
   return require('./authStorage') as AuthStorageModule;
 }
 
-let refreshInFlight: Promise<AuthSession | null> | null = null;
+export type RefreshOutcome =
+  | { status: 'ok'; session: AuthSession }
+  | { status: 'dead' }
+  | { status: 'unavailable' };
+
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+let signOutInFlight: Promise<void> | null = null;
 
 type SessionListener = (session: AuthSession) => void;
 const sessionListeners = new Set<SessionListener>();
@@ -66,99 +72,138 @@ export function subscribeToSessionExpired(listener: () => void): () => void {
 }
 
 export function notifySessionExpired(): void {
-  expiryListeners.forEach((listener) => listener());
+  expiryListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // One subscriber must not prevent the others from signing out.
+    }
+  });
+}
+
+function notifySessionListeners(next: AuthSession): void {
+  sessionListeners.forEach((listener) => {
+    try {
+      listener(next);
+    } catch {
+      // A UI subscriber must not fail a refresh that already reached storage.
+    }
+  });
 }
 
 // Incremented on sign-out. A refresh that started under an older epoch must not
 // write a session back after storage was cleared.
 let sessionEpoch = 0;
 
-export async function refreshStoredSession(): Promise<AuthSession | null> {
-  if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async () => {
-    const epoch = sessionEpoch;
-    try {
-      // allowExpired is essential: an expired access token is exactly when a
-      // refresh is needed, and the default load would delete the session first.
-      const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
-      if (!stored?.refreshToken) {
-        // Nothing to refresh with. Drop a session that can never be used again,
-        // but keep one whose access token is still valid.
-        if (stored && isTokenExpiringSoon(stored.token)) {
-          await authStorage().clearStoredAuthSession();
-        }
-        return null;
+async function performRefresh(): Promise<RefreshOutcome> {
+  const epoch = sessionEpoch;
+  try {
+    // allowExpired is essential: an expired access token is exactly when a
+    // refresh is needed, and the default load would delete the session first.
+    const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
+    if (!stored?.refreshToken) {
+      // Nothing to refresh with. Drop a session that can never be used again,
+      // but keep one whose access token is still valid.
+      if (stored && isTokenExpiringSoon(stored.token)) {
+        await authStorage().clearStoredAuthSession();
       }
-      const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ refreshToken: stored.refreshToken }),
-      });
-      if (!response.ok) {
-        // Only a rejected refresh token invalidates the session. A 5xx or 429
-        // is transient and the stored refresh token must survive for a retry.
-        if (response.status === 401 || response.status === 403) {
-          await authStorage().clearStoredAuthSession();
-        }
-        return null;
-      }
-      const body = (await response.json()) as {
-        accessToken: string;
-        refreshToken: string;
-        user: { mustChangePassword?: boolean };
-      };
-      const next: AuthSession = {
-        ...stored,
-        token: body.accessToken,
-        refreshToken: body.refreshToken,
-        mustChangePassword: Boolean(body.user?.mustChangePassword),
-      };
-      if (epoch !== sessionEpoch) return null;
-      await authStorage().saveAuthSession(next);
-      sessionListeners.forEach((listener) => listener(next));
-      return next;
-    } catch {
-      return null;
-    } finally {
-      refreshInFlight = null;
+      return { status: 'unavailable' };
     }
-  })();
+    const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ refreshToken: stored.refreshToken }),
+    });
+    if (!response.ok) {
+      // Only a rejected refresh token means the session is dead. A 5xx, 429 or
+      // network failure is transient; the stored refresh token must survive so
+      // the next attempt can succeed, and the user must not be signed out.
+      if (response.status === 401 || response.status === 403) {
+        await authStorage().clearStoredAuthSession();
+        return { status: 'dead' };
+      }
+      return { status: 'unavailable' };
+    }
+    const body = (await response.json()) as {
+      accessToken: string;
+      refreshToken: string;
+      user: { mustChangePassword?: boolean };
+    };
+    const next: AuthSession = {
+      ...stored,
+      token: body.accessToken,
+      refreshToken: body.refreshToken,
+      mustChangePassword: Boolean(body.user?.mustChangePassword),
+    };
+    if (epoch !== sessionEpoch) return { status: 'unavailable' };
+    await authStorage().saveAuthSession(next);
+    notifySessionListeners(next);
+    return { status: 'ok', session: next };
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
+/**
+ * Single-flight refresh that distinguishes a rejected session (`dead`) from a
+ * refresh that could not be performed (`unavailable`). Callers must only end
+ * the session on `dead`.
+ */
+export function refreshStoredSessionOutcome(): Promise<RefreshOutcome> {
+  if (refreshInFlight) return refreshInFlight;
+  const run = performRefresh();
+  refreshInFlight = run.finally(() => {
+    refreshInFlight = null;
+  });
   return refreshInFlight;
 }
 
-export async function signOutStoredSession(): Promise<void> {
-  sessionEpoch += 1;
-  const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
-  // Clear before any network work: a pending refresh must not restore the
-  // session, and a fast re-login must not be wiped by this sign-out.
-  await authStorage().clearStoredAuthSession();
-  if (!stored?.token) return;
-  let token = stored.token;
-  if (isTokenExpiringSoon(token) && stored.refreshToken) {
-    // The logout endpoint authenticates with the access token. Mint a fresh one
-    // from the captured refresh token so the server session is actually revoked.
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ refreshToken: stored.refreshToken }),
-      });
-      if (response.ok) {
-        const body = (await response.json()) as { accessToken?: string };
-        if (body.accessToken) token = body.accessToken;
+export async function refreshStoredSession(): Promise<AuthSession | null> {
+  const outcome = await refreshStoredSessionOutcome();
+  return outcome.status === 'ok' ? outcome.session : null;
+}
+
+export function signOutStoredSession(): Promise<void> {
+  if (signOutInFlight) return signOutInFlight;
+  const run = (async () => {
+    // Bumped synchronously before the first await so an in-flight refresh sees it.
+    sessionEpoch += 1;
+    const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
+    // Clear before any network work: a pending refresh must not restore the
+    // session, and a fast re-login must not be wiped by this sign-out.
+    await authStorage().clearStoredAuthSession();
+    if (!stored?.token) return;
+    let token = stored.token;
+    if (isTokenExpiringSoon(token) && stored.refreshToken) {
+      // The logout endpoint authenticates with the access token. Mint a fresh one
+      // from the captured refresh token so the server session is actually revoked.
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ refreshToken: stored.refreshToken }),
+        });
+        if (response.ok) {
+          const body = (await response.json()) as { accessToken?: string };
+          if (body.accessToken) token = body.accessToken;
+        }
+      } catch {
+        // Fall through to the best-effort logout with the stored token.
       }
-    } catch {
-      // Fall through to the best-effort logout with the stored token.
     }
-  }
-  try {
-    await fetch(`${getApiBaseUrl()}/auth/logout`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  } catch {
-    // Local sign-out must succeed even when the API is unreachable.
-  }
+    try {
+      await fetch(`${getApiBaseUrl()}/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Local sign-out must succeed even when the API is unreachable.
+    }
+  })();
+  signOutInFlight = run.finally(() => {
+    signOutInFlight = null;
+  });
+  return signOutInFlight;
 }
 
 function getApiBaseUrl(): string {

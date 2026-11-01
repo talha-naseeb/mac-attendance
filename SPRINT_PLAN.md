@@ -1,7 +1,7 @@
 # MacqHR Delivery Tracker
 
 > **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off. Phase 7A (M2 identity and sessions) is implemented and awaiting G2.
-> **Verification**: 47 mobile tests, 51 backend tests in 9 suites, 17 isolated-database API tests, 4 admin tests, admin production build passing.
+> **Verification**: 47 mobile tests, 52 backend tests in 9 suites, 17 isolated-database API tests, 4 admin tests, admin production build passing.
 > **Release status**: Not production-ready. Phase 7B (M3 employee lifecycle) follows Phase 7A under the same G2.
 > **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
 > **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
@@ -35,7 +35,7 @@ Any new commit invalidates the previous gate. See [RULES.md](RULES.md) Section 0
 | Surface | Command | Result |
 |---|---|---|
 | Mobile | `npm run verify` | Typecheck passed; 47 tests passed, 0 failed |
-| Backend | `npm run typecheck && npm test && npm run build` | Typecheck passed; 9 suites, 51 tests passed; build passed |
+| Backend | `npm run typecheck && npm test && npm run build` | Typecheck passed; 9 suites, 52 tests passed; build passed |
 | Backend API (isolated database) | `cd backend && npm run test:e2e` | 4 suites, 17 tests passed against the isolated `macqhr_test` database, 0 failed |
 | Admin tests | `cd web-admin && npm test` | 1 file, 4 Vitest cases passed, 0 failed |
 | Admin build | `cd web-admin && npm run build` | Production build passed |
@@ -100,7 +100,7 @@ Status: **implemented, awaiting G2**. Automated verification is green; the devic
 | AUTH-09 role matrix | Unchanged, manual at G2 | Automated coverage is not claimed; Phase 6's pendency stands until the G2 manual run |
 | Deactivation and role-change revocation | Enforced per request; revoke-on-write in Phase 7B | JWT strategy re-hydrates `isActive` and role on every request; the M3 endpoints that would revoke sessions on deactivation/role change land in Phase 7B |
 
-Verification on 2026-11-01 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 51 unit tests + build; backend e2e 17/17 in 4 suites on the isolated `TEST_DATABASE_URL`; admin 4 Vitest cases + production build.
+Verification on 2026-11-02 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 52 unit tests + build; backend e2e 17/17 in 4 suites on the isolated `TEST_DATABASE_URL`; admin 4 Vitest cases + production build.
 
 Known Phase 7A limitations, for the G2 gate:
 
@@ -232,7 +232,7 @@ Full findings and proposed fixes: [document review](docs/prd/document-review.md)
 # Mobile (typecheck + 47 tests)
 npm run verify
 
-# Backend (typecheck + 51 tests + build)
+# Backend (typecheck + 52 tests + build)
 cd backend && npm run typecheck && npm test && npm run build
 
 # Admin (unit tests + production build)

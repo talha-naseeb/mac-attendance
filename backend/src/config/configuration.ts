@@ -23,6 +23,21 @@ function resolveRequiredValue(
   return devFallback;
 }
 
+export function parseTrustProxy(
+  raw: string | undefined,
+): boolean | number | string {
+  const value = raw?.trim();
+  if (!value) return false;
+
+  const normalized = value.toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false' || normalized === 'off' || normalized === 'no') {
+    return false;
+  }
+  if (/^\d+$/.test(value)) return Number(value);
+  return value;
+}
+
 export interface AppConfig {
   port: number;
   environment: string;
@@ -93,13 +108,7 @@ export default (): AppConfig => {
       maxAllowedNtpDriftMinutes: parseFloat(
         process.env.MAX_ALLOWED_NTP_DRIFT_MINUTES || '5',
       ),
-      trustProxy: (() => {
-        const raw = process.env.TRUST_PROXY?.trim();
-        if (!raw) return false;
-        if (raw === 'true') return true;
-        if (/^\d+$/.test(raw)) return Number(raw);
-        return raw;
-      })(),
+      trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
     },
     saudiLabor: {
       gosiEmployeeRate: parseFloat(
