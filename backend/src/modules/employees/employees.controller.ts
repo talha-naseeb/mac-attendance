@@ -10,8 +10,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { EmployeesService } from './employees.service';
+import { EmploymentChangesService } from './employment-changes.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employees.dto';
 import { AdminEmployeeQueryDto } from './dto/employee-admin.dto';
+import { EmploymentChangeDto } from './dto/employment-change.dto';
 import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import {
@@ -23,7 +25,10 @@ import {
 @Controller('employees')
 @ApiBearerAuth()
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) {}
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly employmentChanges: EmploymentChangesService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List employees with search and department filtering' })
@@ -53,6 +58,26 @@ export class EmployeesController {
     @CurrentUser() requester: AuthenticatedUser,
   ) {
     return this.employeesService.findById(id, requester);
+  }
+
+  @Get(':id/changes')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'List employment changes for an employee, newest first' })
+  async listChanges(@Param('id') id: string) {
+    return this.employmentChanges.list(id);
+  }
+
+  @Post(':id/changes')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Apply an effective-dated employment change' })
+  async applyChange(
+    @Param('id') id: string,
+    @Body() dto: EmploymentChangeDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.employmentChanges.apply(id, dto, actor);
   }
 
   @Post()

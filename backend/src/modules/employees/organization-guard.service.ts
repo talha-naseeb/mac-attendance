@@ -1,11 +1,18 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+
+type GuardClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class OrganizationGuardService {
   constructor(private prisma: PrismaService) {}
 
-  async assertCanAssignManager(userId: string, managerId: string | null | undefined): Promise<void> {
+  async assertCanAssignManager(
+    userId: string,
+    managerId: string | null | undefined,
+    client: GuardClient = this.prisma,
+  ): Promise<void> {
     if (managerId === null || managerId === undefined) return;
     if (managerId === userId) {
       throw new BadRequestException('An employee cannot be their own manager.');
@@ -23,7 +30,7 @@ export class OrganizationGuardService {
         throw new BadRequestException('The reporting hierarchy already contains a cycle.');
       }
       seen.add(current);
-      const next = await this.prisma.user.findUnique({
+      const next = await client.user.findUnique({
         where: { id: current },
         select: { managerId: true },
       });
@@ -34,14 +41,17 @@ export class OrganizationGuardService {
     }
   }
 
-  async assertSuperAdminRetained(userId: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({
+  async assertSuperAdminRetained(
+    userId: string,
+    client: GuardClient = this.prisma,
+  ): Promise<void> {
+    const user = await client.user.findUnique({
       where: { id: userId },
       select: { role: true, isActive: true },
     });
     if (!user || user.role !== 'SUPER_ADMIN' || !user.isActive) return;
 
-    const remaining = await this.prisma.user.count({
+    const remaining = await client.user.count({
       where: { role: 'SUPER_ADMIN', isActive: true, id: { not: userId } },
     });
     if (remaining === 0) {

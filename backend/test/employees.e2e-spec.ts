@@ -411,4 +411,151 @@ describe('Employee administration (e2e)', () => {
     expect(serialized.toLowerCase()).not.toContain('hash');
     expect(serialized).not.toContain('Noura');
   });
+
+  it('EMP-06: promotion revokes sessions and the next login carries the new role', async () => {
+    const employee = await createUser(testPrisma, {
+      email: 'promote@macqhr.sa',
+      employeeId: 'EMP-P',
+    });
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'promote@macqhr.sa', password: TEST_PASSWORD });
+    const token = login.body.accessToken;
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'ROLE',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'Promotion to manager',
+        role: 'MANAGER',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
+
+    const relogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'promote@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    expect(relogin.body.user.role).toBe('MANAGER');
+
+    const change = await testPrisma.employmentChange.findFirstOrThrow({
+      where: { userId: employee.id },
+    });
+    expect(change.type).toBe('ROLE');
+    expect((change.beforeJson as Record<string, unknown>).role).toBe('EMPLOYEE');
+    expect((change.afterJson as Record<string, unknown>).role).toBe('MANAGER');
+
+    const ledger = await request(app.getHttpServer())
+      .get(`/api/employees/${employee.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(ledger.body).toHaveLength(1);
+    expect(ledger.body[0].id).toBe(change.id);
+    expect(ledger.body[0].actor.firstName).toBe('Test');
+  });
+
+  it('EMP-05: remote eligibility is audited with the granting HR user', async () => {
+    const employee = await createUser(testPrisma, {
+      email: 'remote@macqhr.sa',
+      employeeId: 'EMP-R',
+    });
+    const hr = await testPrisma.user.findUniqueOrThrow({
+      where: { email: 'hr@macqhr.sa' },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'REMOTE_ELIGIBILITY',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'Approved remote arrangement',
+        isRemoteAllowed: true,
+      })
+      .expect(201);
+
+    const updated = await testPrisma.user.findUniqueOrThrow({ where: { id: employee.id } });
+    expect(updated.isRemoteAllowed).toBe(true);
+    expect(updated.remoteGrantedAt).toBeTruthy();
+    expect(updated.remoteGrantedById).toBe(hr.id);
+    const audit = await testPrisma.auditLog.findFirst({
+      where: { action: 'EMPLOYMENT_CHANGE_APPLIED' },
+    });
+    expect(audit).toBeTruthy();
+    expect(audit!.actorUserId).toBe(hr.id);
+    expect((audit!.detailsJson as Record<string, unknown>).userId).toBe(employee.id);
+  });
+
+  it('EMP-04: a transfer validates later punches against the new branch', async () => {
+    const targetBranch = await testPrisma.branch.create({
+      data: {
+        name: 'Jeddah Hub',
+        nameAr: 'فرع جدة',
+        city: 'Jeddah',
+        cityAr: 'جدة',
+        latitude: 21.4858,
+        longitude: 39.1925,
+      },
+    });
+    const employee = await createUser(testPrisma, {
+      email: 'transfer@macqhr.sa',
+      employeeId: 'EMP-T',
+    });
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'transfer@macqhr.sa', password: TEST_PASSWORD });
+    const token = login.body.accessToken;
+
+    const before = await request(app.getHttpServer())
+      .post('/api/attendance/punch')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        type: 'CHECK_IN',
+        latitude: 21.4858,
+        longitude: 39.1925,
+        accuracyMeters: 10,
+        isMockLocation: false,
+        isDeviceRooted: false,
+        biometricVerified: true,
+        clientTimestamp: new Date().toISOString(),
+        branchId: (await testPrisma.user.findUniqueOrThrow({ where: { id: employee.id } })).branchId,
+        workMode: 'OFFICE',
+      })
+      .expect(400);
+    expect(before.body.message).toMatch(/geofence/i);
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'TRANSFER',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'Relocation to Jeddah',
+        branchId: targetBranch.id,
+      })
+      .expect(201);
+
+    const punch = await request(app.getHttpServer())
+      .post('/api/attendance/punch')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        type: 'CHECK_IN',
+        latitude: 21.4858,
+        longitude: 39.1925,
+        accuracyMeters: 10,
+        isMockLocation: false,
+        isDeviceRooted: false,
+        biometricVerified: true,
+        clientTimestamp: new Date().toISOString(),
+        branchId: targetBranch.id,
+        workMode: 'OFFICE',
+      })
+      .expect(201);
+    expect(punch.body.record.branchId).toBe(targetBranch.id);
+  });
 });
