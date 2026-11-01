@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employees.dto';
+import {
+  AdminEmployeeQueryDto,
+  EmployeeStatusFilter,
+} from './dto/employee-admin.dto';
 
 export interface EmployeeRequester {
   id: string;
@@ -161,31 +166,70 @@ export class EmployeesService {
     }
   }
 
-  async findAllForAdmin() {
-    return this.prisma.user.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        employeeId: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        department: true,
-        jobTitle: true,
-        role: true,
-        isSaudi: true,
-        nationalId: true,
-        iqamaNumber: true,
-        basicSalarySar: true,
-        housingAllowanceSar: true,
-        transportAllowanceSar: true,
-        avatarUrl: true,
-        isRemoteAllowed: true,
-        branch: { select: { id: true, name: true, nameAr: true, code: true } },
-      },
-      orderBy: { employeeId: 'asc' },
-    });
+  async findAllForAdmin(query: AdminEmployeeQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 25;
+    const where: any = {};
+
+    if (query.status === EmployeeStatusFilter.ACTIVE) where.isActive = true;
+    if (query.status === EmployeeStatusFilter.INACTIVE) where.isActive = false;
+
+    if (query.department) where.department = query.department;
+    if (query.branchId) where.branchId = query.branchId;
+    if (query.search) {
+      where.OR = [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { employeeId: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { jobTitle: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const direction = query.direction ?? 'asc';
+    const orderBy: Prisma.UserOrderByWithRelationInput[] =
+      query.sort === 'name'
+        ? [{ lastName: direction }, { firstName: direction }]
+        : query.sort === 'department'
+          ? [{ department: direction }, { employeeId: 'asc' }]
+          : query.sort === 'status'
+            ? [{ isActive: direction }, { employeeId: 'asc' }]
+            : [{ employeeId: direction }];
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          employeeId: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          department: true,
+          jobTitle: true,
+          role: true,
+          isSaudi: true,
+          isActive: true,
+          nationalId: true,
+          iqamaNumber: true,
+          basicSalarySar: true,
+          housingAllowanceSar: true,
+          transportAllowanceSar: true,
+          avatarUrl: true,
+          isRemoteAllowed: true,
+          mustChangePassword: true,
+          branch: { select: { id: true, name: true, nameAr: true, code: true } },
+          manager: { select: { id: true, firstName: true, lastName: true } },
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return { items, total, page, pageSize };
   }
 
   async create(dto: CreateEmployeeDto) {

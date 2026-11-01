@@ -11,6 +11,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employees.dto';
+import { AdminEmployeeQueryDto } from './dto/employee-admin.dto';
 import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import {
@@ -40,9 +41,9 @@ export class EmployeesController {
   @Get('admin')
   @UseGuards(RolesGuard)
   @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'List employee and payroll records for the administration console only' })
-  async getAdminEmployees() {
-    return this.employeesService.findAllForAdmin();
+  @ApiOperation({ summary: 'Paginated employee and payroll records for the administration console' })
+  async getAdminEmployees(@Query() query: AdminEmployeeQueryDto) {
+    return this.employeesService.findAllForAdmin(query);
   }
 
   @Get(':id')
