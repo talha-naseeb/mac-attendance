@@ -9,12 +9,15 @@ import { EmployeesView } from './components/EmployeesView';
 import { PayrollView } from './components/PayrollView';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
 import {
+  clearAdminSession,
+  getStoredAdminSession,
+  SESSION_EXPIRED_EVENT,
+} from './api/adminSession';
+import {
   AdminPortalData,
   ApiError,
-  clearAdminSession,
   decideLeave,
   downloadWps,
-  getStoredAdminSession,
   loadAdminPortalData,
   saveBranch,
   UserSession,
@@ -59,6 +62,17 @@ export const App: React.FC = () => {
   useEffect(() => {
     void refreshPortalData();
   }, [refreshPortalData]);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setSession(null);
+      setPortalData(null);
+      setSelectedPunch(null);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () =>
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, []);
 
   const handleLogout = () => {
     clearAdminSession();

@@ -5,9 +5,17 @@ import type {
   AdminLeaveItem,
   LivePunchLog,
 } from '../data/mockAdminData';
+import {
+  clearAdminSession,
+  getStoredAdminSession,
+  SESSION_EXPIRED_EVENT,
+  storeAdminSession,
+  type UserSession,
+} from './adminSession';
+
+export type { UserSession } from './adminSession';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-const ADMIN_SESSION_KEY = 'macq_admin_session';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -21,22 +29,17 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-export interface UserSession {
-  token: string;
-  user: {
-    id: string;
-    employeeId: string;
-    firstName: string;
-    lastName: string;
-    name: string;
-    email: string;
-    role: 'SUPER_ADMIN' | 'HR_ADMIN';
-    department: string;
-    jobTitle: string;
-    avatarUrl?: string;
-    canAccessWebAdmin: boolean;
-  };
-}
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const isSignInAttempt = error.config?.url?.includes('/auth/admin/login');
+    if (error.response?.status === 401 && !isSignInAttempt) {
+      clearAdminSession();
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    }
+    return Promise.reject(error);
+  },
+);
 
 interface BackendLoginResponse {
   accessToken: string;
@@ -106,29 +109,11 @@ export async function loginAdmin(
     );
     assertAdminUser(data.user);
     const session: UserSession = { token: data.accessToken, user: data.user };
-    sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+    storeAdminSession(session);
     return session;
   } catch (error) {
     throw new ApiError(getApiMessage(error));
   }
-}
-
-export function getStoredAdminSession(): UserSession | null {
-  try {
-    const raw = sessionStorage.getItem(ADMIN_SESSION_KEY);
-    if (!raw) return null;
-    const session = JSON.parse(raw) as UserSession;
-    if (!session.token || !session.user) return null;
-    assertAdminUser(session.user);
-    return session;
-  } catch {
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
-    return null;
-  }
-}
-
-export function clearAdminSession() {
-  sessionStorage.removeItem(ADMIN_SESSION_KEY);
 }
 
 interface RawEmployee {
