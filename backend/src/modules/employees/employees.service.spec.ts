@@ -35,7 +35,10 @@ function createAuditMock() {
 
 function buildService() {
   const prisma = createPrismaMock();
-  const organizationGuard = { assertSuperAdminRetained: jest.fn() };
+  const organizationGuard = {
+    assertSuperAdminRetained: jest.fn(),
+    pendingApprovalsFor: jest.fn(),
+  };
   const sessionService = { revokeAllForUser: jest.fn() };
   const audit = createAuditMock();
   const service = new EmployeesService(
@@ -263,6 +266,33 @@ describe('EmployeesService deactivation safeguards', () => {
     );
     expect(sessionService.revokeAllForUser).not.toHaveBeenCalled();
     expect(result).toEqual({ reactivated: true });
+  });
+});
+
+describe('EmployeesService pending approvals', () => {
+  it('delegates the count to the organization guard', async () => {
+    const { prisma, organizationGuard, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1' });
+    organizationGuard.pendingApprovalsFor.mockResolvedValue(3);
+
+    const result = await service.pendingApprovals('mgr-1');
+
+    expect(result).toEqual({ pendingApprovals: 3 });
+    expect(organizationGuard.pendingApprovalsFor).toHaveBeenCalledWith('mgr-1');
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'mgr-1' },
+      select: { id: true },
+    });
+  });
+
+  it('returns not found for an unknown employee and never counts', async () => {
+    const { prisma, organizationGuard, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.pendingApprovals('missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(organizationGuard.pendingApprovalsFor).not.toHaveBeenCalled();
   });
 });
 

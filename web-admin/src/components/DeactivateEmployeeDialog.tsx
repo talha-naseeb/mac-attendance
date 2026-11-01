@@ -6,6 +6,8 @@ import { deactivateEmployee, reactivateEmployee } from '../api/employeesApi';
 interface DeactivateEmployeeDialogProps {
   employee: AdminEmployee;
   isArabic: boolean;
+  /** Pending requests waiting on this manager; null/undefined when unknown. */
+  pendingApprovals?: number | null;
   onClose: () => void;
   onDone: () => Promise<void> | void;
 }
@@ -13,6 +15,7 @@ interface DeactivateEmployeeDialogProps {
 export const DeactivateEmployeeDialog: React.FC<DeactivateEmployeeDialogProps> = ({
   employee,
   isArabic,
+  pendingApprovals,
   onClose,
   onDone,
 }) => {
@@ -107,6 +110,14 @@ export const DeactivateEmployeeDialog: React.FC<DeactivateEmployeeDialogProps> =
               ? 'سيستعيد الموظف إمكانية تسجيل الدخول. لن تُستعاد طلبات الإجازة الملغاة.'
               : 'The employee regains sign-in access. Previously cancelled leave requests are not restored.'}
         </div>
+
+        {isDeactivation && typeof pendingApprovals === 'number' && pendingApprovals > 0 && (
+          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+            {isArabic
+              ? `لدى هذا المدير ${pendingApprovals} طلب موافقة معلّق. ستبقى هذه الطلبات في قائمة الموارد البشرية بعد إلغاء التفعيل.`
+              : `This manager has ${pendingApprovals} pending approval(s). Those requests stay in HR's queue after deactivation.`}
+          </p>
+        )}
 
         <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
           <div>

@@ -874,4 +874,54 @@ describe('Employee administration (e2e)', () => {
       .expect(200);
     expect(queueB.body.some((item: any) => item.userId === hire.id)).toBe(false);
   });
+
+  it("M3.6: reports a manager's pending approvals before deactivation", async () => {
+    const managerA = await createUser(testPrisma, {
+      email: 'pending.a@macqhr.sa',
+      employeeId: 'EMP-PA',
+      role: 'MANAGER',
+    });
+    const managerB = await createUser(testPrisma, {
+      email: 'pending.b@macqhr.sa',
+      employeeId: 'EMP-PB',
+      role: 'MANAGER',
+    });
+    await createUser(testPrisma, {
+      email: 'pending.hire@macqhr.sa',
+      employeeId: 'EMP-PH',
+      managerId: managerA.id,
+    });
+
+    const hireLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'pending.hire@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/leaves/request')
+      .set('Authorization', `Bearer ${hireLogin.body.accessToken}`)
+      .send({
+        type: 'ANNUAL',
+        startDate: '2026-12-01',
+        endDate: '2026-12-03',
+        reason: 'Family trip',
+      })
+      .expect(201);
+
+    const forManagerA = await request(app.getHttpServer())
+      .get(`/api/employees/${managerA.id}/pending-approvals`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(forManagerA.body).toEqual({ pendingApprovals: 1 });
+
+    const forManagerB = await request(app.getHttpServer())
+      .get(`/api/employees/${managerB.id}/pending-approvals`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(forManagerB.body).toEqual({ pendingApprovals: 0 });
+
+    await request(app.getHttpServer())
+      .get(`/api/employees/${managerA.id}/pending-approvals`)
+      .set('Authorization', `Bearer ${hireLogin.body.accessToken}`)
+      .expect(403);
+  });
 });

@@ -72,6 +72,16 @@ export class EmployeesController {
     return this.employmentChanges.list(id);
   }
 
+  @Get(':id/pending-approvals')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Count the requests a manager still has pending before deactivation',
+  })
+  async getPendingApprovals(@Param('id') id: string) {
+    return this.employeesService.pendingApprovals(id);
+  }
+
   @Post(':id/changes')
   @UseGuards(RolesGuard)
   @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)

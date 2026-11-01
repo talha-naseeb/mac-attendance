@@ -73,6 +73,12 @@ export function deactivateEmployee(id: string, reason: string) {
   return unwrap(apiClient.post(`/employees/${id}/deactivate`, { reason }));
 }
 
+export function getEmployeePendingApprovals(id: string) {
+  return unwrap<{ pendingApprovals: number }>(
+    apiClient.get(`/employees/${id}/pending-approvals`),
+  );
+}
+
 export function reactivateEmployee(id: string, reason: string) {
   return unwrap(apiClient.post(`/employees/${id}/reactivate`, { reason }));
 }

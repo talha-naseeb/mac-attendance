@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRightLeft,
   ChevronLeft,
@@ -12,7 +12,7 @@ import {
   UserX,
 } from 'lucide-react';
 import type { AdminBranch, AdminEmployee } from '../data/mockAdminData';
-import { fetchEmployees, resetEmployeePassword } from '../api/employeesApi';
+import { fetchEmployees, getEmployeePendingApprovals, resetEmployeePassword } from '../api/employeesApi';
 import type { EmployeeListQuery } from '../api/employeesApi';
 import { mapEmployee } from '../api/client';
 import { employeeStatusLabel } from '../services/employeeForm';
@@ -78,6 +78,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const [drawer, setDrawer] = useState<DrawerKind>(null);
   const [pendingRowId, setPendingRowId] = useState<string | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState<TemporaryCredential>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<number | null>(null);
+  // Guards against a slow count landing after the dialog closed or moved on.
+  const pendingApprovalsRequest = useRef(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -149,8 +152,32 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   };
 
   const closeOverlay = () => {
+    pendingApprovalsRequest.current += 1;
+    setPendingApprovals(null);
     setDrawer(null);
     setSelected(null);
+  };
+
+  /**
+   * Deactivation warns when the manager still owns approvals. The count is
+   * advisory: a failed lookup leaves it unknown and never blocks the dialog.
+   */
+  const openStatusDialog = async (employee: AdminEmployee) => {
+    const request = pendingApprovalsRequest.current + 1;
+    pendingApprovalsRequest.current = request;
+    setSelected(employee);
+    setPendingApprovals(null);
+    setDrawer('deactivate');
+    if (employee.status === 'INACTIVE') return;
+
+    try {
+      const result = await getEmployeePendingApprovals(employee.id);
+      if (request === pendingApprovalsRequest.current) {
+        setPendingApprovals(result.pendingApprovals);
+      }
+    } catch {
+      // The dialog still opens; the operator simply sees no count.
+    }
   };
 
   const afterMutation = async () => {
@@ -521,10 +548,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelected(employee);
-                          setDrawer('deactivate');
-                        }}
+                        onClick={() => void openStatusDialog(employee)}
                         aria-label={
                           employee.status === 'INACTIVE'
                             ? isArabic
@@ -635,6 +659,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
       {drawer === 'deactivate' && selected && (
         <DeactivateEmployeeDialog
           employee={selected}
+          pendingApprovals={pendingApprovals}
           isArabic={isArabic}
           onClose={closeOverlay}
           onDone={afterMutation}

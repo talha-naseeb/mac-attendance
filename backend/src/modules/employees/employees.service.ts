@@ -419,6 +419,15 @@ export class EmployeesService {
   }
 
   /**
+   * Reports how many requests are waiting on a manager before HR deactivates
+   * them. The count is advisory: it warns the operator, it does not block.
+   */
+  async pendingApprovals(id: string) {
+    await this.ensureEmployeeExists(id);
+    return { pendingApprovals: await this.organizationGuard.pendingApprovalsFor(id) };
+  }
+
+  /**
    * Reactivation re-enables the account. Sessions are not recreated; the
    * employee signs in again.
    */
