@@ -48,6 +48,15 @@ enum LeaveStatus {
   REJECTED
 }
 
+enum SessionRevokeReason {
+  LOGOUT
+  PASSWORD_CHANGE
+  ROLE_CHANGE
+  DEACTIVATED
+  REFRESH_REUSE
+  ADMIN_REVOKE
+}
+
 model User {
   id                    String              @id @default(uuid())
   employeeId            String              @unique
@@ -84,6 +93,13 @@ model User {
   remoteLocation        String?             // e.g. "Lahore, Pakistan (Remote Hub)"
   isAttendanceExempt    Boolean             @default(false) // e.g. Executive Super Admins
   canAccessWebAdmin     Boolean             @default(false) // True for SUPER_ADMIN & HR_ADMIN
+
+  // Authentication & Session Security
+  mustChangePassword    Boolean             @default(false)
+  passwordChangedAt     DateTime?
+  failedLoginAttempts   Int                 @default(0)
+  lockedUntil           DateTime?
+  ssoSubject            String?             @unique
   
   // Organization Hierarchy
   managerId             String?
@@ -104,6 +120,7 @@ model User {
   decidedLeaves         LeaveRequest[]      @relation("DecidedByManager")
   offlinePunches        OfflinePunchQueue[]
   auditLogs             AuditLog[]
+  sessions              AuthSession[]
 
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -261,4 +278,29 @@ model AuditLog {
 
   @@index([actorUserId])
   @@index([action])
+}
+
+model AuthSession {
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  familyId          String
+  refreshTokenHash  String              @unique
+  replacedById      String?             @unique
+  replacedBy        AuthSession?        @relation("SessionRotation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces          AuthSession?        @relation("SessionRotation")
+
+  absoluteExpiresAt DateTime
+  refreshExpiresAt  DateTime
+  revokedAt         DateTime?
+  revokeReason      SessionRevokeReason?
+  ipAddress         String?
+  userAgent         String?
+  lastUsedAt        DateTime            @default(now())
+
+  createdAt         DateTime            @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
 }

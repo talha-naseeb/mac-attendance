@@ -11,6 +11,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { DirectoryModule } from './modules/directory/directory.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       load: [configuration],
     }),
     DatabaseModule,
+    CommonModule,
     AuthModule,
     BranchesModule,
     AttendanceModule,

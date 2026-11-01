@@ -8,6 +8,9 @@ export interface AuthenticatedUser {
   branchId?: string | null;
   department?: string | null;
   name: string;
+  canAccessWebAdmin?: boolean;
+  sessionId?: string;
+  mustChangePassword?: boolean;
 }
 
 export const CurrentUser = createParamDecorator(
