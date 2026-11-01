@@ -6,14 +6,14 @@ export class OrganizationGuardService {
   constructor(private prisma: PrismaService) {}
 
   async assertCanAssignManager(userId: string, managerId: string | null | undefined): Promise<void> {
-    if (!managerId) return;
+    if (managerId === null || managerId === undefined) return;
     if (managerId === userId) {
       throw new BadRequestException('An employee cannot be their own manager.');
     }
 
     const seen = new Set<string>();
     let current: string | null = managerId;
-    for (let depth = 0; current && depth < 50; depth += 1) {
+    while (current !== null) {
       if (current === userId) {
         throw new BadRequestException(
           'This manager assignment would create a reporting cycle.',
@@ -52,11 +52,16 @@ export class OrganizationGuardService {
   }
 
   async pendingApprovalsFor(managerId: string): Promise<number> {
+    const target = await this.prisma.user.findUnique({
+      where: { id: managerId },
+      select: { role: true },
+    });
+    if (!target) return 0;
+    if (target.role === 'HR_ADMIN' || target.role === 'SUPER_ADMIN') {
+      return this.prisma.leaveRequest.count({ where: { status: 'PENDING' } });
+    }
     return this.prisma.leaveRequest.count({
-      where: {
-        status: { in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR'] },
-        user: { managerId },
-      },
+      where: { status: 'PENDING', user: { managerId, isActive: true } },
     });
   }
 }
