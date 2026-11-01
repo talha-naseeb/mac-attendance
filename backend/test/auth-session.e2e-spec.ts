@@ -195,4 +195,28 @@ describe('Auth sessions (e2e)', () => {
     const correct = await login().expect(401);
     expect(correct.body.message).toBe('This account has been deactivated. Please contact HR.');
   });
+
+  it('AUTH-10: a forced password change blocks every other route', async () => {
+    await createUser(testPrisma, { mustChangePassword: true });
+    const session = await login().expect(201);
+    expect(session.body.user.mustChangePassword).toBe(true);
+
+    const blocked = await request(app.getHttpServer())
+      .get('/api/directory')
+      .set('Authorization', `Bearer ${session.body.accessToken}`)
+      .expect(403);
+    expect(blocked.body.code).toBe('PASSWORD_CHANGE_REQUIRED');
+
+    const changed = await request(app.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${session.body.accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: 'NewPassword456!' })
+      .expect(201);
+    expect(changed.body.user.mustChangePassword).toBe(false);
+
+    await request(app.getHttpServer())
+      .get('/api/directory')
+      .set('Authorization', `Bearer ${changed.body.accessToken}`)
+      .expect(200);
+  });
 });

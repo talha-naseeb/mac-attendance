@@ -11,6 +11,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { DirectoryModule } from './modules/directory/directory.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { CommonModule } from './common/common.module';
 
 @Module({
@@ -33,6 +34,10 @@ import { CommonModule } from './common/common.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PasswordChangeGuard,
     },
   ],
 })
