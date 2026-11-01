@@ -54,8 +54,6 @@ export class EmploymentChangesService {
     switch (dto.type) {
       case 'TRANSFER': {
         if (!dto.branchId) throw new BadRequestException('branchId is required for a transfer.');
-        const branch = await this.prisma.branch.findUnique({ where: { id: dto.branchId } });
-        if (!branch) throw new BadRequestException('The destination branch does not exist.');
         patch = { branch: { connect: { id: dto.branchId } } };
         after = { branchId: dto.branchId };
         break;
@@ -104,6 +102,11 @@ export class EmploymentChangesService {
             'managerId is required for a manager change. Send null to clear the manager.',
           );
         }
+        if (dto.managerId === '') {
+          throw new BadRequestException(
+            'managerId cannot be empty. Send null to clear the manager.',
+          );
+        }
         patch = dto.managerId
           ? { manager: { connect: { id: dto.managerId } } }
           : { manager: { disconnect: true } };
@@ -134,6 +137,12 @@ export class EmploymentChangesService {
     }
 
     const change = await this.prisma.$transaction(async (tx) => {
+      // Resolve the branch inside the transaction so one deleted before commit
+      // surfaces as the same 400 rather than a Prisma P2025 failure.
+      if (dto.type === 'TRANSFER') {
+        const branch = await tx.branch.findUnique({ where: { id: dto.branchId as string } });
+        if (!branch) throw new BadRequestException('The destination branch does not exist.');
+      }
       const created = await tx.employmentChange.create({
         data: {
           userId,
@@ -193,7 +202,7 @@ export class EmploymentChangesService {
     if (!exists) throw new NotFoundException(`Employee ${userId} not found.`);
     return this.prisma.employmentChange.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         actor: { select: { firstName: true, lastName: true } },
         salaryRecord: true,

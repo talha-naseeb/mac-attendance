@@ -419,8 +419,10 @@ describe('Employee administration (e2e)', () => {
     });
     const login = await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ email: 'promote@macqhr.sa', password: TEST_PASSWORD });
+      .send({ email: 'promote@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
     const token = login.body.accessToken;
+    expect(typeof token).toBe('string');
 
     await request(app.getHttpServer())
       .post(`/api/employees/${employee.id}/changes`)
@@ -557,5 +559,35 @@ describe('Employee administration (e2e)', () => {
       })
       .expect(201);
     expect(punch.body.record.branchId).toBe(targetBranch.id);
+  });
+
+  it('rejects an empty-string managerId and leaves the manager unchanged', async () => {
+    const manager = await createUser(testPrisma, {
+      email: 'manager@macqhr.sa',
+      employeeId: 'EMP-MGR',
+      role: 'MANAGER',
+    });
+    const employee = await createUser(testPrisma, {
+      email: 'managed@macqhr.sa',
+      employeeId: 'EMP-MGD',
+      managerId: manager.id,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'MANAGER',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'Clear the manager',
+        managerId: '',
+      })
+      .expect(400);
+
+    const persisted = await testPrisma.user.findUniqueOrThrow({ where: { id: employee.id } });
+    expect(persisted.managerId).toBe(manager.id);
+    expect(
+      await testPrisma.employmentChange.count({ where: { userId: employee.id } }),
+    ).toBe(0);
   });
 });

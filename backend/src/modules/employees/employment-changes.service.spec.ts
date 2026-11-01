@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EmploymentChangesService } from './employment-changes.service';
 import { toCompanyDateIso } from '../../common/utils/company-time.util';
 
@@ -165,7 +165,7 @@ describe('EmploymentChangesService', () => {
     });
   });
 
-  it('rejects a transfer to a branch that does not exist', async () => {
+  it('rejects a transfer to a branch that does not exist inside the transaction', async () => {
     const { prisma, service } = build();
     prisma.user.findUnique.mockResolvedValue(user);
     prisma.branch.findUnique.mockResolvedValue(null);
@@ -178,7 +178,10 @@ describe('EmploymentChangesService', () => {
         branchId: 'missing-branch',
       } as any, actor),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.branch.findUnique).toHaveBeenCalledWith({
+      where: { id: 'missing-branch' },
+    });
     expect(prisma.employmentChange.create).not.toHaveBeenCalled();
   });
 
@@ -240,6 +243,23 @@ describe('EmploymentChangesService', () => {
     });
   });
 
+  it('rejects an empty-string managerId instead of silently clearing the manager', async () => {
+    const { prisma, guards, service } = build();
+    prisma.user.findUnique.mockResolvedValue({ ...user, managerId: 'mgr-1' });
+
+    await expect(
+      service.apply('user-1', {
+        type: 'MANAGER',
+        effectiveDate: today,
+        reason: 'Reporting line update',
+        managerId: '',
+      } as any, actor),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(guards.assertCanAssignManager).not.toHaveBeenCalled();
+    expect(prisma.employmentChange.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
   it('checks that a demoted Super Admin is retained inside the transaction', async () => {
     const { prisma, guards, service } = build();
     const superAdmin = { ...user, role: 'SUPER_ADMIN' };
@@ -261,6 +281,39 @@ describe('EmploymentChangesService', () => {
     expect(guards.assertSuperAdminRetained.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.user.update.mock.invocationCallOrder[0],
     );
+  });
+
+  it('forbids an HR admin from granting the Super Admin role', async () => {
+    const { prisma, service } = build();
+    prisma.user.findUnique.mockResolvedValue(user);
+
+    await expect(
+      service.apply('user-1', {
+        type: 'ROLE',
+        effectiveDate: today,
+        reason: 'Escalation attempt',
+        role: 'SUPER_ADMIN',
+      } as any, actor),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.employmentChange.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('does not swallow audit failures', async () => {
+    const { prisma, audit, service } = build();
+    prisma.user.findUnique.mockResolvedValue(user);
+    prisma.employmentChange.create.mockResolvedValue({ id: 'change-10' });
+    prisma.user.update.mockResolvedValue(user);
+    audit.record.mockRejectedValue(new Error('audit down'));
+
+    await expect(
+      service.apply('user-1', {
+        type: 'PROMOTION',
+        effectiveDate: today,
+        reason: 'Team lead',
+        jobTitle: 'Lead',
+      } as any, actor),
+    ).rejects.toThrow('audit down');
   });
 
   it('grants web admin access when the role becomes HR_ADMIN', async () => {
@@ -326,6 +379,31 @@ describe('EmploymentChangesService', () => {
       data: expect.objectContaining({
         afterJson: { isRemoteAllowed: true, remoteGrantedById: 'hr-1' },
       }),
+    });
+  });
+
+  it('rejects listing changes for an unknown employee with a 404', async () => {
+    const { prisma, service } = build();
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.list('missing-user')).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.employmentChange.findMany).not.toHaveBeenCalled();
+  });
+
+  it('lists changes newest first with a deterministic id tiebreaker', async () => {
+    const { prisma, service } = build();
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    prisma.employmentChange.findMany.mockResolvedValue([]);
+
+    await service.list('user-1');
+
+    expect(prisma.employmentChange.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: {
+        actor: { select: { firstName: true, lastName: true } },
+        salaryRecord: true,
+      },
     });
   });
 });

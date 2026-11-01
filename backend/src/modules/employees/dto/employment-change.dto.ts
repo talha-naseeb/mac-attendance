@@ -8,6 +8,7 @@ import {
   IsString,
   Length,
   Min,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
 import { EmploymentChangeType } from '@prisma/client';
@@ -58,6 +59,7 @@ export class EmploymentChangeDto {
   @ValidateIf((o) => o.type === EmploymentChangeType.MANAGER)
   @IsOptional()
   @IsString()
+  @MinLength(1)
   managerId?: string | null;
 
   @ValidateIf((o) => o.type === EmploymentChangeType.REMOTE_ELIGIBILITY)
