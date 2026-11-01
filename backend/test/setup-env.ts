@@ -1,3 +1,7 @@
+import { loadEnvFile } from './utils/load-env';
+
+loadEnvFile();
+
 const testUrl = process.env.TEST_DATABASE_URL?.trim();
 if (!testUrl) {
   throw new Error('TEST_DATABASE_URL is required for e2e tests.');
