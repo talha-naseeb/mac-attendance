@@ -5,6 +5,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto, SsoLoginDto } from './dto/login.dto';
@@ -21,6 +22,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Authenticate user with corporate email and password' })
   @ApiResponse({ status: 200, description: 'JWT authentication token and user profile returned' })
   @ApiResponse({ status: 401, description: 'Invalid credentials or inactive account' })
@@ -33,6 +35,7 @@ export class AuthController {
 
   @Public()
   @Post('admin/login')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Authenticate an HR or Super Admin for the web administration console' })
   @ApiResponse({ status: 200, description: 'Admin JWT authentication token and profile returned' })
   @ApiResponse({ status: 403, description: 'Account is not permitted to access the web administration console' })
@@ -45,6 +48,7 @@ export class AuthController {
 
   @Public()
   @Post('sso-login')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Exchange Microsoft Entra ID SSO token for application JWT' })
   @ApiResponse({ status: 200, description: 'SSO exchange successful' })
   async ssoLogin(@Body() ssoDto: SsoLoginDto, @Req() req: Request) {
@@ -56,6 +60,7 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Rotate a refresh token for a new access and refresh token pair' })
   @ApiResponse({ status: 200, description: 'Newly issued access and refresh tokens' })
   @ApiResponse({ status: 401, description: 'Refresh token is invalid, expired or already used' })

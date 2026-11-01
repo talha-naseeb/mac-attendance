@@ -57,4 +57,15 @@ describe('configuration', () => {
     expect(config.environment).toBe('production');
     expect(config.jwt.secret).toHaveLength(48);
   });
+
+  it('enables Microsoft Entra SSO only for an explicit true flag', () => {
+    delete process.env.SSO_ENABLED;
+    expect(configuration().sso.enabled).toBe(false);
+
+    process.env.SSO_ENABLED = 'true';
+    expect(configuration().sso.enabled).toBe(true);
+
+    process.env.SSO_ENABLED = 'false';
+    expect(configuration().sso.enabled).toBe(false);
+  });
 });

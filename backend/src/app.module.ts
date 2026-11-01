@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,6 +21,10 @@ import { CommonModule } from './common/common.module';
       isGlobal: true,
       load: [configuration],
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+      skipIf: () => process.env.THROTTLE_DISABLED === 'true',
+    }),
     DatabaseModule,
     CommonModule,
     AuthModule,
@@ -31,6 +36,10 @@ import { CommonModule } from './common/common.module';
     DirectoryModule,
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
