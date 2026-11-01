@@ -16,8 +16,21 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+      TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test?schema=public
+      JWT_SECRET: ci-only-jwt-secret-at-least-32-characters-long
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -46,6 +59,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
         working-directory: backend
+
+      - name: Create test database
+        run: psql postgresql://ci:ci@localhost:5432/ci -c 'CREATE DATABASE ci_test'
 
       - name: Verify mobile, backend and admin
         run: npm run verify:all

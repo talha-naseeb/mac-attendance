@@ -14,7 +14,7 @@
     "admin:dev": "cd web-admin && npm run dev",
     "admin:build": "cd web-admin && npm run build",
     "hooks:install": "sh scripts/install-git-hooks.sh",
-    "verify:all": "npm run verify && (cd backend && npm run typecheck && npm test && npm run build) && (cd web-admin && npm run build)"
+    "verify:all": "npm run verify && (cd backend && npm run typecheck && npm test && npm run build && npm run test:e2e) && (cd web-admin && npm run build)"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",

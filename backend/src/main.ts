@@ -1,18 +1,17 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { configureApp } from './bootstrap/configure-app';
 import { resolveCorsOrigins } from './config/cors';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
-
-  // Set global API route prefix: /api/...
-  app.setGlobalPrefix('api');
+  configureApp(app);
 
   // Enable CORS only for the configured admin and mobile web origins.
   const environment = configService.get<string>('environment') || 'development';
@@ -25,21 +24,6 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: false,
   });
-
-  // Global validation pipe with automatic payload stripping & transformation
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
-
-  // Global exception filter for unified REST responses
-  app.useGlobalFilters(new HttpExceptionFilter());
 
   // Setup Swagger OpenAPI interactive documentation
   const config = new DocumentBuilder()
