@@ -237,7 +237,7 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 
 **Outcome**: HR can run the employee lifecycle from the admin console.
 
-**Phase 7B status (2026-11-02)**: M3.1–M3.7 are implemented on the server and in the admin console, and the write-side session revocation deferred in Phase 7A now exists. Automated evidence is green: `npm run verify:all` covers 47 mobile tests; backend typecheck, 97 unit tests in 12 suites and `nest build`; 41 API tests in 5 suites against the isolated `macqhr_test` database (`employees.e2e-spec.ts` 24 cases); 12 admin Vitest tests in 3 suites and a production build. The manual G2 checklist has not been executed; it is recorded, unchecked, in `SPRINT_PLAN.md`, and the SHA-bound `docs/qa/gates/phase-7.md` will be created only after it runs and Talha signs it. INT-01's enabled path remains blocked on a test Entra tenant.
+**Phase 7B status (2026-11-02)**: M3.1–M3.7 are implemented on the server and in the admin console, and the write-side session revocation deferred in Phase 7A now exists. Automated evidence is green: `npm run verify:all` covers 47 mobile tests; backend typecheck, 101 unit tests in 12 suites and `nest build`; 42 API tests in 5 suites against the isolated `macqhr_test` database (`employees.e2e-spec.ts` 25 cases); 12 admin Vitest tests in 3 suites and a production build. The manual G2 checklist has not been executed; it is recorded, unchecked, in `SPRINT_PLAN.md`, and the SHA-bound `docs/qa/gates/phase-7.md` will be created only after it runs and Talha signs it. INT-01's enabled path remains blocked on a test Entra tenant.
 
 **Requirements**
 
