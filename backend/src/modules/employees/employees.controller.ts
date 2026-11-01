@@ -110,6 +110,19 @@ export class EmployeesController {
     return this.employeesService.reactivate(id, dto.reason, actor);
   }
 
+  @Post(':id/reset-password')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Reset an employee password to a temporary credential and revoke sessions',
+  })
+  async resetPassword(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.employeesService.resetPassword(id, actor);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)

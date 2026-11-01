@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
 import { SessionService } from '../auth/session.service';
@@ -262,5 +263,108 @@ describe('EmployeesService deactivation safeguards', () => {
     );
     expect(sessionService.revokeAllForUser).not.toHaveBeenCalled();
     expect(result).toEqual({ reactivated: true });
+  });
+});
+
+describe('EmployeesService password reset', () => {
+  it('stores a bcrypt hash, clears lockout, and audits inside the transaction', async () => {
+    const { prisma, sessionService, audit, service } = buildService();
+    prisma.user.findUnique.mockResolvedValueOnce({ id: 'emp-2' });
+    prisma.user.findUniqueOrThrow.mockResolvedValue({ role: 'EMPLOYEE' });
+    prisma.user.update.mockResolvedValue({ id: 'emp-2' });
+
+    const result = await service.resetPassword('emp-2', hrActor);
+
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'emp-2' },
+      select: { id: true },
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(result.temporaryPassword).toHaveLength(16);
+
+    const updateQuery = prisma.user.update.mock.calls[0][0];
+    expect(updateQuery.where).toEqual({ id: 'emp-2' });
+    expect(updateQuery.data).toMatchObject({
+      mustChangePassword: true,
+      passwordChangedAt: null,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
+
+    const storedHash: string = updateQuery.data.passwordHash;
+    expect(storedHash).not.toBe(result.temporaryPassword);
+    expect(storedHash).toMatch(/^\$2[aby]\$/);
+    await expect(bcrypt.compare(result.temporaryPassword, storedHash)).resolves.toBe(true);
+
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        actorUserId: 'hr-1',
+        action: 'EMPLOYEE_PASSWORD_RESET',
+        resource: 'User',
+        details: { userId: 'emp-2' },
+      },
+      prisma,
+    );
+    // The credential itself never reaches the audit ledger.
+    expect(JSON.stringify(audit.record.mock.calls[0][0].details)).not.toContain(
+      result.temporaryPassword,
+    );
+
+    expect(sessionService.revokeAllForUser).toHaveBeenCalledWith('emp-2', 'ADMIN_REVOKE');
+    // Sessions are revoked only once the transaction has committed.
+    expect(sessionService.revokeAllForUser.mock.invocationCallOrder[0]).toBeGreaterThan(
+      audit.record.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('returns not found for an unknown employee and changes nothing', async () => {
+    const { prisma, sessionService, audit, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.resetPassword('missing', hrActor)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+    expect(sessionService.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('forbids an HR admin from resetting a Super Admin password', async () => {
+    const { prisma, sessionService, audit, service } = buildService();
+    prisma.user.findUnique.mockResolvedValueOnce({ id: 'sa-1' });
+    prisma.user.findUniqueOrThrow.mockResolvedValue({ role: 'SUPER_ADMIN' });
+
+    await expect(service.resetPassword('sa-1', hrActor)).rejects.toThrow(
+      new ForbiddenException('Only a Super Admin can reset a Super Admin password.'),
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+    expect(sessionService.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('lets a Super Admin reset another Super Admin password', async () => {
+    const { prisma, sessionService, audit, service } = buildService();
+    prisma.user.findUnique.mockResolvedValueOnce({ id: 'sa-2' });
+    prisma.user.findUniqueOrThrow.mockResolvedValue({ role: 'SUPER_ADMIN' });
+    prisma.user.update.mockResolvedValue({ id: 'sa-2' });
+
+    const result = await service.resetPassword('sa-2', { ...hrActor, role: 'SUPER_ADMIN' });
+
+    expect(result.temporaryPassword).toHaveLength(16);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        actorUserId: 'hr-1',
+        action: 'EMPLOYEE_PASSWORD_RESET',
+        resource: 'User',
+        details: { userId: 'sa-2' },
+      },
+      prisma,
+    );
+    expect(sessionService.revokeAllForUser).toHaveBeenCalledWith('sa-2', 'ADMIN_REVOKE');
   });
 });

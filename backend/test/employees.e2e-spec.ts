@@ -726,7 +726,7 @@ describe('Employee administration (e2e)', () => {
       .expect(400);
   });
 
-  it('EMP-10: reactivation restores sign-in and is audited', async () => {
+  it('Reactivating restores sign-in and is audited', async () => {
     const employee = await createUser(testPrisma, {
       email: 'return@macqhr.sa',
       employeeId: 'EMP-RETURN',
@@ -771,6 +771,55 @@ describe('Employee administration (e2e)', () => {
       .set('Authorization', `Bearer ${hrToken}`)
       .send({ reason: 'Unknown person' })
       .expect(404);
+  });
+
+  it('EMP-10: resetting a password revokes sessions and forces a change', async () => {
+    const employee = await createUser(testPrisma, {
+      email: 'reset@macqhr.sa',
+      employeeId: 'EMP-RESET',
+    });
+    const hr = await testPrisma.user.findUniqueOrThrow({
+      where: { email: 'hr@macqhr.sa' },
+    });
+
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'reset@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    const token = login.body.accessToken;
+
+    const reset = await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/reset-password`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(201);
+    expect(reset.body.temporaryPassword).toHaveLength(16);
+
+    // The pre-reset access token is no longer accepted.
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
+
+    // The old password no longer signs in.
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'reset@macqhr.sa', password: TEST_PASSWORD })
+      .expect(401);
+
+    const audit = await testPrisma.auditLog.findFirst({
+      where: { action: 'EMPLOYEE_PASSWORD_RESET', resource: 'User' },
+    });
+    expect(audit).toBeTruthy();
+    expect(audit!.actorUserId).toBe(hr.id);
+    expect((audit!.detailsJson as Record<string, unknown>).userId).toBe(employee.id);
+    expect(JSON.stringify(audit!.detailsJson)).not.toContain(reset.body.temporaryPassword);
+
+    // The temporary credential signs in and must be changed.
+    const relogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'reset@macqhr.sa', password: reset.body.temporaryPassword })
+      .expect(201);
+    expect(relogin.body.user.mustChangePassword).toBe(true);
   });
 
   it('EMP-03: a new hire lands only in their own manager queue', async () => {

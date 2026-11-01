@@ -440,4 +440,49 @@ export class EmployeesService {
 
     return { reactivated: true };
   }
+
+  /**
+   * Password reset issues a fresh temporary credential. The credential change
+   * and its audit row commit together; live sessions are revoked only once that
+   * transaction has committed so a rolled-back reset leaves no signed-in gap.
+   */
+  async resetPassword(id: string, actor: AuthenticatedUser) {
+    await this.ensureEmployeeExists(id);
+    const target = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      select: { role: true },
+    });
+    if (target.role === 'SUPER_ADMIN' && actor.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only a Super Admin can reset a Super Admin password.');
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: {
+          passwordHash,
+          mustChangePassword: true,
+          passwordChangedAt: null,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+      });
+      await this.audit.record(
+        {
+          actorUserId: actor.id,
+          action: 'EMPLOYEE_PASSWORD_RESET',
+          resource: 'User',
+          details: { userId: id },
+        },
+        tx,
+      );
+    });
+
+    await this.sessionService.revokeAllForUser(id, 'ADMIN_REVOKE');
+
+    return { temporaryPassword };
+  }
 }
