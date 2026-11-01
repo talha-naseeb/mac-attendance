@@ -30,17 +30,19 @@ Any new commit invalidates the previous gate. See [RULES.md](RULES.md) Section 0
 
 ---
 
-## Current verification baseline (2026-10-31)
+## Current verification baseline (2026-11-01)
 
 | Surface | Command | Result |
 |---|---|---|
-| Mobile | `npm run verify` | Typecheck passed; 48 tests passed, 0 failed |
-| Backend | `npm run typecheck && npm test && npm run build` | Typecheck passed; 7 suites, 31 tests passed; build passed |
-| Admin | `npm run build` | Production build passed |
+| Mobile | `npm run verify` | Typecheck passed; 47 tests passed, 0 failed |
+| Backend | `npm run typecheck && npm test && npm run build` | Typecheck passed; 9 suites, 51 tests passed; build passed |
+| Backend API (isolated database) | `cd backend && npm run test:e2e` | 3 suites, 14 tests passed against the isolated `macqhr_test` database, 0 failed |
+| Admin tests | `cd web-admin && npm test` | 1 file, 4 Vitest cases passed, 0 failed |
+| Admin build | `cd web-admin && npm run build` | Production build passed |
 | Repository | `git status` | All application surfaces tracked; `ios/` source versioned; baseline migration committed |
 | CI | `.github/workflows/verify.yml` | Runs `verify:all` on pull requests and `main` |
 
-Phase 6 added CI, the Prisma baseline migration and the SHA-bound push hook. Isolated database API tests and admin unit/component tests (M1.3) remain open.
+Phase 6 added CI, the Prisma baseline migration and the SHA-bound push hook. Phase 7A added isolated-database API tests and admin unit tests, so M1.3 is complete for this phase.
 
 ---
 
@@ -51,7 +53,7 @@ The detailed modules, rules, risks, and decisions are in the [PRD](docs/prd/READ
 | Phase | Name | Scope | Exit criteria | Gate | Status |
 |---|---|---|---|---|---|
 | **6** | Foundation & trust | M1, M2 stopgaps, M9 demo-control removal | Code fully tracked; `verify:all` in CI; migrations committed; secrets/CORS hardened; role switcher and prefilled credentials removed; employee PII guarded; SHA-bound push hook | G1 | `[/]` Implemented, awaiting G1 |
-| **7** | Identity & employee lifecycle | M2, M3 | Refresh/revocation; forced password change; rate limiting; admin employee CRUD; role/manager/branch/remote changes; SSO decision executed | G2 | `[ ]` |
+| **7** | Identity & employee lifecycle | M2, M3 | Refresh/revocation; forced password change; rate limiting; admin employee CRUD; role/manager/branch/remote changes; SSO decision executed | G2 | `[/]` Implemented, awaiting G2 |
 | **8** | Attendance integrity | M4 | Verifiable evidence; local-day boundary; break persistence; offline decision; corrections; admin attendance view/export | G3 | `[ ]` |
 | **9** | Leave & approvals v2 | M5, M9 leave UX | Two-stage pipeline; balance ledger; holidays; overlap/half-day; cancellation; attachments; full calendar and types | G4 | `[ ]` |
 | **10** | Admin console & notifications | M6, M7.1–M7.2 | Employee/attendance/leave admin complete; reports; audit viewer; persisted notifications and push | G5 | `[ ]` |
@@ -80,6 +82,27 @@ Status: **implemented, awaiting G1**. Automated verification is green; the devic
 Decisions applied with the recommended defaults: R-02 (version iOS source), R-03 (delete `data.db`, ignore personal tooling, commit `metro.config.js`), R-04 (port 4000), R-06 (remove dead demo controls), R-07 (hide SSO until configured). R-05, R-08, R-09 and R-10 remain open for their phases.
 
 Known Phase 6 residue: no isolated database API suite and no admin test suite. The baseline was adopted on the existing local database on 2026-10-31 (empty schema diff, `migrate resolve --applied`, data intact); applying it with `migrate deploy` to a pristine database is still to be exercised at G1.
+
+## Phase 7A implementation (2026-11-01)
+
+Status: **implemented, awaiting G2**. Automated verification is green; the device checklist, the manual AUTH cases and your signature are still required. Phase 7B (M3 employee lifecycle) follows in the same gate.
+
+| Requirement | Result | Evidence |
+|---|---|---|
+| M2.1 Role comes from the verified session; no client-side role presets | Done | `authenticateWithMicrosoftSso`, `resolveRoleFromEmail`, `validateAndAuthenticate` and the `DEMO_USERS` demo identities deleted (3341cd2, 62f478a); mobile login maps only the server-issued role (`src/services/authService.ts`); manual AUTH-01/AUTH-07 re-run at G2 |
+| M2.2 Employee PII guarded | Done (Phase 6, unchanged) | `employees.service.spec.ts`: colleague sees the limited work profile, a manager gets no compensation, self gets the full profile without the password hash |
+| M2.3 Short-lived access tokens, rotating refresh, immediate revocation | Done | 15-minute access JWT with a `sid` claim; opaque `sessionId.secret` refresh tokens stored as SHA-256; `token.util.spec.ts` (4 cases), `session.service.spec.ts` (12 cases incl. 7-day refresh / 30-day absolute / 8-hour SUPER_ADMIN, atomic rotation, replay family revocation, logout replay, `findActive` branches); `auth-session.e2e-spec.ts` AUTH-04, AUTH-05, AUTH-06, change-password revokes every session, logout leaves sibling sessions alive |
+| M2.4 Forced password change | Done | Global `PasswordChangeGuard` + `code: PASSWORD_CHANGE_REQUIRED`; e2e AUTH-10 (403 on every other route, allowlisted routes still 200); mobile gate `src/screens/ChangePasswordScreen.tsx` with client rules in `validatePasswordChange` (TC-10.2); manual gate check EN/AR light/dark. Production onboarding that would issue a shared default password does not exist yet (Phase 7B) |
+| M2.5 Login throttling and lockout with a non-enumerating message | Done | `rate-limit.e2e-spec.ts` returns 429 on the sixth attempt in a minute; `auth-session.e2e-spec.ts` AUTH-02, parallel-request lockout, counter reset on success, identical generic message for unknown email, inactive account and wrong password |
+| M2.6 Hardened API baseline | Done | `helmet()` on every path except `/api/docs`, 100 kB JSON/urlencoded limits (`main.ts`); production fail-fast for `JWT_SECRET`/`DATABASE_URL` and short secrets (`configuration.spec.ts`); CORS allowlist from Phase 6; booted-server check recorded CSP on a protected route and left the docs usable |
+| M2.7 Entra SSO decision executed | Done (disabled path only) | SSO button, divider and config lookups removed from `LoginScreen`; server exchange behind `sso.enabled` with the flag test "enables Microsoft Entra SSO only for an explicit true flag". INT-01 enabled is blocked on tenant credentials — G2 limitation |
+| M2.8 Admin session expiry and 401 handling | Done | `web-admin/src/__tests__/adminSession.test.ts` (4 cases: malformed/past/future token, expiry-aware loader); expiry-aware read clears `sessionStorage`; response interceptor exempts the sign-in route, clears the session and dispatches `macq:session-expired`; App returns to sign-in without reloading; no `localStorage` use |
+| AUTH-09 role matrix | Unchanged, manual at G2 | Automated coverage is not claimed; Phase 6's pendency stands until the G2 manual run |
+| Deactivation and role-change revocation | Enforced per request; revoke-on-write in Phase 7B | JWT strategy re-hydrates `isActive` and role on every request; the M3 endpoints that would revoke sessions on deactivation/role change land in Phase 7B |
+
+Verification on 2026-11-01 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 51 unit tests + build; backend e2e 14/14 on the isolated `TEST_DATABASE_URL`; admin 4 Vitest cases + production build.
+
+Decisions applied: SSO hidden behind `SSO_ENABLED` with the verified server exchange retained (INT-01 enabled recorded as a G2 limitation); no client-side SSO simulation remains.
 
 ---
 

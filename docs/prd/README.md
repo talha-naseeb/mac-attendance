@@ -204,6 +204,8 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 
 **Outcome**: only the server can grant a role or permission, and sessions can be safely ended.
 
+**Phase 7A status (2026-11-01)**: M2.1 and M2.3–M2.8 are implemented on the server, the mobile app and the admin console; M2.2 remains as delivered in Phase 6. The Entra SSO requirement is met on the disabled path only: the sign-in UI is removed and the server exchange is gated behind `SSO_ENABLED`; end-to-end SSO (INT-01 enabled) is recorded as a G2 limitation pending a test tenant. Deactivation and role changes are enforced on every request by re-hydrating the user; revoke-on-change as a write-side action lands with the M3 endpoints in Phase 7B. G2 is pending the manual checklist and signature.
+
 **Requirements**
 
 - **M2.1** Remove all client-side role mutation and demo role presets. The dashboard renders strictly from the authenticated session.
