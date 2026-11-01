@@ -246,7 +246,13 @@ export interface AdminEmployee {
   gosiEmployeeDeductionSar: number;
   gosiEmployerContributionSar: number;
   netSalarySar: number;
-  status: 'ACTIVE' | 'ON_LEAVE' | 'REMOTE';
+  status: 'ACTIVE' | 'REMOTE' | 'INACTIVE';
+  branchId?: string | null;
+  managerId?: string | null;
+  managerName?: string | null;
+  isActive?: boolean;
+  isRemoteAllowed?: boolean;
+  mustChangePassword?: boolean;
 }
 
 export const INITIAL_EMPLOYEES: AdminEmployee[] = [

@@ -12,6 +12,7 @@ import {
   storeAdminSession,
   type UserSession,
 } from './adminSession';
+import type { EmployeeApiRecord } from './employeesApi';
 
 export type { UserSession } from './adminSession';
 
@@ -121,25 +122,7 @@ export async function loginAdmin(
   }
 }
 
-interface RawEmployee {
-  id: string;
-  employeeId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string | null;
-  jobTitle: string;
-  department: string;
-  role: AdminEmployee['role'];
-  isSaudi: boolean;
-  nationalId: string | null;
-  iqamaNumber: string | null;
-  basicSalarySar: number;
-  housingAllowanceSar: number;
-  transportAllowanceSar: number;
-  isRemoteAllowed: boolean;
-  branch: { name: string } | null;
-}
+type RawEmployee = EmployeeApiRecord;
 
 interface RawBranch {
   id: string;
@@ -184,7 +167,7 @@ interface RawAttendance {
   branch: { name: string } | null;
 }
 
-function mapEmployee(employee: RawEmployee): AdminEmployee {
+export function mapEmployee(employee: RawEmployee): AdminEmployee {
   const gross =
     employee.basicSalarySar +
     employee.housingAllowanceSar +
@@ -224,7 +207,12 @@ function mapEmployee(employee: RawEmployee): AdminEmployee {
     gosiEmployeeDeductionSar: gosiEmployee,
     gosiEmployerContributionSar: gosiEmployer,
     netSalarySar: gross - gosiEmployee,
-    status: employee.isRemoteAllowed ? 'REMOTE' : 'ACTIVE',
+    status: !employee.isActive ? 'INACTIVE' : employee.isRemoteAllowed ? 'REMOTE' : 'ACTIVE',
+    branchId: employee.branch?.id ?? null,
+    managerId: employee.manager?.id ?? null,
+    managerName: employee.manager ? `${employee.manager.firstName} ${employee.manager.lastName}` : null,
+    isRemoteAllowed: employee.isRemoteAllowed,
+    mustChangePassword: employee.mustChangePassword,
   };
 }
 
@@ -296,14 +284,16 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
   try {
     const [employeesResponse, branchesResponse, leavesResponse, attendanceResponse, payrollResponse] =
       await Promise.all([
-        apiClient.get<RawEmployee[]>('/employees/admin'),
+        apiClient.get<{ items: RawEmployee[] }>('/employees/admin', {
+          params: { status: 'ACTIVE', pageSize: 100 },
+        }),
         apiClient.get<RawBranch[]>('/branches/admin'),
         apiClient.get<RawLeave[]>('/leaves/admin'),
         apiClient.get<RawAttendance[]>('/attendance/all?limit=100'),
         apiClient.get<PayrollSummary>('/payroll/summary'),
       ]);
     return {
-      employees: employeesResponse.data.map(mapEmployee),
+      employees: employeesResponse.data.items.map(mapEmployee),
       branches: branchesResponse.data.map(mapBranch),
       leaves: leavesResponse.data.map(mapLeave),
       attendance: attendanceResponse.data.map(mapAttendance),
