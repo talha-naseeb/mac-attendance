@@ -36,7 +36,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const session = await this.sessionService.findActive(payload.sid);
-    if (!session) {
+    if (!session || session.userId !== payload.sub) {
       throw new UnauthorizedException('Your session has ended. Sign in again.');
     }
 

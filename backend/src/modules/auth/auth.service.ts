@@ -145,9 +145,10 @@ export class AuthService {
     };
   }
 
-  async logout(sessionId: string): Promise<void> {
+  async logout(sessionId: string, actorUserId: string): Promise<void> {
     await this.sessionService.revoke(sessionId, SessionRevokeReason.LOGOUT);
     await this.audit.record({
+      actorUserId,
       action: 'AUTH_LOGOUT',
       resource: 'AuthSession',
       details: { sessionId },
@@ -190,8 +191,11 @@ export class AuthService {
       where: { id: userId },
       include: { branch: true, manager: { select: { firstName: true, lastName: true } } },
     });
+    if (!refreshed) {
+      throw new UnauthorizedException('User profile not found.');
+    }
     const tokens = await this.establishSession(refreshed, meta);
-    return { ...tokens, user: this.toPublicUser(refreshed!) };
+    return { ...tokens, user: this.toPublicUser(refreshed) };
   }
 
   private async authenticateCredentials(email: string, password: string) {
@@ -205,31 +209,50 @@ export class AuthService {
 
     if (!user) {
       await bcrypt.compare(password, this.dummyHash);
+      await this.audit.record({
+        action: 'AUTH_LOGIN_FAILED',
+        resource: 'User',
+        details: { attempts: 0 },
+      });
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-      throw new UnauthorizedException('Invalid email or password.');
+    if (user.lockedUntil) {
+      if (user.lockedUntil.getTime() > Date.now()) {
+        // Spend a real hash comparison on the locked path too, so response
+        // timing does not distinguish a locked account from an unknown email.
+        await bcrypt.compare(password, this.dummyHash);
+        throw new UnauthorizedException('Invalid email or password.');
+      }
+      // The lock has expired: start a fresh failure window for this attempt.
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null },
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      const attempts = user.failedLoginAttempts + 1;
       const maxAttempts = this.configService.get<number>('auth.maxFailedLogins') ?? 5;
       const lockoutMinutes = this.configService.get<number>('auth.lockoutMinutes') ?? 15;
-      await this.prisma.user.update({
+      // Increment atomically: parallel attempts each count instead of
+      // overwriting one another with a value read before bcrypt.compare.
+      const counted = await this.prisma.user.update({
         where: { id: user.id },
-        data: {
-          failedLoginAttempts: attempts,
-          lockedUntil:
-            attempts >= maxAttempts
-              ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
-              : null,
-        },
+        data: { failedLoginAttempts: { increment: 1 } },
+        select: { failedLoginAttempts: true },
       });
+      const attempts = counted.failedLoginAttempts;
+      const isLocked = attempts >= maxAttempts;
+      if (isLocked) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { lockedUntil: new Date(Date.now() + lockoutMinutes * 60 * 1000) },
+        });
+      }
       await this.audit.record({
         actorUserId: user.id,
-        action: attempts >= maxAttempts ? 'AUTH_LOGIN_LOCKED' : 'AUTH_LOGIN_FAILED',
+        action: isLocked ? 'AUTH_LOGIN_LOCKED' : 'AUTH_LOGIN_FAILED',
         resource: 'User',
         details: { attempts },
       });

@@ -72,7 +72,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Revoke the current session' })
   @ApiResponse({ status: 200, description: 'Session revoked' })
   async logout(@CurrentUser() user: AuthenticatedUser) {
-    await this.authService.logout(user.sessionId!);
+    await this.authService.logout(user.sessionId!, user.id);
     return { message: 'Signed out.' };
   }
 

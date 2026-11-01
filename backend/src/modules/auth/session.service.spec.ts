@@ -311,6 +311,7 @@ describe('SessionService.findActive', () => {
     const { prisma, service } = buildService();
     const live = {
       id: 'session-1',
+      userId: 'user-1',
       revokedAt: null,
       absoluteExpiresAt: new Date(NOW.getTime() + DAY_MS),
     };
@@ -319,7 +320,7 @@ describe('SessionService.findActive', () => {
     await expect(service.findActive('session-1')).resolves.toEqual(live);
     expect(prisma.authSession.findUnique).toHaveBeenCalledWith({
       where: { id: 'session-1' },
-      select: { id: true, revokedAt: true, absoluteExpiresAt: true },
+      select: { id: true, userId: true, revokedAt: true, absoluteExpiresAt: true },
     });
   });
 });

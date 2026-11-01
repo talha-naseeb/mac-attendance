@@ -222,7 +222,7 @@ export class SessionService {
   async findActive(sessionId: string) {
     const session = await this.prisma.authSession.findUnique({
       where: { id: sessionId },
-      select: { id: true, revokedAt: true, absoluteExpiresAt: true },
+      select: { id: true, userId: true, revokedAt: true, absoluteExpiresAt: true },
     });
     if (!session || session.revokedAt || session.absoluteExpiresAt.getTime() <= Date.now()) {
       return null;

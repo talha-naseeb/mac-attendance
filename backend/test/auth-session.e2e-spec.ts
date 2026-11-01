@@ -87,4 +87,112 @@ describe('Auth sessions (e2e)', () => {
     expect(locked.lockedUntil).toBeTruthy();
     await login().expect(401);
   });
+
+  it('parallel wrong passwords still lock the account', async () => {
+    await createUser(testPrisma);
+    const attempts = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(app.getHttpServer())
+          .post('/api/auth/login')
+          .send({ email: 'test.employee@macqhr.sa', password: 'wrong-password' }),
+      ),
+    );
+    for (const attempt of attempts) {
+      expect(attempt.status).toBe(401);
+    }
+    const locked = await testPrisma.user.findFirstOrThrow();
+    expect(locked.failedLoginAttempts).toBeGreaterThanOrEqual(5);
+    expect(locked.lockedUntil).toBeTruthy();
+  });
+
+  it('change-password revokes every session and issues exactly one fresh session', async () => {
+    const user = await createUser(testPrisma, { mustChangePassword: true });
+    const first = await login().expect(201);
+    const second = await login().expect(201);
+
+    const changed = await request(app.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${first.body.accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: 'NewPassword456!' })
+      .expect(201);
+    expect(changed.body.refreshToken).toBeTruthy();
+
+    const active = await testPrisma.authSession.findMany({ where: { revokedAt: null } });
+    expect(active).toHaveLength(1);
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${first.body.accessToken}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${second.body.accessToken}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${changed.body.accessToken}`)
+      .expect(200);
+
+    const updated = await testPrisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(updated.mustChangePassword).toBe(false);
+  });
+
+  it('admin login rejects an employee without creating a session row', async () => {
+    await createUser(testPrisma, { role: 'EMPLOYEE' });
+    await request(app.getHttpServer())
+      .post('/api/auth/admin/login')
+      .send({ email: 'test.employee@macqhr.sa', password: TEST_PASSWORD })
+      .expect(403);
+    expect(await testPrisma.authSession.count()).toBe(0);
+  });
+
+  it('logout leaves other sessions for the same user alive', async () => {
+    await createUser(testPrisma);
+    const first = await login().expect(201);
+    const second = await login().expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${first.body.accessToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${first.body.accessToken}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${second.body.accessToken}`)
+      .expect(200);
+  });
+
+  it('a successful login clears the failed-attempt counter', async () => {
+    await createUser(testPrisma);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'test.employee@macqhr.sa', password: 'wrong-password' })
+        .expect(401);
+    }
+    const before = await testPrisma.user.findFirstOrThrow();
+    expect(before.failedLoginAttempts).toBe(4);
+
+    await login().expect(201);
+
+    const after = await testPrisma.user.findFirstOrThrow();
+    expect(after.failedLoginAttempts).toBe(0);
+    expect(after.lockedUntil).toBeNull();
+  });
+
+  it('an inactive account with a wrong password gets the generic message', async () => {
+    await createUser(testPrisma, { isActive: false });
+    const wrong = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'test.employee@macqhr.sa', password: 'wrong-password' })
+      .expect(401);
+    expect(wrong.body.message).toBe('Invalid email or password.');
+
+    const correct = await login().expect(401);
+    expect(correct.body.message).toBe('This account has been deactivated. Please contact HR.');
+  });
 });
