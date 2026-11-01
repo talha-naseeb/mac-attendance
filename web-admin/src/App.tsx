@@ -229,7 +229,12 @@ export const App: React.FC = () => {
             />
           )}
           {currentTab === 'employees' && (
-            <EmployeesView isArabic={isArabic} employees={portalData.employees} />
+            <EmployeesView
+              isArabic={isArabic}
+              branches={portalData.branches}
+              managers={portalData.employees.filter((employee) => employee.role === 'MANAGER')}
+              onChanged={refreshPortalData}
+            />
           )}
           {currentTab === 'payroll' && (
             <PayrollView
