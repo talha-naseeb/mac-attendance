@@ -81,7 +81,7 @@ Status: **implemented, awaiting G1**. Automated verification is green; the devic
 
 Decisions applied with the recommended defaults: R-02 (version iOS source), R-03 (delete `data.db`, ignore personal tooling, commit `metro.config.js`), R-04 (port 4000), R-06 (remove dead demo controls), R-07 (hide SSO until configured). R-05, R-08, R-09 and R-10 remain open for their phases.
 
-Known Phase 6 residue: no isolated database API suite and no admin test suite. The baseline was adopted on the existing local database on 2026-10-31 (empty schema diff, `migrate resolve --applied`, data intact); applying it with `migrate deploy` to a pristine database is still to be exercised at G1.
+Known Phase 6 residue: no isolated database API suite and no admin test suite (both added in Phase 7A; see the Phase 7A section below). The baseline was adopted on the existing local database on 2026-10-31 (empty schema diff, `migrate resolve --applied`, data intact); applying it with `migrate deploy` to a pristine database is still to be exercised at G1.
 
 ## Phase 7A implementation (2026-11-01)
 
@@ -91,9 +91,9 @@ Status: **implemented, awaiting G2**. Automated verification is green; the devic
 |---|---|---|
 | M2.1 Role comes from the verified session; no client-side role presets | Done | `authenticateWithMicrosoftSso`, `resolveRoleFromEmail`, `validateAndAuthenticate` and the `DEMO_USERS` demo identities deleted (3341cd2, 62f478a); mobile login maps only the server-issued role (`src/services/authService.ts`); manual AUTH-01/AUTH-07 re-run at G2 |
 | M2.2 Employee PII guarded | Done (Phase 6, unchanged) | `employees.service.spec.ts`: colleague sees the limited work profile, a manager gets no compensation, self gets the full profile without the password hash |
-| M2.3 Short-lived access tokens, rotating refresh, immediate revocation | Done | 15-minute access JWT with a `sid` claim; opaque `sessionId.secret` refresh tokens stored as SHA-256; `token.util.spec.ts` (4 cases), `session.service.spec.ts` (12 cases incl. 7-day refresh / 30-day absolute / 8-hour SUPER_ADMIN, atomic rotation, replay family revocation, logout replay, `findActive` branches); `auth-session.e2e-spec.ts` AUTH-04, AUTH-05, AUTH-06, change-password revokes every session, logout leaves sibling sessions alive |
-| M2.4 Forced password change | Done | Global `PasswordChangeGuard` + `code: PASSWORD_CHANGE_REQUIRED`; e2e AUTH-10 (403 on every other route, allowlisted routes still 200); mobile gate `src/screens/ChangePasswordScreen.tsx` with client rules in `validatePasswordChange` (TC-10.2); manual gate check EN/AR light/dark. Production onboarding that would issue a shared default password does not exist yet (Phase 7B) |
-| M2.5 Login throttling and lockout with a non-enumerating message | Done | `rate-limit.e2e-spec.ts` returns 429 on the sixth attempt in a minute; `auth-session.e2e-spec.ts` AUTH-02, parallel-request lockout, counter reset on success, identical generic message for unknown email, inactive account and wrong password |
+| M2.3 Short-lived access tokens, rotating refresh, immediate revocation | Done | 15-minute access JWT with a `sid` claim; opaque `sessionId.secret` refresh tokens stored as SHA-256; `token.util.spec.ts` (4 cases), `session.service.spec.ts` (15 cases incl. 7-day refresh / 30-day absolute / 8-hour SUPER_ADMIN, atomic rotation, replay family revocation, logout replay, `findActive` branches); `auth-session.e2e-spec.ts` AUTH-04, AUTH-05, AUTH-06, change-password revokes every session, logout leaves sibling sessions alive |
+| M2.4 Forced password change | Done | Global `PasswordChangeGuard` + `code: PASSWORD_CHANGE_REQUIRED`; e2e AUTH-10 (403 on a protected route; the allowlisted change-password route still returns 201); mobile gate `src/screens/ChangePasswordScreen.tsx` with client rules in `validatePasswordChange` (TC-10.2); manual gate check EN/AR light/dark. Production onboarding that would issue a shared default password does not exist yet (Phase 7B) |
+| M2.5 Login throttling and lockout with a non-enumerating message | Done | `rate-limit.e2e-spec.ts` returns 429 on the sixth attempt in a minute; `auth-session.e2e-spec.ts` AUTH-02, parallel-request lockout, counter reset on success, identical generic message for unknown email, wrong password, and an inactive account with a wrong password |
 | M2.6 Hardened API baseline | Done | `helmet()` on every path except `/api/docs`, 100 kB JSON/urlencoded limits (`main.ts`); production fail-fast for `JWT_SECRET`/`DATABASE_URL` and short secrets (`configuration.spec.ts`); CORS allowlist from Phase 6; booted-server check recorded CSP on a protected route and left the docs usable |
 | M2.7 Entra SSO decision executed | Done (disabled path only) | SSO button, divider and config lookups removed from `LoginScreen`; server exchange behind `sso.enabled` with the flag test "enables Microsoft Entra SSO only for an explicit true flag". INT-01 enabled is blocked on tenant credentials — G2 limitation |
 | M2.8 Admin session expiry and 401 handling | Done | `web-admin/src/__tests__/adminSession.test.ts` (4 cases: malformed/past/future token, expiry-aware loader); expiry-aware read clears `sessionStorage`; response interceptor exempts the sign-in route, clears the session and dispatches `macq:session-expired`; App returns to sign-in without reloading; no `localStorage` use |
@@ -184,14 +184,14 @@ Superseded by delivery Phase 11.
 
 - `[x]` Tiered skeleton hydration, virtualized list, role-filtered dashboard sections.
 - `[/]` RBAC filtering is **client-side presentation only**. It is not authorization. Server authority is a Phase 6–7 requirement.
-- Historical milestone: 26 tests at that point; current suite is 48.
+- Historical milestone: 26 tests at that point; current suite is 47.
 
 ### Sprint 10 — Login screen and session
 
 - `[x]` Login screen, backend password login, session restore, logout.
 - `[/]` Task 10.4 manual verification is unresolved; the existing approval record is stale.
 - **Demo only**: Microsoft 365 sign-in button is not configured.
-- Historical milestone: 30 tests at that point; current suite is 48.
+- Historical milestone: 30 tests at that point; current suite is 47.
 
 ---
 
@@ -199,7 +199,7 @@ Superseded by delivery Phase 11.
 
 | Gap | Impact | Owner phase |
 |---|---|---|
-| M1.3 incomplete: no isolated-DB API tests or admin tests | Server and console regressions rely on manual gates | 6 (G1 condition) |
+| M1.3 partially resolved: isolated-DB API tests and admin unit tests now exist (Phase 7A); admin component tests do not | Console UI regressions still rely on manual gates | 7B |
 | Migration upgrade not exercised on an existing database copy | Adoption risk for the current local database | 6 (G1 condition) |
 | Client-asserted anti-spoofing | Attendance verdicts are spoofable | 8 |
 | Single-stage leave, no balance ledger | Policy mismatch and drift | 9 |
@@ -216,14 +216,14 @@ Full findings and proposed fixes: [document review](docs/prd/document-review.md)
 ## How to verify locally
 
 ```bash
-# Mobile (typecheck + 48 tests)
+# Mobile (typecheck + 47 tests)
 npm run verify
 
-# Backend (typecheck + 31 tests + build)
+# Backend (typecheck + 51 tests + build)
 cd backend && npm run typecheck && npm test && npm run build
 
-# Admin (production build)
-cd web-admin && npm run build
+# Admin (unit tests + production build)
+cd web-admin && npm test && npm run build
 
 # Everything
 npm run verify:all
