@@ -1,4 +1,5 @@
 import {
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsEmail,
@@ -128,6 +129,7 @@ export class CreateEmployeeDto {
 
   @ApiPropertyOptional({ type: [InitialLeaveBalanceDto] })
   @IsArray()
+  @ArrayUnique((balance: InitialLeaveBalanceDto) => balance.leaveType)
   @ValidateNested({ each: true })
   @Type(() => InitialLeaveBalanceDto)
   @IsOptional()

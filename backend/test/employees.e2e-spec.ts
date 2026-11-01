@@ -239,5 +239,93 @@ describe('Employee administration (e2e)', () => {
       .send({ ...payload, email: 'other@macqhr.sa' })
       .expect(409);
     expect(conflict.body.message).toContain('EMP-DUP');
+    expect(conflict.body.message).not.toContain('other@macqhr.sa');
+
+    const emailConflict = await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ ...payload, employeeId: 'EMP-DUP-EMAIL' })
+      .expect(409);
+    expect(emailConflict.body.message).toContain('dup@macqhr.sa');
+  });
+
+  it('rejects duplicate leave types in the initial balances with a 400', async () => {
+    await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        employeeId: 'EMP-BAL',
+        email: 'balances@macqhr.sa',
+        firstName: 'Bal',
+        lastName: 'Ance',
+        isSaudi: true,
+        department: 'Engineering',
+        jobTitle: 'Engineer',
+        role: 'EMPLOYEE',
+        basicSalarySar: 9000,
+        initialLeaveBalances: [
+          { leaveType: 'ANNUAL', totalDays: 10 },
+          { leaveType: 'ANNUAL', totalDays: 20 },
+        ],
+      })
+      .expect(400);
+
+    expect(
+      await testPrisma.user.count({ where: { email: 'balances@macqhr.sa' } }),
+    ).toBe(0);
+  });
+
+  it('forbids an HR admin from creating a super admin and creates no user', async () => {
+    await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        employeeId: 'EMP-SA',
+        email: 'super.admin@macqhr.sa',
+        firstName: 'Super',
+        lastName: 'Admin',
+        isSaudi: true,
+        department: 'Engineering',
+        jobTitle: 'Engineer',
+        role: 'SUPER_ADMIN',
+        basicSalarySar: 9000,
+      })
+      .expect(403);
+
+    expect(
+      await testPrisma.user.count({ where: { email: 'super.admin@macqhr.sa' } }),
+    ).toBe(0);
+  });
+
+  it('rejects a non-existent or inactive manager with a 400', async () => {
+    const base = {
+      email: 'managed@macqhr.sa',
+      firstName: 'Managed',
+      lastName: 'Hire',
+      isSaudi: true,
+      department: 'Engineering',
+      jobTitle: 'Engineer',
+      role: 'EMPLOYEE',
+      basicSalarySar: 9000,
+    };
+
+    await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ ...base, employeeId: 'EMP-MISSING-MGR', managerId: 'missing-manager-id' })
+      .expect(400);
+
+    const inactiveManager = await createUser(testPrisma, {
+      email: 'inactive.manager@macqhr.sa',
+      employeeId: 'EMP-INACTIVE-MGR',
+      role: 'MANAGER',
+      isActive: false,
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ ...base, employeeId: 'EMP-INACTIVE-MGR-HIRE', managerId: inactiveManager.id })
+      .expect(400);
   });
 });

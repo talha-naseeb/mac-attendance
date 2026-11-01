@@ -329,14 +329,16 @@ export class EmployeesService {
           year,
         })),
       });
+      await this.audit.record(
+        {
+          actorUserId: actor.id,
+          action: 'EMPLOYEE_CREATED',
+          resource: 'User',
+          details: { employeeId: created.employeeId, role: created.role },
+        },
+        tx,
+      );
       return created;
-    });
-
-    await this.audit.record({
-      actorUserId: actor.id,
-      action: 'EMPLOYEE_CREATED',
-      resource: 'User',
-      details: { employeeId: employee.employeeId, role: employee.role },
     });
 
     const { passwordHash: _, ...safeUser } = employee;
