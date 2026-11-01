@@ -345,13 +345,25 @@ export class EmployeesService {
     return { employee: safeUser, temporaryPassword };
   }
 
-  async update(id: string, dto: UpdateEmployeeDto) {
+  async update(id: string, dto: UpdateEmployeeDto, actor: AuthenticatedUser) {
     await this.ensureEmployeeExists(id);
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: dto,
+    const data: any = { ...dto };
+    if (dto.firstName || dto.lastName) {
+      const current = await this.prisma.user.findUniqueOrThrow({
+        where: { id },
+        select: { firstName: true, lastName: true },
+      });
+      const firstName = dto.firstName ?? current.firstName;
+      const lastName = dto.lastName ?? current.lastName;
+      data.fullName = `${firstName} ${lastName}`;
+    }
+    const updated = await this.prisma.user.update({ where: { id }, data });
+    await this.audit.record({
+      actorUserId: actor.id,
+      action: 'EMPLOYEE_UPDATED',
+      resource: 'User',
+      details: { employeeId: updated.employeeId, fields: Object.keys(dto) },
     });
-
     const { passwordHash, ...safeUser } = updated;
     return safeUser;
   }

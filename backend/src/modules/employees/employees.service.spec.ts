@@ -126,7 +126,17 @@ describe('EmployeesService profile access', () => {
       jobTitle: 'Lead Designer',
     });
 
-    const result = await service.update('emp-2', { jobTitle: 'Lead Designer' });
+    const result = await service.update(
+      'emp-2',
+      { jobTitle: 'Lead Designer' },
+      {
+        id: 'hr-1',
+        employeeId: 'EMP-HR',
+        email: 'hr@macqhr.sa',
+        role: 'HR_ADMIN',
+        name: 'HR Admin',
+      },
+    );
 
     expect(prisma.user.findUnique).toHaveBeenCalledWith({
       where: { id: 'emp-2' },

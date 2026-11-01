@@ -70,11 +70,12 @@ export class EmployeesController {
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Update employee profile or salary details' })
+  @ApiOperation({ summary: 'Update editable employee profile fields' })
   async updateEmployee(
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.employeesService.update(id, dto);
+    return this.employeesService.update(id, dto, actor);
   }
 }

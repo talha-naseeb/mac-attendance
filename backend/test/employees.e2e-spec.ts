@@ -328,4 +328,87 @@ describe('Employee administration (e2e)', () => {
       .send({ ...base, employeeId: 'EMP-INACTIVE-MGR-HIRE', managerId: inactiveManager.id })
       .expect(400);
   });
+
+  it('rejects email and employee ID changes', async () => {
+    const target = await createUser(testPrisma, {
+      email: 'edit@macqhr.sa',
+      employeeId: 'EMP-EDIT',
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ email: 'changed@macqhr.sa' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ employeeId: 'EMP-CHANGED' })
+      .expect(400);
+    // Salary, role, and activation are no longer profile fields.
+    await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ basicSalarySar: 20000 })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ role: 'SUPER_ADMIN' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ isActive: false })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ jobTitle: 'Senior Engineer' })
+      .expect(200);
+
+    const persisted = await testPrisma.user.findUniqueOrThrow({
+      where: { id: target.id },
+    });
+    expect(persisted.email).toBe('edit@macqhr.sa');
+    expect(persisted.employeeId).toBe('EMP-EDIT');
+    expect(persisted.basicSalarySar).toBe(10000);
+    expect(persisted.role).toBe('EMPLOYEE');
+    expect(persisted.isActive).toBe(true);
+    expect(persisted.jobTitle).toBe('Senior Engineer');
+  });
+
+  it('audits a profile edit minimally and recomputes fullName', async () => {
+    const target = await createUser(testPrisma, {
+      email: 'audit.edit@macqhr.sa',
+      employeeId: 'EMP-AUDIT-EDIT',
+    });
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/employees/${target.id}`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ firstName: 'Noura', titleAr: 'مهندسة أولى' })
+      .expect(200);
+
+    expect(res.body.passwordHash).toBeUndefined();
+    expect(res.body.email).toBe('audit.edit@macqhr.sa');
+    expect(res.body.fullName).toBe('Noura Employee');
+    expect(res.body.titleAr).toBe('مهندسة أولى');
+
+    const logs = await testPrisma.auditLog.findMany({
+      where: { action: 'EMPLOYEE_UPDATED', resource: 'User' },
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0].actorUserId).toBeTruthy();
+
+    const details = logs[0].detailsJson as Record<string, unknown>;
+    expect(details.employeeId).toBe('EMP-AUDIT-EDIT');
+    expect(details.fields).toEqual(expect.arrayContaining(['firstName', 'titleAr']));
+
+    // The audit entry carries field names, never the values or credentials.
+    const serialized = JSON.stringify(details);
+    expect(serialized).not.toContain('audit.edit@macqhr.sa');
+    expect(serialized.toLowerCase()).not.toContain('password');
+    expect(serialized.toLowerCase()).not.toContain('hash');
+    expect(serialized).not.toContain('Noura');
+  });
 });

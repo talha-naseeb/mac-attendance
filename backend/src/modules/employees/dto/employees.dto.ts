@@ -162,23 +162,18 @@ export class UpdateEmployeeDto {
   @IsOptional()
   department?: string;
 
-  @ApiPropertyOptional({ example: 14000 })
-  @IsNumber()
+  @ApiPropertyOptional({ example: 'أحمد منصور' })
+  @IsString()
   @IsOptional()
-  basicSalarySar?: number;
+  fullNameAr?: string;
 
-  @ApiPropertyOptional({ example: 3500 })
-  @IsNumber()
+  @ApiPropertyOptional({ example: 'مهندس أول' })
+  @IsString()
   @IsOptional()
-  housingAllowanceSar?: number;
+  titleAr?: string;
 
-  @ApiPropertyOptional({ example: 1200 })
-  @IsNumber()
+  @ApiPropertyOptional({ example: 'الهندسة' })
+  @IsString()
   @IsOptional()
-  transportAllowanceSar?: number;
-
-  @ApiPropertyOptional({ example: true })
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
+  departmentAr?: string;
 }
