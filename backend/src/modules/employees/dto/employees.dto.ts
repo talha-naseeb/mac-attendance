@@ -1,14 +1,33 @@
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Max,
+  Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../../common/decorators/roles.decorator';
+
+export class InitialLeaveBalanceDto {
+  @ApiProperty({ example: 'ANNUAL' })
+  @IsString()
+  @IsNotEmpty()
+  leaveType: string;
+
+  @ApiProperty({ example: 30 })
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  totalDays: number;
+}
 
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'EMP-006' })
@@ -90,6 +109,29 @@ export class CreateEmployeeDto {
   @IsString()
   @IsOptional()
   managerId?: string;
+
+  @ApiPropertyOptional()
+  @IsString() @IsOptional()
+  fullNameAr?: string;
+
+  @ApiPropertyOptional()
+  @IsString() @IsOptional()
+  titleAr?: string;
+
+  @ApiPropertyOptional()
+  @IsString() @IsOptional()
+  departmentAr?: string;
+
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean() @IsOptional()
+  isRemoteAllowed?: boolean;
+
+  @ApiPropertyOptional({ type: [InitialLeaveBalanceDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InitialLeaveBalanceDto)
+  @IsOptional()
+  initialLeaveBalances?: InitialLeaveBalanceDto[];
 }
 
 export class UpdateEmployeeDto {

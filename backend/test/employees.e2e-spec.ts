@@ -177,4 +177,67 @@ describe('Employee administration (e2e)', () => {
       .set('Authorization', `Bearer ${managerLogin.body.accessToken}`)
       .expect(403);
   });
+
+  it('EMP-01: creates an employee who can sign in and must change the temporary password', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        employeeId: 'EMP-NEW',
+        email: 'new.hire@macqhr.sa',
+        firstName: 'New',
+        lastName: 'Hire',
+        isSaudi: true,
+        department: 'Engineering',
+        jobTitle: 'Engineer',
+        role: 'EMPLOYEE',
+        basicSalarySar: 9000,
+      })
+      .expect(201);
+
+    expect(created.body.temporaryPassword).toHaveLength(16);
+
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'new.hire@macqhr.sa', password: created.body.temporaryPassword })
+      .expect(201);
+    expect(login.body.user.mustChangePassword).toBe(true);
+
+    const balances = await testPrisma.leaveBalance.count({
+      where: { userId: created.body.employee.id },
+    });
+    expect(balances).toBe(4);
+
+    const directory = await request(app.getHttpServer())
+      .get('/api/directory')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(directory.body.some((item: any) => item.email === 'new.hire@macqhr.sa')).toBe(true);
+  });
+
+  it('EMP-02: rejects a duplicate employee ID with a field-specific conflict', async () => {
+    const payload = {
+      employeeId: 'EMP-DUP',
+      email: 'dup@macqhr.sa',
+      firstName: 'Dup',
+      lastName: 'One',
+      isSaudi: true,
+      department: 'Engineering',
+      jobTitle: 'Engineer',
+      role: 'EMPLOYEE',
+      basicSalarySar: 9000,
+    };
+    await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send(payload)
+      .expect(201);
+
+    const conflict = await request(app.getHttpServer())
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ ...payload, email: 'other@macqhr.sa' })
+      .expect(409);
+    expect(conflict.body.message).toContain('EMP-DUP');
+  });
 });

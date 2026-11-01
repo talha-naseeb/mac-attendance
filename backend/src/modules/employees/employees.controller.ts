@@ -60,8 +60,11 @@ export class EmployeesController {
   @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Onboard new employee (HR & Super Admin only)' })
   @ApiResponse({ status: 201, description: 'Employee record created' })
-  async createEmployee(@Body() dto: CreateEmployeeDto) {
-    return this.employeesService.create(dto);
+  async createEmployee(
+    @Body() dto: CreateEmployeeDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.employeesService.create(dto, actor);
   }
 
   @Patch(':id')

@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../../common/services/audit.service';
 import { EmployeesService } from './employees.service';
 
 function createPrismaMock() {
@@ -14,13 +15,20 @@ function createPrismaMock() {
   };
 }
 
+function createAuditMock() {
+  return { record: jest.fn() };
+}
+
 describe('EmployeesService profile access', () => {
   let prisma: ReturnType<typeof createPrismaMock>;
   let service: EmployeesService;
 
   beforeEach(() => {
     prisma = createPrismaMock();
-    service = new EmployeesService(prisma as unknown as PrismaService);
+    service = new EmployeesService(
+      prisma as unknown as PrismaService,
+      createAuditMock() as unknown as AuditService,
+    );
   });
 
   it('returns only the limited work profile to a colleague', async () => {

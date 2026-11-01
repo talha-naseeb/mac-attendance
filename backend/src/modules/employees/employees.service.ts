@@ -1,12 +1,21 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../../common/services/audit.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employees.dto';
 import {
   AdminEmployeeQueryDto,
   EmployeeStatusFilter,
 } from './dto/employee-admin.dto';
+import { generateTemporaryPassword } from './credentials.util';
 
 export interface EmployeeRequester {
   id: string;
@@ -56,7 +65,10 @@ const LIMITED_PROFILE_SELECT = {
 
 @Injectable()
 export class EmployeesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async findAll(query?: { search?: string; department?: string; branchId?: string }) {
     const where: any = { isActive: true };
@@ -233,60 +245,102 @@ export class EmployeesService {
     return { items, total, page, pageSize };
   }
 
-  async create(dto: CreateEmployeeDto) {
+  async create(dto: CreateEmployeeDto, actor: AuthenticatedUser) {
+    if (dto.role === 'SUPER_ADMIN' && actor.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only a Super Admin can create another Super Admin.');
+    }
+
     const existing = await this.prisma.user.findFirst({
       where: {
         OR: [{ email: dto.email.toLowerCase() }, { employeeId: dto.employeeId }],
       },
     });
-
     if (existing) {
       throw new ConflictException(
-        `Employee with email ${dto.email} or ID ${dto.employeeId} already exists.`,
+        existing.email === dto.email.toLowerCase()
+          ? `An employee with email ${dto.email} already exists.`
+          : `Employee ID ${dto.employeeId} is already in use.`,
       );
     }
 
-    const defaultPassword = 'Password123!';
-    const passwordHash = await bcrypt.hash(defaultPassword, 10);
+    if (dto.managerId) {
+      const manager = await this.prisma.user.findUnique({
+        where: { id: dto.managerId },
+        select: { isActive: true },
+      });
+      if (!manager) {
+        throw new BadRequestException('The selected manager does not exist.');
+      }
+      if (!manager.isActive) {
+        throw new BadRequestException('The selected manager is not active.');
+      }
+    }
 
-    const user = await this.prisma.user.create({
-      data: {
-        employeeId: dto.employeeId,
-        email: dto.email.toLowerCase(),
-        passwordHash,
-        role: dto.role as any,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        fullName: `${dto.firstName} ${dto.lastName}`,
-        fullNameAr: `${dto.firstName} ${dto.lastName}`,
-        jobTitle: dto.jobTitle,
-        department: dto.department,
-        phone: dto.phone || '',
-        isSaudi: dto.isSaudi,
-        nationalId: dto.nationalId,
-        iqamaNumber: dto.iqamaNumber,
-        basicSalarySar: dto.basicSalarySar,
-        housingAllowanceSar: dto.housingAllowanceSar ?? 0,
-        transportAllowanceSar: dto.transportAllowanceSar ?? 0,
-        branchId: dto.branchId,
-        managerId: dto.managerId,
-        canAccessWebAdmin: dto.role === 'HR_ADMIN' || dto.role === 'SUPER_ADMIN',
-      },
-    });
-
-    // Seed default leave balances for current year
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
     const year = new Date().getFullYear();
-    await this.prisma.leaveBalance.createMany({
-      data: [
-        { userId: user.id, leaveType: 'ANNUAL', totalDays: 30, usedDays: 0, year },
-        { userId: user.id, leaveType: 'SICK', totalDays: 30, usedDays: 0, year },
-        { userId: user.id, leaveType: 'HAJJ', totalDays: 10, usedDays: 0, year },
-        { userId: user.id, leaveType: 'PATERNITY', totalDays: 3, usedDays: 0, year },
-      ],
+    const balances = dto.initialLeaveBalances?.length
+      ? dto.initialLeaveBalances
+      : [
+          { leaveType: 'ANNUAL', totalDays: 30 },
+          { leaveType: 'SICK', totalDays: 30 },
+          { leaveType: 'HAJJ', totalDays: 10 },
+          { leaveType: 'PATERNITY', totalDays: 3 },
+        ];
+
+    const employee = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          employeeId: dto.employeeId,
+          email: dto.email.toLowerCase(),
+          passwordHash,
+          mustChangePassword: true,
+          role: dto.role,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          fullName: `${dto.firstName} ${dto.lastName}`,
+          fullNameAr: dto.fullNameAr ?? `${dto.firstName} ${dto.lastName}`,
+          jobTitle: dto.jobTitle,
+          titleAr: dto.titleAr,
+          department: dto.department,
+          departmentAr: dto.departmentAr,
+          phone: dto.phone ?? '',
+          isSaudi: dto.isSaudi,
+          nationalId: dto.nationalId,
+          iqamaNumber: dto.iqamaNumber,
+          basicSalarySar: dto.basicSalarySar,
+          housingAllowanceSar: dto.housingAllowanceSar ?? 0,
+          transportAllowanceSar: dto.transportAllowanceSar ?? 0,
+          branchId: dto.branchId,
+          managerId: dto.managerId,
+          isRemoteAllowed: dto.isRemoteAllowed ?? false,
+          remoteGrantedById: dto.isRemoteAllowed ? actor.id : null,
+          remoteGrantedAt: dto.isRemoteAllowed ? new Date() : null,
+          canAccessWebAdmin:
+            dto.role === 'HR_ADMIN' || dto.role === 'SUPER_ADMIN',
+        },
+      });
+      await tx.leaveBalance.createMany({
+        data: balances.map((balance) => ({
+          userId: created.id,
+          leaveType: balance.leaveType,
+          totalDays: balance.totalDays,
+          usedDays: 0,
+          year,
+        })),
+      });
+      return created;
     });
 
-    const { passwordHash: _, ...safeUser } = user;
-    return safeUser;
+    await this.audit.record({
+      actorUserId: actor.id,
+      action: 'EMPLOYEE_CREATED',
+      resource: 'User',
+      details: { employeeId: employee.employeeId, role: employee.role },
+    });
+
+    const { passwordHash: _, ...safeUser } = employee;
+    return { employee: safeUser, temporaryPassword };
   }
 
   async update(id: string, dto: UpdateEmployeeDto) {
