@@ -1,6 +1,7 @@
 import { EditableEmployeeProfile, deriveAvatarInitials } from './profileSettingsService';
 import { UserRole } from './dashboardOptimizationService';
 import { MACQUIRES_PALETTE } from '../theme/colors';
+import { refreshStoredSession } from './sessionManager';
 import {
   ApprovalItem,
   AttendanceRecord,
@@ -46,19 +47,23 @@ interface BackendUser {
   avatarColor?: string;
   createdAt?: string;
   isRemoteAllowed?: boolean;
+  mustChangePassword?: boolean;
 }
 
 interface BackendLoginResponse {
   accessToken: string;
+  refreshToken: string;
   user: BackendUser;
 }
 
 export interface ApiAuthSession {
   token: string;
+  refreshToken?: string;
   role: UserRole;
   profile: EditableEmployeeProfile;
   branchId?: string;
   isRemoteAllowed: boolean;
+  mustChangePassword?: boolean;
 }
 
 export class BackendApiError extends Error {
@@ -379,22 +384,41 @@ async function request<T>(
   options: RequestInit = {},
   token?: string,
 ): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
-  } catch {
-    throw new BackendApiError('Unable to reach the MacqHR server. Check your API address and connection.');
+  const send = async (bearer?: string): Promise<Response> => {
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+          ...options.headers,
+        },
+      });
+    } catch {
+      throw new BackendApiError(
+        'Unable to reach the MacqHR server. Check your API address and connection.',
+      );
+    }
+  };
+
+  let response = await send(token);
+
+  // A wrong current password on the change-password endpoint is also a 401, so
+  // that path must not trigger a token refresh and rotate the session on typo.
+  if (
+    response.status === 401 &&
+    token &&
+    path !== '/auth/refresh' &&
+    path !== '/auth/change-password'
+  ) {
+    const refreshed = await refreshStoredSession();
+    if (refreshed?.token) {
+      response = await send(refreshed.token);
+    }
   }
 
-  const body = await response.json().catch(() => null) as {
+  const body = (await response.json().catch(() => null)) as {
     message?: string | string[];
   } | null;
   if (!response.ok) {
@@ -416,11 +440,24 @@ export async function authenticateWithBackend(
   });
   return {
     token: response.accessToken,
+    refreshToken: response.refreshToken,
     role: toAppRole(response.user.role),
     profile: toProfile(response.user),
     branchId: response.user.branch?.id,
     isRemoteAllowed: Boolean(response.user.isRemoteAllowed),
+    mustChangePassword: Boolean(response.user.mustChangePassword),
   };
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  token: string,
+): Promise<{ accessToken: string; refreshToken: string; user: BackendUser }> {
+  return request('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }, token);
 }
 
 export async function submitLeaveToBackend(

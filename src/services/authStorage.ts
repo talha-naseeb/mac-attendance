@@ -18,7 +18,9 @@ function isExpired(token: string): boolean {
   }
 }
 
-export async function loadStoredAuthSession(): Promise<AuthSession | null> {
+export async function loadStoredAuthSession(
+  options: { allowExpired?: boolean } = {},
+): Promise<AuthSession | null> {
   try {
     const raw = Platform.OS === 'web'
       ? globalThis.sessionStorage?.getItem(SESSION_KEY)
@@ -26,7 +28,11 @@ export async function loadStoredAuthSession(): Promise<AuthSession | null> {
     if (!raw) return null;
 
     const session = JSON.parse(raw) as AuthSession;
-    if (!session.token || isExpired(session.token)) {
+    if (!session.token) {
+      await clearStoredAuthSession();
+      return null;
+    }
+    if (!options.allowExpired && isExpired(session.token)) {
       await clearStoredAuthSession();
       return null;
     }

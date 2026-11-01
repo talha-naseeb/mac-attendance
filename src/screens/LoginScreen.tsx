@@ -43,9 +43,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isRTL = lang === 'ar';
-  const msTenantId = process.env.EXPO_PUBLIC_MS_ENTRA_TENANT_ID;
-  const msClientId = process.env.EXPO_PUBLIC_MS_ENTRA_CLIENT_ID;
-  const isMicrosoftSsoConfigured = Boolean(msTenantId && msClientId);
 
   const handleSignIn = async () => {
     setIsSubmitting(true);
@@ -294,64 +291,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </View>
             )}
           </TouchableOpacity>
-
-          {/* Microsoft 365 Entra ID SSO Button (only when configured) */}
-          {isMicrosoftSsoConfigured && (
-            <>
-              {/* Or Divider */}
-              <View style={styles.dividerRow}>
-                <View
-                  style={[styles.dividerLine, { backgroundColor: colors.border }]}
-                />
-                <Text
-                  style={[
-                    styles.dividerText,
-                    { color: colors.textMuted, backgroundColor: colors.surface },
-                  ]}
-                >
-                  {isRTL ? 'أو عبر الهوية الموحدة' : 'or continue with'}
-                </Text>
-                <View
-                  style={[styles.dividerLine, { backgroundColor: colors.border }]}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.msSsoBtn,
-                  rtlRow(isRTL),
-                  {
-                    backgroundColor: colors.isDark ? '#001D38' : '#F8FAFC',
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={() => {
-                  setErrorMessage(
-                    isRTL
-                      ? 'تسجيل الدخول عبر Microsoft 365 غير مهيأ لهذا الجهاز.'
-                      : 'Microsoft 365 SSO is not configured for this build yet.',
-                  );
-                }}
-                activeOpacity={0.85}
-              >
-                {/* Microsoft 4-square icon representation */}
-                <View style={styles.msLogoSquare}>
-                  <View style={[styles.msSubSquare, { backgroundColor: '#F25022' }]} />
-                  <View style={[styles.msSubSquare, { backgroundColor: '#7FBA00' }]} />
-                  <View style={[styles.msSubSquare, { backgroundColor: '#00A4EF' }]} />
-                  <View style={[styles.msSubSquare, { backgroundColor: '#FFB900' }]} />
-                </View>
-                <Text
-                  style={[styles.msSsoBtnText, { color: colors.textPrimary }]}
-                  numberOfLines={1}
-                >
-                  {isRTL
-                    ? 'تسجيل الدخول بواسطة Microsoft 365'
-                    : 'Sign in with Microsoft 365'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
         </View>
 
         {/* Footer info */}
@@ -517,48 +456,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
-  },
-  dividerRow: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  dividerLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-  },
-  dividerText: {
-    paddingHorizontal: 12,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  msSsoBtn: {
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-  },
-  msLogoSquare: {
-    width: 17,
-    height: 17,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 1.5,
-  },
-  msSubSquare: {
-    width: 7.5,
-    height: 7.5,
-  },
-  msSsoBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
   },
   footerWrap: {
     alignItems: 'center',

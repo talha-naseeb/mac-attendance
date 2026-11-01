@@ -1,6 +1,6 @@
 import { CURRENT_EMPLOYEE } from '../data/mockData';
 import { UserRole } from './dashboardOptimizationService';
-import { deriveAvatarInitials, EditableEmployeeProfile } from './profileSettingsService';
+import { EditableEmployeeProfile } from './profileSettingsService';
 import { MACQUIRES_PALETTE } from '../theme/colors';
 import {
   ApiAuthSession,
@@ -16,13 +16,16 @@ export interface AuthCredentials {
 
 export interface AuthSession {
   token: string;
+  refreshToken?: string;
   role: UserRole;
   profile: EditableEmployeeProfile;
   authenticatedAt: number;
-  authMethod: 'PASSWORD' | 'MICROSOFT_365_SSO';
+  authMethod: 'PASSWORD';
   branchId?: string;
   isRemoteAllowed: boolean;
+  mustChangePassword?: boolean;
 }
+
 
 export const DEMO_USERS: Record<UserRole, EditableEmployeeProfile> = {
   EMPLOYEE: {
@@ -92,31 +95,16 @@ export const DEMO_USERS: Record<UserRole, EditableEmployeeProfile> = {
   },
 };
 
-/**
- * Resolves account role from corporate email identity.
- */
-export function resolveRoleFromEmail(email: string): UserRole {
-  const normalized = email.trim().toLowerCase();
-  for (const [r, profile] of Object.entries(DEMO_USERS) as [UserRole, EditableEmployeeProfile][]) {
-    if (profile.email.toLowerCase() === normalized) {
-      return r;
-    }
-  }
-  return 'EMPLOYEE';
-}
-
-export interface AuthValidationResult {
+export interface CredentialValidation {
   valid: boolean;
   error?: 'EMPTY_EMAIL' | 'INVALID_EMAIL' | 'SHORT_PASSWORD';
-  session?: AuthSession;
 }
 
 /**
- * Validates login input and creates an authenticated session with user profile and role claims.
+ * Validates login input before it is sent to the API. Session creation and
+ * role resolution now happen on the server.
  */
-export function validateAndAuthenticate(
-  credentials: AuthCredentials
-): AuthValidationResult {
+export function validateCredentials(credentials: AuthCredentials): CredentialValidation {
   const trimmedEmail = (credentials.email || '').trim().toLowerCase();
   const password = credentials.password || '';
 
@@ -133,40 +121,23 @@ export function validateAndAuthenticate(
     return { valid: false, error: 'SHORT_PASSWORD' };
   }
 
-  const resolvedRole = credentials.role ?? resolveRoleFromEmail(trimmedEmail);
-  const baseProfile = DEMO_USERS[resolvedRole] || DEMO_USERS.EMPLOYEE;
-  const userProfile: EditableEmployeeProfile = {
-    ...baseProfile,
-    email: trimmedEmail,
-    avatarInitials: deriveAvatarInitials(baseProfile.fullName),
-  };
-
-  return {
-    valid: true,
-      session: {
-        token: `macqhr-jwt-${resolvedRole.toLowerCase()}-${Date.now()}`,
-        role: resolvedRole,
-        profile: userProfile,
-        authenticatedAt: Date.now(),
-        authMethod: 'PASSWORD',
-        isRemoteAllowed: false,
-      },
-  };
+  return { valid: true };
 }
 
+export type PasswordChangeValidationError = 'PASSWORD_TOO_SHORT' | 'SAME_PASSWORD';
+
 /**
- * Creates an authenticated session via simulated Microsoft 365 / Entra ID SSO.
+ * Client-side replacement-password rules, shared with the forced password
+ * change screen. The API re-checks the current password and applies its own
+ * policy, so these are fast-feedback checks only.
  */
-export function authenticateWithMicrosoftSso(role: UserRole = 'EMPLOYEE'): AuthSession {
-  const profile = DEMO_USERS[role] || DEMO_USERS.EMPLOYEE;
-  return {
-    token: `ms-entra-id-jwt-${role.toLowerCase()}-${Date.now()}`,
-    role,
-    profile,
-    authenticatedAt: Date.now(),
-    authMethod: 'MICROSOFT_365_SSO',
-    isRemoteAllowed: false,
-  };
+export function validatePasswordChange(
+  currentPassword: string,
+  newPassword: string,
+): PasswordChangeValidationError | null {
+  if (newPassword.length < 8) return 'PASSWORD_TOO_SHORT';
+  if (currentPassword === newPassword) return 'SAME_PASSWORD';
+  return null;
 }
 
 /**
@@ -176,7 +147,7 @@ export function authenticateWithMicrosoftSso(role: UserRole = 'EMPLOYEE'): AuthS
 export async function authenticateWithPasswordApi(
   credentials: AuthCredentials,
 ): Promise<AuthSession> {
-  const validation = validateAndAuthenticate(credentials);
+  const validation = validateCredentials(credentials);
   if (!validation.valid) {
     throw new BackendApiError('Enter a valid work email and a password of at least 6 characters.');
   }
@@ -187,11 +158,13 @@ export async function authenticateWithPasswordApi(
   );
   return {
     token: backendSession.token,
+    refreshToken: backendSession.refreshToken,
     role: backendSession.role,
     profile: backendSession.profile,
     branchId: backendSession.branchId,
     isRemoteAllowed: backendSession.isRemoteAllowed,
     authenticatedAt: Date.now(),
     authMethod: 'PASSWORD',
+    mustChangePassword: backendSession.mustChangePassword,
   };
 }

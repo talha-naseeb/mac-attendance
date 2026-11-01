@@ -35,17 +35,19 @@ import { AdminOrgPanelModal } from './src/components/AdminOrgPanelModal';
 import { TRANSLATIONS } from './src/i18n/translations';
 import { ApprovalsScreen } from './src/screens/ApprovalsScreen';
 import { AttendanceScreen } from './src/screens/AttendanceScreen';
+import { ChangePasswordScreen } from './src/screens/ChangePasswordScreen';
 import { ClockInScreen } from './src/screens/ClockInScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RequestTimeOffModal } from './src/screens/RequestTimeOffModal';
 import { SubModalType, SubModuleModal } from './src/screens/SubModuleModal';
 import { AuthSession } from './src/services/authService';
+import { loadStoredAuthSession, saveAuthSession } from './src/services/authStorage';
 import {
-  clearStoredAuthSession,
-  loadStoredAuthSession,
-  saveAuthSession,
-} from './src/services/authStorage';
+  isTokenExpiringSoon,
+  refreshStoredSession,
+  signOutStoredSession,
+} from './src/services/sessionManager';
 import {
   decideLeaveToBackend,
   loadMobileApiData,
@@ -104,6 +106,7 @@ function MacqHRApp() {
   const [lang, setLang] = useState<AppLanguage>('en');
   const [showOpeningSplash, setShowOpeningSplash] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('EMPLOYEE');
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [assignedBranchId, setAssignedBranchId] = useState<string | undefined>();
@@ -168,15 +171,21 @@ function MacqHRApp() {
 
   useEffect(() => {
     let mounted = true;
-    void loadStoredAuthSession().then((session) => {
+    void (async () => {
+      const stored = await loadStoredAuthSession({ allowExpired: true });
+      if (!mounted || !stored) return;
+      const session = isTokenExpiringSoon(stored.token)
+        ? await refreshStoredSession()
+        : stored;
       if (!mounted || !session) return;
+      setAuthSession(session);
       setUserRole(session.role);
       setEmployeeProfile(session.profile);
       setAuthToken(session.token);
       setAssignedBranchId(session.branchId);
       setIsRemoteAllowed(session.isRemoteAllowed);
       setIsAuthenticated(true);
-    });
+    })();
     return () => {
       mounted = false;
     };
@@ -665,30 +674,27 @@ function MacqHRApp() {
   };
 
   const handleLoginSuccess = (session: AuthSession) => {
+    setAuthSession(session);
     setUserRole(session.role);
     setEmployeeProfile(session.profile);
     setAuthToken(session.token);
     setAssignedBranchId(session.branchId);
     setIsRemoteAllowed(session.isRemoteAllowed);
     void saveAuthSession(session);
-    if (session.authMethod === 'MICROSOFT_365_SSO') {
-      setMicrosoftAccount((prev) => ({
-        ...prev,
-        isConnected: true,
-        displayName: session.profile.fullName,
-        userPrincipalName: session.profile.email,
-        expiresAtIso: new Date(Date.now() + 3600 * 1000).toISOString(),
-      }));
-    }
     setIsAuthenticated(true);
+  };
+
+  const handlePasswordChanged = (session: AuthSession) => {
+    handleLoginSuccess(session);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setAuthSession(null);
     setAuthToken(null);
     setAssignedBranchId(undefined);
     setIsRemoteAllowed(false);
-    void clearStoredAuthSession();
+    void signOutStoredSession();
     setActiveScreen('main');
     setActiveBottomTab('dashboard');
   };
@@ -751,6 +757,32 @@ function MacqHRApp() {
                 setLang((prev) => (prev === 'en' ? 'ar' : 'en'))
               }
               onToggleTheme={() => setDarkMode((d) => !d)}
+            />
+          </SafeAreaView>
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  if (authSession?.mustChangePassword) {
+    return (
+      <SafeAreaProvider>
+        <View
+          style={[
+            styles.webOuterFrame,
+            { backgroundColor: darkMode ? MACQUIRES_PALETTE.oxfordBlue : '#DCE3EC' },
+          ]}
+        >
+          <SafeAreaView
+            style={[styles.root, { backgroundColor: colors.background }]}
+            edges={['top', 'left', 'right', 'bottom']}
+          >
+            <StatusBar barStyle={darkMode ? 'light-content' : 'dark-content'} />
+            <ChangePasswordScreen
+              colors={colors}
+              lang={lang}
+              session={authSession}
+              onChanged={handlePasswordChanged}
             />
           </SafeAreaView>
         </View>

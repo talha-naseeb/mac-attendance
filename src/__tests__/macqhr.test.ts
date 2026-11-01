@@ -57,11 +57,8 @@ import {
   evaluateClockEligibility,
   formatElapsedWorkingTime,
 } from '../services/clockInService';
-import {
-  authenticateWithMicrosoftSso,
-  DEMO_USERS,
-  validateAndAuthenticate,
-} from '../services/authService';
+import { validatePasswordChange } from '../services/authService';
+import { isTokenExpiringSoon, shouldRefreshToken } from '../services/sessionManager';
 import {
   filterWhosOffEntries,
   getColleagueAvailabilitySummary,
@@ -729,85 +726,23 @@ describeSuite(
 );
 
 describeSuite(
-  'Sprint 10: Authentication, Role Claims & Microsoft 365 Entra ID SSO Session Management',
+  'Sprint 10: Session refresh and forced password change',
   () => {
-    itCase(
-      'TC-10.1: Validates email format and password constraint rules',
-      () => {
-        const emptyEmail = validateAndAuthenticate({
-          email: '',
-          password: 'secretPassword123',
-          role: 'EMPLOYEE',
-        });
-        assertEqual(emptyEmail.valid, false);
-        assertEqual(emptyEmail.error, 'EMPTY_EMAIL');
+    itCase('TC-10.1: Detects access tokens that are about to expire', () => {
+      const now = Math.floor(Date.now() / 1000);
+      const makeToken = (exp: number) =>
+        `header.${globalThis.btoa(JSON.stringify({ exp }))}.sig`;
+      assertEqual(isTokenExpiringSoon(makeToken(now + 30)), true);
+      assertEqual(isTokenExpiringSoon(makeToken(now + 600)), false);
+      assertEqual(isTokenExpiringSoon('not-a-jwt'), true);
+      assertEqual(shouldRefreshToken('not-a-jwt'), true);
+    });
 
-        const badEmail = validateAndAuthenticate({
-          email: 'notanemail',
-          password: 'secretPassword123',
-          role: 'EMPLOYEE',
-        });
-        assertEqual(badEmail.valid, false);
-        assertEqual(badEmail.error, 'INVALID_EMAIL');
-
-        const shortPass = validateAndAuthenticate({
-          email: 'rahaf.mansoor@macquires.sa',
-          password: '123',
-          role: 'EMPLOYEE',
-        });
-        assertEqual(shortPass.valid, false);
-        assertEqual(shortPass.error, 'SHORT_PASSWORD');
-
-        const validLogin = validateAndAuthenticate({
-          email: 'rahaf.mansoor@macquires.sa',
-          password: 'validPassword123',
-          role: 'EMPLOYEE',
-        });
-        assertEqual(validLogin.valid, true);
-        assertTrue(!!validLogin.session, 'Session must be returned');
-        assertEqual(validLogin.session?.authMethod, 'PASSWORD');
-      }
-    );
-
-    itCase(
-      'TC-10.2: Enforces automatic role resolution from email identity across EMPLOYEE, MANAGER, and HR_ADMIN presets',
-      () => {
-        const roles = ['EMPLOYEE', 'MANAGER', 'HR_ADMIN'] as const;
-        roles.forEach((r) => {
-          const res = validateAndAuthenticate({
-            email: DEMO_USERS[r].email,
-            password: 'password123',
-          });
-          assertEqual(res.valid, true);
-          assertTrue(!!res.session, `Session for ${r} must be valid`);
-          assertEqual(res.session?.role, r);
-          assertEqual(res.session?.profile.email, DEMO_USERS[r].email);
-          assertEqual(res.session?.profile.fullName, DEMO_USERS[r].fullName);
-          assertTrue(
-            Boolean(res.session?.token.includes(r.toLowerCase())),
-            `Token must contain role claim for ${r}`
-          );
-        });
-      }
-    );
-
-    itCase(
-      'TC-10.3: Generates verified Microsoft 365 Entra ID SSO session with tenant claims',
-      () => {
-        const ssoSession = authenticateWithMicrosoftSso('MANAGER');
-        assertEqual(ssoSession.role, 'MANAGER');
-        assertEqual(ssoSession.authMethod, 'MICROSOFT_365_SSO');
-        assertEqual(ssoSession.profile.fullName, DEMO_USERS.MANAGER.fullName);
-        assertTrue(
-          ssoSession.token.startsWith('ms-entra-id-jwt-'),
-          'SSO token must have Entra ID prefix'
-        );
-        assertTrue(
-          ssoSession.authenticatedAt <= Date.now(),
-          'Authenticated timestamp must be valid'
-        );
-      }
-    );
+    itCase('TC-10.2: Rejects short or unchanged replacement passwords', () => {
+      assertEqual(validatePasswordChange('Password123!', 'short'), 'PASSWORD_TOO_SHORT');
+      assertEqual(validatePasswordChange('Password123!', 'Password123!'), 'SAME_PASSWORD');
+      assertEqual(validatePasswordChange('Password123!', 'NewPassword456!'), null);
+    });
   }
 );
 
