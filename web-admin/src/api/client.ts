@@ -211,6 +211,7 @@ export function mapEmployee(employee: RawEmployee): AdminEmployee {
     branchId: employee.branch?.id ?? null,
     managerId: employee.manager?.id ?? null,
     managerName: employee.manager ? `${employee.manager.firstName} ${employee.manager.lastName}` : null,
+    isActive: employee.isActive,
     isRemoteAllowed: employee.isRemoteAllowed,
     mustChangePassword: employee.mustChangePassword,
   };
