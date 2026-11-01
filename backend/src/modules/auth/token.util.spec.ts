@@ -23,4 +23,10 @@ describe('token.util', () => {
     expect(refreshTokenMatches('super-secret', hash)).toBe(true);
     expect(refreshTokenMatches('other-secret', hash)).toBe(false);
   });
+
+  it('never stores the plaintext secret', () => {
+    const hash = hashRefreshSecret('x');
+    expect(hash).not.toBe('x');
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  });
 });

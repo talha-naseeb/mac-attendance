@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma, SessionRevokeReason, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
@@ -11,13 +12,7 @@ import {
   refreshTokenMatches,
 } from './token.util';
 
-type RevokeReason =
-  | 'LOGOUT'
-  | 'PASSWORD_CHANGE'
-  | 'ROLE_CHANGE'
-  | 'DEACTIVATED'
-  | 'REFRESH_REUSE'
-  | 'ADMIN_REVOKE';
+const SESSION_ENDED = 'Your session has ended. Sign in again.';
 
 interface SessionMeta {
   ipAddress?: string;
@@ -43,34 +38,42 @@ export class SessionService {
     return this.configService.get<number>('auth.refreshTokenDays') ?? 7;
   }
 
-  private absoluteExpiryFor(role: string): Date {
+  private absoluteExpiryFor(role: UserRole): Date {
     const hours =
-      role === 'SUPER_ADMIN'
+      role === UserRole.SUPER_ADMIN
         ? this.configService.get<number>('auth.superAdminAbsoluteSessionHours') ?? 8
         : this.configService.get<number>('auth.absoluteSessionHours') ?? 720;
     return new Date(Date.now() + hours * 60 * 60 * 1000);
   }
 
-  async createSession(input: { userId: string; role: string } & SessionMeta): Promise<IssuedSession> {
-    return this.issue({
-      userId: input.userId,
-      familyId: randomUUID(),
-      absoluteExpiresAt: this.absoluteExpiryFor(input.role),
-      ipAddress: input.ipAddress,
-      userAgent: input.userAgent,
-    });
+  async createSession(
+    input: { userId: string; role: UserRole } & SessionMeta,
+  ): Promise<IssuedSession> {
+    return this.issue(
+      {
+        userId: input.userId,
+        familyId: randomUUID(),
+        absoluteExpiresAt: this.absoluteExpiryFor(input.role),
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+      },
+      this.prisma,
+    );
   }
 
-  private async issue(input: {
-    userId: string;
-    familyId: string;
-    absoluteExpiresAt: Date;
-    ipAddress?: string;
-    userAgent?: string;
-  }): Promise<IssuedSession> {
+  private async issue(
+    input: {
+      userId: string;
+      familyId: string;
+      absoluteExpiresAt: Date;
+      ipAddress?: string;
+      userAgent?: string;
+    },
+    client: Prisma.TransactionClient,
+  ): Promise<IssuedSession> {
     const secret = generateRefreshSecret();
     const refreshExpiresAt = new Date(Date.now() + this.refreshDays * 24 * 60 * 60 * 1000);
-    const session = await this.prisma.authSession.create({
+    const session = await client.authSession.create({
       data: {
         userId: input.userId,
         familyId: input.familyId,
@@ -95,42 +98,86 @@ export class SessionService {
   ): Promise<IssuedSession & { userId: string }> {
     const parsed = parseRefreshToken(refreshToken);
     if (!parsed) {
-      throw new UnauthorizedException('Your session has ended. Sign in again.');
+      throw new UnauthorizedException(SESSION_ENDED);
     }
     const current = await this.prisma.authSession.findUnique({
       where: { id: parsed.sessionId },
     });
     if (!current || !refreshTokenMatches(parsed.secret, current.refreshTokenHash)) {
-      throw new UnauthorizedException('Your session has ended. Sign in again.');
+      throw new UnauthorizedException(SESSION_ENDED);
     }
     if (current.revokedAt) {
-      await this.revokeFamily(current.familyId, 'REFRESH_REUSE', current.userId);
-      throw new UnauthorizedException('Your session has ended. Sign in again.');
+      // Only a row that was replaced by a successor is a genuine rotated-token replay.
+      // A row revoked by logout / password change / role change / deactivation is not.
+      if (current.replacedById) {
+        await this.revokeFamily(
+          current.familyId,
+          SessionRevokeReason.REFRESH_REUSE,
+          current.userId,
+        );
+      }
+      throw new UnauthorizedException(SESSION_ENDED);
     }
     if (
       current.refreshExpiresAt.getTime() <= Date.now() ||
       current.absoluteExpiresAt.getTime() <= Date.now()
     ) {
-      await this.revoke(current.id, 'LOGOUT');
-      throw new UnauthorizedException('Your session has ended. Sign in again.');
+      // Expiry is marked by the timestamp alone; revokeReason stays null.
+      await this.prisma.authSession.updateMany({
+        where: { id: current.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException(SESSION_ENDED);
     }
 
-    const next = await this.issue({
-      userId: current.userId,
-      familyId: current.familyId,
-      absoluteExpiresAt: current.absoluteExpiresAt,
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-    });
-    await this.prisma.authSession.update({
-      where: { id: current.id },
-      data: {
-        revokedAt: new Date(),
-        revokeReason: 'LOGOUT',
-        replacedById: next.sessionId,
-        lastUsedAt: new Date(),
-      },
-    });
+    let replayedRotation = false;
+    let next: IssuedSession;
+    try {
+      next = await this.prisma.$transaction(async (tx) => {
+        // Consume the presented session atomically. Losing this race means another
+        // refresh already rotated it, so fail closed and roll the successor back.
+        const consumed = await tx.authSession.updateMany({
+          where: { id: current.id, revokedAt: null },
+          data: { revokedAt: new Date(), lastUsedAt: new Date() },
+        });
+        if (consumed.count === 0) {
+          const latest = await tx.authSession.findUnique({
+            where: { id: current.id },
+            select: { replacedById: true },
+          });
+          replayedRotation = Boolean(latest?.replacedById);
+          throw new UnauthorizedException(SESSION_ENDED);
+        }
+
+        const issued = await this.issue(
+          {
+            userId: current.userId,
+            familyId: current.familyId,
+            absoluteExpiresAt: current.absoluteExpiresAt,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+          },
+          tx,
+        );
+        // replacedById is the rotation marker; revokeReason stays null.
+        await tx.authSession.update({
+          where: { id: current.id },
+          data: { replacedById: issued.sessionId },
+        });
+        return issued;
+      });
+    } catch (error) {
+      if (replayedRotation) {
+        // The transaction rolled back, so the family revocation happens outside it.
+        await this.revokeFamily(
+          current.familyId,
+          SessionRevokeReason.REFRESH_REUSE,
+          current.userId,
+        );
+      }
+      throw error;
+    }
+
     await this.audit.record({
       actorUserId: current.userId,
       action: 'AUTH_SESSION_REFRESHED',
@@ -141,14 +188,14 @@ export class SessionService {
     return { ...next, userId: current.userId };
   }
 
-  async revoke(sessionId: string, reason: RevokeReason): Promise<void> {
+  async revoke(sessionId: string, reason: SessionRevokeReason): Promise<void> {
     await this.prisma.authSession.updateMany({
       where: { id: sessionId, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: reason },
     });
   }
 
-  async revokeAllForUser(userId: string, reason: RevokeReason): Promise<void> {
+  async revokeAllForUser(userId: string, reason: SessionRevokeReason): Promise<void> {
     await this.prisma.authSession.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: reason },
@@ -157,7 +204,7 @@ export class SessionService {
 
   private async revokeFamily(
     familyId: string,
-    reason: RevokeReason,
+    reason: SessionRevokeReason,
     actorUserId: string,
   ): Promise<void> {
     const result = await this.prisma.authSession.updateMany({
