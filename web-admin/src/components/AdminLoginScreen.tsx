@@ -9,8 +9,8 @@ interface AdminLoginScreenProps {
 export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
   onAuthenticated,
 }) => {
-  const [email, setEmail] = useState('superadmin@macqhr.sa');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

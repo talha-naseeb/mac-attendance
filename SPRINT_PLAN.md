@@ -1,7 +1,7 @@
 # MacqHR Delivery Tracker
 
 > **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off. Phase 7A (M2 identity and sessions) is implemented and awaiting G2.
-> **Verification**: 47 mobile tests, 51 backend tests in 9 suites, 14 isolated-database API tests, 4 admin tests, admin production build passing.
+> **Verification**: 47 mobile tests, 51 backend tests in 9 suites, 17 isolated-database API tests, 4 admin tests, admin production build passing.
 > **Release status**: Not production-ready. Phase 7B (M3 employee lifecycle) follows Phase 7A under the same G2.
 > **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
 > **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
@@ -36,7 +36,7 @@ Any new commit invalidates the previous gate. See [RULES.md](RULES.md) Section 0
 |---|---|---|
 | Mobile | `npm run verify` | Typecheck passed; 47 tests passed, 0 failed |
 | Backend | `npm run typecheck && npm test && npm run build` | Typecheck passed; 9 suites, 51 tests passed; build passed |
-| Backend API (isolated database) | `cd backend && npm run test:e2e` | 3 suites, 14 tests passed against the isolated `macqhr_test` database, 0 failed |
+| Backend API (isolated database) | `cd backend && npm run test:e2e` | 4 suites, 17 tests passed against the isolated `macqhr_test` database, 0 failed |
 | Admin tests | `cd web-admin && npm test` | 1 file, 4 Vitest cases passed, 0 failed |
 | Admin build | `cd web-admin && npm run build` | Production build passed |
 | Repository | `git status` | All application surfaces tracked; `ios/` source versioned; baseline migration committed |
@@ -94,13 +94,26 @@ Status: **implemented, awaiting G2**. Automated verification is green; the devic
 | M2.3 Short-lived access tokens, rotating refresh, immediate revocation | Done | 15-minute access JWT with a `sid` claim; opaque `sessionId.secret` refresh tokens stored as SHA-256; `token.util.spec.ts` (4 cases), `session.service.spec.ts` (15 cases incl. 7-day refresh / 30-day absolute / 8-hour SUPER_ADMIN, atomic rotation, replay family revocation, logout replay, `findActive` branches); `auth-session.e2e-spec.ts` AUTH-04, AUTH-05, AUTH-06, change-password revokes every session, logout leaves sibling sessions alive |
 | M2.4 Forced password change | Done | Global `PasswordChangeGuard` + `code: PASSWORD_CHANGE_REQUIRED`; e2e AUTH-10 (403 on a protected route; the allowlisted change-password route still returns 201); mobile gate `src/screens/ChangePasswordScreen.tsx` with client rules in `validatePasswordChange` (TC-10.2); manual gate check EN/AR light/dark. Production onboarding that would issue a shared default password does not exist yet (Phase 7B) |
 | M2.5 Login throttling and lockout with a non-enumerating message | Done | `rate-limit.e2e-spec.ts` returns 429 on the sixth attempt in a minute; `auth-session.e2e-spec.ts` AUTH-02, parallel-request lockout, counter reset on success, identical generic message for unknown email, wrong password, and an inactive account with a wrong password |
-| M2.6 Hardened API baseline | Done | `helmet()` on every path except `/api/docs`, 100 kB JSON/urlencoded limits (`main.ts`); production fail-fast for `JWT_SECRET`/`DATABASE_URL` and short secrets (`configuration.spec.ts`); CORS allowlist from Phase 6; booted-server check recorded CSP on a protected route and left the docs usable |
+| M2.6 Hardened API baseline | Done | `helmet()` on every path except `/api/docs`, 100 kB JSON/urlencoded limits and a 413 mapping for oversized bodies (`configure-app.ts`); production fail-fast for `JWT_SECRET`/`DATABASE_URL` and short secrets (`configuration.spec.ts`); CORS allowlist from Phase 6; booted-server check recorded CSP on a protected route and left the docs usable |
 | M2.7 Entra SSO decision executed | Done (disabled path only) | SSO button, divider and config lookups removed from `LoginScreen`; server exchange behind `sso.enabled` with the flag test "enables Microsoft Entra SSO only for an explicit true flag". INT-01 enabled is blocked on tenant credentials — G2 limitation |
 | M2.8 Admin session expiry and 401 handling | Done | `web-admin/src/__tests__/adminSession.test.ts` (4 cases: malformed/past/future token, expiry-aware loader); expiry-aware read clears `sessionStorage`; response interceptor exempts the sign-in route, clears the session and dispatches `macq:session-expired`; App returns to sign-in without reloading; no `localStorage` use |
 | AUTH-09 role matrix | Unchanged, manual at G2 | Automated coverage is not claimed; Phase 6's pendency stands until the G2 manual run |
 | Deactivation and role-change revocation | Enforced per request; revoke-on-write in Phase 7B | JWT strategy re-hydrates `isActive` and role on every request; the M3 endpoints that would revoke sessions on deactivation/role change land in Phase 7B |
 
-Verification on 2026-11-01 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 51 unit tests + build; backend e2e 14/14 on the isolated `TEST_DATABASE_URL`; admin 4 Vitest cases + production build.
+Verification on 2026-11-01 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 51 unit tests + build; backend e2e 17/17 in 4 suites on the isolated `TEST_DATABASE_URL`; admin 4 Vitest cases + production build.
+
+Known Phase 7A limitations, for the G2 gate:
+
+- INT-01 "enabled" is blocked on an Entra test tenant; the server exchange exists behind `SSO_ENABLED` and the mobile sign-in UI is removed.
+- Sessions issued before Phase 7A carry no `sid` and are invalidated on deploy; every user signs in once after the upgrade.
+- Role/deactivation changes are enforced on every request by re-hydrating the user; the write-side session revocation lands with the M3 endpoints in Phase 7B.
+- The SUPER_ADMIN 8-hour absolute session is applied at creation and re-clamped on refresh, so a promotion takes effect at the next refresh.
+- The admin console has no refresh token: a session ends when its 15-minute access token expires and returns to sign-in; unsaved edits are lost.
+- Throttling is in-process memory (per instance); behind a proxy or load balancer set `TRUST_PROXY` or every client shares one bucket.
+- `/api/docs` is unauthenticated and exempt from helmet's CSP; restricting it remains a Phase 7 cleanup item.
+- Seeded `Password123!` accounts are development fixtures; the seed refuses to run with `NODE_ENV=production`. Production onboarding and a console password-change screen are 7B.
+- Expired and revoked `AuthSession` rows have no purge job yet.
+- AUTH-09 and INT-01 on the enabled path remain manual G2 checks.
 
 Decisions applied: SSO hidden behind `SSO_ENABLED` with the verified server exchange retained (INT-01 enabled recorded as a G2 limitation); no client-side SSO simulation remains.
 

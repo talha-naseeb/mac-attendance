@@ -55,6 +55,44 @@ describe('Auth sessions (e2e)', () => {
     expect(active).toBe(0);
   });
 
+  it('clamps a promoted SUPER_ADMIN session to the 8-hour absolute limit on refresh', async () => {
+    const user = await createUser(testPrisma, { role: 'EMPLOYEE' });
+    const session = await login().expect(201);
+    const before = await testPrisma.authSession.findFirstOrThrow({
+      where: { revokedAt: null },
+    });
+    expect(before.absoluteExpiresAt.getTime()).toBeGreaterThan(
+      Date.now() + 8 * 60 * 60 * 1000,
+    );
+
+    await testPrisma.user.update({
+      where: { id: user.id },
+      data: { role: 'SUPER_ADMIN' },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .send({ refreshToken: session.body.refreshToken })
+      .expect(201);
+
+    const refreshed = await testPrisma.authSession.findFirstOrThrow({
+      where: { revokedAt: null },
+    });
+    expect(refreshed.absoluteExpiresAt.getTime()).toBeLessThanOrEqual(
+      Date.now() + 8 * 60 * 60 * 1000 + 60_000,
+    );
+  });
+
+  it('an unknown email gets the generic message and creates no session', async () => {
+    const before = await testPrisma.authSession.count();
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'nobody@macqhr.sa', password: 'wrong-password' })
+      .expect(401);
+    expect(response.body.message).toBe('Invalid email or password.');
+    expect(await testPrisma.authSession.count()).toBe(before);
+  });
+
   it('AUTH-06: logout revokes the current session immediately', async () => {
     await createUser(testPrisma);
     const session = await login();

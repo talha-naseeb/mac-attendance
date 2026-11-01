@@ -137,6 +137,15 @@ export class AuthService {
       await this.sessionService.revoke(rotated.sessionId, SessionRevokeReason.DEACTIVATED);
       throw new UnauthorizedException('Your session has ended. Sign in again.');
     }
+    if (user.role === UserRole.SUPER_ADMIN) {
+      const hours =
+        this.configService.get<number>('auth.superAdminAbsoluteSessionHours') ?? 8;
+      const maxAbsolute = new Date(Date.now() + hours * 60 * 60 * 1000);
+      await this.prisma.authSession.updateMany({
+        where: { id: rotated.sessionId, absoluteExpiresAt: { gt: maxAbsolute } },
+        data: { absoluteExpiresAt: maxAbsolute },
+      });
+    }
     return {
       accessToken: this.signAccessToken(user, rotated.sessionId),
       refreshToken: rotated.refreshToken,
@@ -225,8 +234,8 @@ export class AuthService {
         throw new UnauthorizedException('Invalid email or password.');
       }
       // The lock has expired: start a fresh failure window for this attempt.
-      await this.prisma.user.update({
-        where: { id: user.id },
+      await this.prisma.user.updateMany({
+        where: { id: user.id, lockedUntil: user.lockedUntil },
         data: { failedLoginAttempts: 0, lockedUntil: null },
       });
     }
@@ -266,8 +275,12 @@ export class AuthService {
     }
 
     if (user.failedLoginAttempts > 0 || user.lockedUntil) {
-      await this.prisma.user.update({
-        where: { id: user.id },
+      await this.prisma.user.updateMany({
+        where: {
+          id: user.id,
+          failedLoginAttempts: user.failedLoginAttempts,
+          lockedUntil: user.lockedUntil,
+        },
         data: { failedLoginAttempts: 0, lockedUntil: null },
       });
     }

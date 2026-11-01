@@ -3,7 +3,6 @@ import { Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { configureApp } from './bootstrap/configure-app';
 import { resolveCorsOrigins } from './config/cors';
@@ -14,19 +13,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   configureApp(app);
 
-  app.useBodyParser('json', { limit: '100kb' });
-  app.useBodyParser('urlencoded', { limit: '100kb', extended: true });
-
-  const helmetMiddleware = helmet();
-  app.use((req, res, next) => {
-    // Swagger UI ships an inline bootstrap script and is served over HTTP in
-    // development; helmet's default CSP blocks the first and upgrades the second.
-    if (req.path.startsWith('/api/docs')) {
-      next();
-      return;
-    }
-    helmetMiddleware(req, res, next);
-  });
+  app.set('trust proxy', configService.get<boolean | number | string>('security.trustProxy') ?? false);
 
   // Enable CORS only for the configured admin and mobile web origins.
   const environment = configService.get<string>('environment') || 'development';

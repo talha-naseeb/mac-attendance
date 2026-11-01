@@ -33,7 +33,12 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     const isSignInAttempt = error.config?.url?.includes('/auth/admin/login');
-    if (error.response?.status === 401 && !isSignInAttempt) {
+    const data = error.response?.data as { code?: string } | undefined;
+    if (
+      !isSignInAttempt &&
+      (error.response?.status === 401 ||
+        (error.response?.status === 403 && data?.code === 'PASSWORD_CHANGE_REQUIRED'))
+    ) {
       clearAdminSession();
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
     }

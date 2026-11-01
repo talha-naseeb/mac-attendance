@@ -47,6 +47,8 @@ import {
   isTokenExpiringSoon,
   refreshStoredSession,
   signOutStoredSession,
+  subscribeToSession,
+  subscribeToSessionExpired,
 } from './src/services/sessionManager';
 import {
   decideLeaveToBackend,
@@ -698,6 +700,24 @@ function MacqHRApp() {
     setActiveScreen('main');
     setActiveBottomTab('dashboard');
   };
+
+  useEffect(() => {
+    const unsubscribeSession = subscribeToSession((next) => {
+      setAuthSession(next);
+      setAuthToken(next.token);
+      setUserRole(next.role);
+      setEmployeeProfile(next.profile);
+      setAssignedBranchId(next.branchId);
+      setIsRemoteAllowed(next.isRemoteAllowed);
+    });
+    const unsubscribeExpired = subscribeToSessionExpired(() => {
+      handleLogout();
+    });
+    return () => {
+      unsubscribeSession();
+      unsubscribeExpired();
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {

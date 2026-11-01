@@ -4,6 +4,10 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Refusing to seed development fixtures in production.');
+  }
+
   console.log('🌱 Seeding Mac-HR Enterprise Database...');
 
   // 1. Seed Corporate Branches
@@ -266,12 +270,7 @@ async function main() {
   }
 
   console.log('✅ Seed completed successfully!');
-  console.log('🔑 Default credentials for all accounts:');
-  console.log('   Super Admin: superadmin@macqhr.sa / Password123!');
-  console.log('   HR Admin:    sara.alotaibi@macqhr.sa / Password123!');
-  console.log('   Manager:     tariq.ghamdi@macqhr.sa / Password123!');
-  console.log('   Employee 1:  rahaf.mansoor@macqhr.sa / Password123!');
-  console.log('   Employee 2:  bilal.rehman@macqhr.sa / Password123!');
+  console.log('🔑 Seeded account credentials are defined in this seed file and must not be shared.');
 }
 
 main()

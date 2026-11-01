@@ -184,8 +184,8 @@ These accounts exist for local development only. Shared credentials must never b
 | `DATABASE_URL` | Backend | PostgreSQL connection |
 | `PORT` | Backend | API port; defaults to `4000` |
 | `JWT_SECRET` | Backend | Token signing; required in production (32+ characters), no fallback |
-| `JWT_EXPIRATION` | Backend | Access-token lifetime |
 | `CORS_ORIGINS` | Backend | Comma-separated admin/mobile origins; `*` rejected in production |
+| `TRUST_PROXY` | Backend | Express trust-proxy value when the API runs behind a proxy; unset when directly exposed |
 | `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | Backend | Entra SSO, when enabled |
 | `EXPO_PUBLIC_API_BASE_URL` | Mobile | API base URL |
 | `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Mobile | Map tiles/geocoding |

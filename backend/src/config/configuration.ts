@@ -29,12 +29,12 @@ export interface AppConfig {
   databaseUrl: string;
   jwt: {
     secret: string;
-    expiresIn: string;
   };
   security: {
     defaultGeofenceRadiusMeters: number;
     maxAllowedGpsAccuracyMeters: number;
     maxAllowedNtpDriftMinutes: number;
+    trustProxy: boolean | number | string;
   };
   saudiLabor: {
     gosiEmployeeRate: number;
@@ -82,7 +82,6 @@ export default (): AppConfig => {
     ),
     jwt: {
       secret: jwtSecret,
-      expiresIn: process.env.JWT_EXPIRATION || '24h',
     },
     security: {
       defaultGeofenceRadiusMeters: parseFloat(
@@ -94,6 +93,13 @@ export default (): AppConfig => {
       maxAllowedNtpDriftMinutes: parseFloat(
         process.env.MAX_ALLOWED_NTP_DRIFT_MINUTES || '5',
       ),
+      trustProxy: (() => {
+        const raw = process.env.TRUST_PROXY?.trim();
+        if (!raw) return false;
+        if (raw === 'true') return true;
+        if (/^\d+$/.test(raw)) return Number(raw);
+        return raw;
+      })(),
     },
     saudiLabor: {
       gosiEmployeeRate: parseFloat(
