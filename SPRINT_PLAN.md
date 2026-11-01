@@ -1,11 +1,11 @@
 # MacqHR Delivery Tracker
 
-> **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off.
-> **Verification**: 48 mobile tests, 31 backend tests in 7 suites, admin production build passing.
-> **Release status**: Not production-ready. Phase 7 is next after G1.
+> **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off. Phase 7A (M2 identity and sessions) is implemented and awaiting G2.
+> **Verification**: 47 mobile tests, 51 backend tests in 9 suites, 14 isolated-database API tests, 4 admin tests, admin production build passing.
+> **Release status**: Not production-ready. Phase 7B (M3 employee lifecycle) follows Phase 7A under the same G2.
 > **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
 > **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
-> **Last updated**: 2026-10-31
+> **Last updated**: 2026-11-01
 
 ## Legend
 
