@@ -21,6 +21,17 @@ const FIELD_CLASS =
 
 const LABEL_CLASS = 'block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1';
 
+// `validateEmployeeDraft` returns English copy (pinned by its tests); translate at render.
+const ARABIC_VALIDATION_MESSAGES: Record<string, string> = {
+  employeeId: 'معرّف الموظف مطلوب.',
+  email: 'أدخل بريد عمل صالحًا.',
+  firstName: 'الاسم الأول مطلوب.',
+  lastName: 'اسم العائلة مطلوب.',
+  department: 'القسم مطلوب.',
+  jobTitle: 'المسمى الوظيفي مطلوب.',
+  basicSalarySar: 'يجب أن يكون الراتب الأساسي صفرًا أو أكثر.',
+};
+
 function seedDraft(employee?: AdminEmployee): EmployeeDraft {
   if (!employee) {
     return {
@@ -124,12 +135,16 @@ export const EmployeeFormDrawer: React.FC<EmployeeFormDrawerProps> = ({
     }
   };
 
-  const fieldError = (key: keyof EmployeeDraft) =>
-    errors[key] ? (
+  const fieldError = (key: keyof EmployeeDraft) => {
+    const message = errors[key];
+    if (!message) return null;
+    const localized = isArabic ? ARABIC_VALIDATION_MESSAGES[key] ?? message : message;
+    return (
       <p className="mt-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-        {errors[key]}
+        {localized}
       </p>
-    ) : null;
+    );
+  };
 
   const title = isEdit
     ? isArabic

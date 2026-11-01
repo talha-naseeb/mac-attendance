@@ -64,6 +64,16 @@ export const EmploymentChangeDrawer: React.FC<EmploymentChangeDrawerProps> = ({
   onClose,
   onApplied,
 }) => {
+  const storedRole = getStoredAdminSession()?.user.role;
+  // A non-SUPER_ADMIN actor must not be able to touch a SUPER_ADMIN target's role: the
+  // server only refuses to remove the last active one, so a mid-tier demotion succeeds.
+  const canChangeTargetRole = !(
+    employee.role === 'SUPER_ADMIN' && storedRole !== 'SUPER_ADMIN'
+  );
+  const changeTypes: ChangeType[] = canChangeTargetRole
+    ? CHANGE_TYPES
+    : CHANGE_TYPES.filter((option) => option !== 'ROLE');
+
   const [type, setType] = useState<ChangeType>('TRANSFER');
   const [effectiveDate, setEffectiveDate] = useState(localToday());
   const [reason, setReason] = useState('');
@@ -76,12 +86,7 @@ export const EmploymentChangeDrawer: React.FC<EmploymentChangeDrawerProps> = ({
   const [transportAllowanceSar, setTransportAllowanceSar] = useState(
     String(employee.transportAllowanceSar),
   );
-  const [role, setRole] = useState<AdminEmployee['role']>(() =>
-    employee.role === 'SUPER_ADMIN' &&
-    getStoredAdminSession()?.user.role !== 'SUPER_ADMIN'
-      ? 'EMPLOYEE'
-      : employee.role,
-  );
+  const [role, setRole] = useState<AdminEmployee['role']>(employee.role);
   const [managerId, setManagerId] = useState(employee.managerId ?? NO_MANAGER);
   const [isRemoteAllowed, setIsRemoteAllowed] = useState(employee.isRemoteAllowed ?? false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -89,8 +94,7 @@ export const EmploymentChangeDrawer: React.FC<EmploymentChangeDrawerProps> = ({
   const [pending, setPending] = useState(false);
 
   const today = localToday();
-  const canAssignSuperAdmin =
-    getStoredAdminSession()?.user.role === 'SUPER_ADMIN';
+  const canAssignSuperAdmin = storedRole === 'SUPER_ADMIN';
   const roleOptions: AdminEmployee['role'][] = canAssignSuperAdmin
     ? ['EMPLOYEE', 'MANAGER', 'HR_ADMIN', 'SUPER_ADMIN']
     : ['EMPLOYEE', 'MANAGER', 'HR_ADMIN'];
@@ -224,12 +228,14 @@ export const EmploymentChangeDrawer: React.FC<EmploymentChangeDrawerProps> = ({
               id="change-type"
               value={type}
               onChange={(event) => {
-                setType(event.target.value as ChangeType);
+                const nextType = event.target.value as ChangeType;
+                if (nextType === 'ROLE' && !canChangeTargetRole) return;
+                setType(nextType);
                 setFieldErrors({});
               }}
               className={FIELD_CLASS}
             >
-              {CHANGE_TYPES.map((option) => (
+              {changeTypes.map((option) => (
                 <option key={option} value={option}>
                   {typeLabel(option, isArabic)}
                 </option>
