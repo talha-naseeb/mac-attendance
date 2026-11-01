@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { AuthSession, validatePasswordChange } from '../services/authService';
 import { changePassword, BackendApiError } from '../services/backendApi';
+import { isTokenExpiringSoon, refreshStoredSession } from '../services/sessionManager';
 import { saveAuthSession } from '../services/authStorage';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText, TYPOGRAPHY } from '../theme/typography';
@@ -22,6 +23,7 @@ interface ChangePasswordScreenProps {
   lang: AppLanguage;
   session: AuthSession;
   onChanged: (session: AuthSession) => void;
+  onSignOut: () => void;
 }
 
 export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
@@ -29,6 +31,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
   lang,
   session,
   onChanged,
+  onSignOut,
 }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -58,13 +61,18 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
+      let activeSession = session;
+      if (isTokenExpiringSoon(session.token)) {
+        const refreshed = await refreshStoredSession();
+        if (refreshed) activeSession = refreshed;
+      }
       const result = await changePassword(
         currentPassword,
         newPassword,
-        session.token,
+        activeSession.token,
       );
       const next: AuthSession = {
-        ...session,
+        ...activeSession,
         token: result.accessToken,
         refreshToken: result.refreshToken,
         mustChangePassword: false,
@@ -73,12 +81,18 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
       await saveAuthSession(next);
       onChanged(next);
     } catch (error) {
+      const isExpiredSession =
+        error instanceof BackendApiError && error.message.trim() === 'Unauthorized';
       setErrorMessage(
-        error instanceof BackendApiError
-          ? error.message
-          : isRTL
-            ? 'تعذر تغيير كلمة المرور. حاول مرة أخرى.'
-            : 'Unable to change your password. Please try again.',
+        isExpiredSession
+          ? isRTL
+            ? 'انتهت صلاحية جلستك. سجّل الخروج ثم سجّل الدخول من جديد.'
+            : 'Your session has expired. Sign out and sign in again.'
+          : error instanceof BackendApiError
+            ? error.message
+            : isRTL
+              ? 'تعذر تغيير كلمة المرور. حاول مرة أخرى.'
+              : 'Unable to change your password. Please try again.',
       );
     } finally {
       setIsSubmitting(false);
@@ -125,7 +139,9 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
         <TouchableOpacity
           onPress={onToggleVisible}
           style={styles.eyeBtn}
-          accessibilityLabel="Toggle password visibility"
+          accessibilityLabel={
+            isRTL ? 'إظهار كلمة المرور أو إخفاؤها' : 'Toggle password visibility'
+          }
         >
           <Feather
             name={visible ? 'eye-off' : 'eye'}
@@ -255,6 +271,18 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
               </>
             )}
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.signOutBtn}
+            onPress={onSignOut}
+            disabled={isSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel={isRTL ? 'تسجيل الخروج' : 'Sign out'}
+          >
+            <Text style={[styles.signOutText, { color: colors.textMuted }]}>
+              {isRTL ? 'تسجيل الخروج' : 'Sign out'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={[styles.footerRow, rtlRow(isRTL)]}>
@@ -369,6 +397,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  signOutBtn: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 6,
+  },
+  signOutText: {
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   footerRow: {
     flexDirection: 'row',

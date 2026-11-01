@@ -50,18 +50,29 @@ let refreshInFlight: Promise<AuthSession | null> | null = null;
 export async function refreshStoredSession(): Promise<AuthSession | null> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
-    // allowExpired is essential: an expired access token is exactly when a
-    // refresh is needed, and the default load would delete the session first.
-    const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
-    if (!stored?.refreshToken) return null;
     try {
+      // allowExpired is essential: an expired access token is exactly when a
+      // refresh is needed, and the default load would delete the session first.
+      const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
+      if (!stored?.refreshToken) {
+        // Nothing to refresh with. Drop a session that can never be used again,
+        // but keep one whose access token is still valid.
+        if (stored && isTokenExpiringSoon(stored.token)) {
+          await authStorage().clearStoredAuthSession();
+        }
+        return null;
+      }
       const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ refreshToken: stored.refreshToken }),
       });
       if (!response.ok) {
-        await authStorage().clearStoredAuthSession();
+        // Only a rejected refresh token invalidates the session. A 5xx or 429
+        // is transient and the stored refresh token must survive for a retry.
+        if (response.status === 401 || response.status === 403) {
+          await authStorage().clearStoredAuthSession();
+        }
         return null;
       }
       const body = (await response.json()) as {
@@ -88,11 +99,18 @@ export async function refreshStoredSession(): Promise<AuthSession | null> {
 
 export async function signOutStoredSession(): Promise<void> {
   const stored = await authStorage().loadStoredAuthSession({ allowExpired: true });
-  if (stored?.token) {
+  let token = stored?.token;
+  if (token && isTokenExpiringSoon(token)) {
+    // The logout endpoint authenticates with the access token. Refresh first so
+    // the server session and its audit row are actually revoked.
+    const refreshed = await refreshStoredSession();
+    if (refreshed?.token) token = refreshed.token;
+  }
+  if (token) {
     try {
       await fetch(`${getApiBaseUrl()}/auth/logout`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${stored.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
     } catch {
       // Local sign-out must succeed even when the API is unreachable.

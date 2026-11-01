@@ -783,6 +783,7 @@ function MacqHRApp() {
               lang={lang}
               session={authSession}
               onChanged={handlePasswordChanged}
+              onSignOut={handleLogout}
             />
           </SafeAreaView>
         </View>

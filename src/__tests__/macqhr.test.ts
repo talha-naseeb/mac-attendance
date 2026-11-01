@@ -733,6 +733,7 @@ describeSuite(
       const makeToken = (exp: number) =>
         `header.${globalThis.btoa(JSON.stringify({ exp }))}.sig`;
       assertEqual(isTokenExpiringSoon(makeToken(now + 30)), true);
+      assertEqual(isTokenExpiringSoon(makeToken(now - 10)), true);
       assertEqual(isTokenExpiringSoon(makeToken(now + 600)), false);
       assertEqual(isTokenExpiringSoon('not-a-jwt'), true);
       assertEqual(shouldRefreshToken('not-a-jwt'), true);

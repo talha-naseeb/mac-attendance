@@ -22,7 +22,7 @@ export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:4000/api'
 ).replace(/\/$/, '');
 
-interface BackendUser {
+export interface BackendUser {
   id: string;
   employeeId: string;
   firstName: string;

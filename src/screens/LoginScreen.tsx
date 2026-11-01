@@ -299,7 +299,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             MacqHR® • Macquires Corporate Attendance & HRMS
           </Text>
           <Text style={[styles.footerSubText, { color: colors.textMuted }]}>
-            Secured by Microsoft Entra ID & 6-Layer Anti-Spoofing
+            Secured by Macquires session encryption
           </Text>
         </View>
       </ScrollView>

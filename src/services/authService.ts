@@ -1,7 +1,5 @@
-import { CURRENT_EMPLOYEE } from '../data/mockData';
 import { UserRole } from './dashboardOptimizationService';
 import { EditableEmployeeProfile } from './profileSettingsService';
-import { MACQUIRES_PALETTE } from '../theme/colors';
 import {
   ApiAuthSession,
   authenticateWithBackend,
@@ -25,75 +23,6 @@ export interface AuthSession {
   isRemoteAllowed: boolean;
   mustChangePassword?: boolean;
 }
-
-
-export const DEMO_USERS: Record<UserRole, EditableEmployeeProfile> = {
-  EMPLOYEE: {
-    ...CURRENT_EMPLOYEE,
-    id: 'EMP-1042',
-    fullName: 'Rahaf Al-Mansoor',
-    fullNameAr: 'رهف المنصور',
-    title: 'Senior HR Specialist',
-    department: 'People & Culture',
-    email: 'rahaf.mansoor@macquires.sa',
-    phone: '+966 50 482 9104',
-    avatarInitials: 'RM',
-    avatarPresetId: 'navy',
-    avatarColor: MACQUIRES_PALETTE.prussianBlue,
-  },
-  MANAGER: {
-    ...CURRENT_EMPLOYEE,
-    id: 'MGR-2041',
-    fullName: 'Tariq Al-Ghamdi',
-    fullNameAr: 'طارق الغامدي',
-    title: 'Engineering Director & Line Manager',
-    department: 'Software Engineering',
-    email: 'tariq.ghamdi@macquires.sa',
-    phone: '+966 55 901 2233',
-    avatarInitials: 'TG',
-    avatarPresetId: 'orange',
-    avatarColor: MACQUIRES_PALETTE.orangePantone,
-  },
-  HR_ADMIN: {
-    ...CURRENT_EMPLOYEE,
-    id: 'ADM-0012',
-    fullName: 'Sultan Al-Otaibi',
-    fullNameAr: 'سلطان العتيبي',
-    title: 'Chief Human Resources Officer (CHRO)',
-    department: 'Executive Board',
-    email: 'sultan.otaibi@macquires.sa',
-    phone: '+966 54 112 3344',
-    avatarInitials: 'SO',
-    avatarPresetId: 'dark',
-    avatarColor: MACQUIRES_PALETTE.oxfordBlue,
-  },
-  HR: {
-    ...CURRENT_EMPLOYEE,
-    id: 'HR-3001',
-    fullName: 'Rahaf Al-Mansoor',
-    fullNameAr: 'رهف المنصور',
-    title: 'Senior HR Specialist',
-    department: 'People & Culture',
-    email: 'rahaf.mansoor@macquires.sa',
-    phone: '+966 50 482 9104',
-    avatarInitials: 'RM',
-    avatarPresetId: 'navy',
-    avatarColor: MACQUIRES_PALETTE.prussianBlue,
-  },
-  ADMIN: {
-    ...CURRENT_EMPLOYEE,
-    id: 'ADM-0001',
-    fullName: 'Sultan Al-Otaibi',
-    fullNameAr: 'سلطان العتيبي',
-    title: 'Chief Human Resources Officer & Executive Admin',
-    department: 'Executive Board',
-    email: 'sultan.admin@macquires.sa',
-    phone: '+966 54 112 3344',
-    avatarInitials: 'SO',
-    avatarPresetId: 'dark',
-    avatarColor: MACQUIRES_PALETTE.oxfordBlue,
-  },
-};
 
 export interface CredentialValidation {
   valid: boolean;
