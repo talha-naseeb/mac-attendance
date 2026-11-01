@@ -1,11 +1,11 @@
 # MacqHR Delivery Tracker
 
-> **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off. Phase 7A (M2 identity and sessions) is implemented and awaiting G2.
-> **Verification**: 47 mobile tests, 52 backend tests in 9 suites, 17 isolated-database API tests, 4 admin tests, admin production build passing.
-> **Release status**: Not production-ready. Phase 7B (M3 employee lifecycle) follows Phase 7A under the same G2.
+> **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is implemented and awaiting G1 sign-off. Phase 7A (M2 identity and sessions) and Phase 7B (M3 employee lifecycle) are implemented and awaiting G2.
+> **Verification**: 47 mobile tests; 97 backend unit tests in 12 suites plus `nest build`; 41 isolated-database API tests in 5 suites; 12 admin Vitest tests in 3 suites; admin production build passing (`npm run verify:all` green on 2026-11-02).
+> **Release status**: Not production-ready. Phase 7A and Phase 7B share one SHA-bound G2 gate; the manual checklist has not been executed.
 > **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
 > **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
-> **Last updated**: 2026-11-01
+> **Last updated**: 2026-11-02
 
 ## Legend
 
@@ -116,6 +116,86 @@ Known Phase 7A limitations, for the G2 gate:
 - AUTH-09 and INT-01 on the enabled path remain manual G2 checks.
 
 Decisions applied: SSO hidden behind `SSO_ENABLED` with the verified server exchange retained (INT-01 enabled recorded as a G2 limitation); no client-side SSO simulation remains.
+
+## Phase 7 implementation (2026-11-01 → 2026-11-02)
+
+Status: **implemented, awaiting G2**. Phase 7B added the M3 employee lifecycle on the server and in the admin console, and closed the write-side session revocation that Phase 7A deferred. Automated verification is green; the G2 manual checklist below has **not** been executed and Talha's SHA-bound signature is still required.
+
+Verification on 2026-11-02 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 97 unit tests in 12 suites + `nest build`; backend e2e 41/41 in 5 suites on the isolated `macqhr_test` database (`employees.e2e-spec.ts` 24); admin 12 Vitest tests in 3 suites + production build (1572 modules).
+
+This run supersedes the [2026-11-01 baseline](#current-verification-baseline-2026-11-01) table above; the Phase 7A rows keep the counts recorded when that section was written.
+
+| Requirement | Result | Evidence |
+|---|---|---|
+| M2.1 Role comes from the verified session | Done (Phase 7A) | Phase 7A row M2.1: client role presets and `DEMO_USERS` deleted; mobile login maps only the server-issued role. Re-verified by the 2026-11-02 gate; manual AUTH-01 at G2 |
+| M2.2 Employee PII guarded | Done (Phase 6) | Phase 7A row M2.2; `employees.service.spec.ts` "returns only the limited work profile to a colleague", "does not give a manager access to compensation", "returns the full profile to the employee themselves and strips the hash" |
+| M2.3 Short-lived access tokens, rotating refresh, immediate revocation | Done; write-side revocation now exercised | Phase 7A row M2.3 (`token.util.spec.ts`, `session.service.spec.ts`, `auth-session.e2e-spec.ts` AUTH-04/05/06). Phase 7B adds `employment-changes.service.spec.ts` "revokes sessions when the role changes", and e2e EMP-06, EMP-07, EMP-10 |
+| M2.4 Forced password change | Done | Phase 7A row M2.4 (`PasswordChangeGuard`, e2e AUTH-10). Phase 7B onboarding and reset issue temporary credentials that must be changed: e2e EMP-01, EMP-10 |
+| M2.5 Login throttling and lockout | Done | Phase 7A row M2.5: `rate-limit.e2e-spec.ts` 429 on the sixth attempt; `auth-session.e2e-spec.ts` AUTH-02 and the non-enumerating message cases. Unchanged in Phase 7B |
+| M2.6 Hardened API baseline | Done | Phase 7A row M2.6: helmet, 100 kB body limits with the 413 mapping, production fail-fast secrets, CORS allowlist. Unchanged in Phase 7B |
+| M2.7 Entra SSO decision executed | Done (disabled path only) | Phase 7A row M2.7; the `sso.enabled` flag test "enables Microsoft Entra SSO only for an explicit true flag". INT-01 enabled remains a G2 limitation |
+| M2.8 Admin session expiry and 401 handling | Done | Phase 7A row M2.8: `web-admin/src/__tests__/adminSession.test.ts` (malformed/past/future token, expiry-aware loader). The new employee screens sit behind the same guard |
+| M3.1 Paginated, searchable, filterable employee list | Done | `employees.e2e-spec.ts` "pages, searches, and filters inactive employees for HR", "reports the filtered total across pages and never repeats a row", "returns the documented envelope with default paging when called with no query", "rejects page sizes outside 1..100 and pages above 10000", "ignores a whitespace-only search term", "keeps tied names ordered across pages (sort=name)", "AUTH-09: employees and managers cannot read the admin list". The admin list is server-paginated; Task 10 keeps search, filters and sort server-side |
+| M3.2 Create employee with a temporary credential and seeded balances | Done | e2e EMP-01 "creates an employee who can sign in and must change the temporary password"; EMP-02 duplicate rejection; "rejects duplicate leave types in the initial balances with a 400"; "forbids an HR admin from creating a super admin and creates no user"; "rejects a non-existent or inactive manager with a 400"; `credentials.util.spec.ts` "produces four distinct 16-character credentials with every character class" |
+| M3.3 Edit employee profile; identity stays immutable | Done | e2e "rejects email and employee ID changes"; "audits a profile edit minimally and recomputes fullName". Salary, role, manager, branch and remote edits deliberately go through the change ledger (M3.4) so each is effective-dated and audited |
+| M3.4 Transfer, promotion, salary and remote changes with an effective date | Done | e2e EMP-04, EMP-05, EMP-06; `employment-changes.service.spec.ts` (19 cases) incl. "rejects future effective dates", "writes a salary record and updates current columns", "records the before and after state in the ledger", "records who granted remote eligibility", "revokes sessions when the role changes" |
+| M3.5 Deactivate and reactivate with a reason, preserving history | Done | e2e EMP-07 "deactivation blocks sign-in, revokes tokens, and hides the person" (asserts the directory no longer returns the person) and "Reactivating restores sign-in and is audited"; `employees.service.spec.ts` "guards retention, cancels live leave, and audits inside the deactivation transaction" |
+| M3.6 Organization safeguards | Done | e2e EMP-08, EMP-09; `organization-guard.service.spec.ts` (17 cases) incl. "rejects self-management", "rejects a cycle that closes at depth 2 or deeper", "detects a cycle that closes more than 50 hops away", "refuses to remove the last active Super Admin". The pending-approval warning is surfaced by the deactivate dialog copy and the `pendingApprovalsFor` helper ("counts every pending request for an HR_ADMIN target") |
+| M3.7 Admin password reset with forced change | Done | e2e EMP-10 "resetting a password revokes sessions and forces a change"; `employees.service.spec.ts` "stores a bcrypt hash, clears lockout, and audits inside the transaction", "forbids an HR admin from resetting a Super Admin password". Admin flow: `TemporaryPasswordModal` plus a forced change on next sign-in |
+
+Known Phase 7B limitations, for the G2 gate:
+
+- INT-01 on the enabled path is blocked on an Entra test tenant; the disabled path is verified.
+- The mobile app does not surface M3 admin actions; the lifecycle is console-only by design.
+- The admin console still has no refresh token, so a 15-minute access token ends the session and unsaved drawer edits are lost.
+- The "manager with pending approvals" warning is dialog copy plus a counted helper, not a blocked action.
+
+### G2 manual checklist (not executed)
+
+Do not tick any box until the case has actually been run. Copy [docs/qa/gates/TEMPLATE.md](docs/qa/gates/TEMPLATE.md) to `docs/qa/gates/phase-7.md` **only after** this checklist is executed and signed; the record is bound to the gate commit SHA, so any later fix commit invalidates it. Cases are defined in [docs/prd/test-plan.md](docs/prd/test-plan.md).
+
+Preconditions: staging build at the gate commit, physical device, backend and admin console at the same SHA, test Entra tenant available for the INT-01 attempt.
+
+**P0 — blocking**
+
+- [ ] AUTH-01 active employee signs in; the dashboard renders only the server-issued role
+- [ ] AUTH-03 deactivated account is refused with a support-oriented message and no token
+- [ ] AUTH-06 logout revokes the server session and clears local storage; protected calls fail immediately
+- [ ] AUTH-10 a new employee signs in with the temporary credential and must change it before anything else
+- [ ] EMP-01 HR creates an employee who appears in the directory, can sign in, and has seeded balances
+- [ ] EMP-03 a new hire's leave request appears in Manager A's queue only
+- [ ] EMP-07 a deactivated employee cannot sign in and disappears from directory, Who's Off and approval queues, with history intact
+- [ ] INT-01 SSO disabled path: the sign-in UI shows no SSO control and no "not configured" dead end
+
+**P1 — pass list**
+
+- [ ] AUTH-02 repeated wrong passwords return one generic message and then throttle without enumeration
+- [ ] AUTH-04 an access token near expiry refreshes transparently
+- [ ] AUTH-05 a reused refresh token is rejected and the session family is revoked
+- [ ] AUTH-09 an employee or manager token gets 403 on HR-only endpoints and the UI never offers them
+- [ ] EMP-02 a duplicate email or employee ID is rejected with a field-specific conflict and no partial record
+- [ ] EMP-04 a transfer to Jeddah with an effective date governs later punches while history stays on Riyadh
+- [ ] EMP-05 a remote-eligibility grant takes effect on the next punch and records the grantor and time
+- [ ] EMP-06 a promotion revokes existing sessions and the next sign-in carries Manager capability
+- [ ] EMP-08 deactivating or demoting the last active Super Admin is refused with a clear reason
+- [ ] EMP-09 a self-manager or descendant manager is rejected and the hierarchy stays acyclic
+- [ ] EMP-10 (Phase 7 P1, automation-covered, not in the G2 row) an admin reset revokes sessions and forces a change on next sign-in
+
+**Gate limitation**
+
+- **INT-01** enabled path: disabled path verified; enabled path blocked on Entra tenant credentials. It is not claimed as passing.
+
+**Localization and theme pass (new admin employee surfaces)**
+
+The admin console language toggle (`EN`/`AR`, `dir=rtl`) and theme toggle (light/dark) must be exercised on each surface below.
+
+- [ ] Employees list: search, department/branch/status filters, sort, paging, active/remote/inactive labels
+- [ ] Create-employee drawer: field labels, validation errors, and the temporary-password modal
+- [ ] Profile/edit drawer: read view, edit form, immutable email/employee ID messaging
+- [ ] Employment-change drawer: transfer, promotion, salary and remote-eligibility forms with the effective date
+- [ ] Deactivate/reactivate dialog: reason field, pending-approval warning copy, last-Super-Admin and cycle errors
+- [ ] Reset-password flow: confirmation, temporary-password display, error states
+- [ ] All of the above read correctly in Arabic (RTL alignment, no clipped text) and in dark mode (contrast, borders, dialogs)
 
 ---
 
@@ -232,8 +312,11 @@ Full findings and proposed fixes: [document review](docs/prd/document-review.md)
 # Mobile (typecheck + 47 tests)
 npm run verify
 
-# Backend (typecheck + 52 tests + build)
+# Backend (typecheck + 97 tests + build)
 cd backend && npm run typecheck && npm test && npm run build
+
+# Backend API against the isolated test database
+cd backend && npm run test:e2e
 
 # Admin (unit tests + production build)
 cd web-admin && npm test && npm run build

@@ -204,7 +204,7 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 
 **Outcome**: only the server can grant a role or permission, and sessions can be safely ended.
 
-**Phase 7A status (2026-11-01)**: M2.1 and M2.3–M2.8 are implemented on the server, the mobile app and the admin console; M2.2 remains as delivered in Phase 6. The Entra SSO requirement is met on the disabled path only: the sign-in UI is removed and the server exchange is gated behind `SSO_ENABLED`; end-to-end SSO (INT-01 enabled) is recorded as a G2 limitation pending a test tenant. Deactivation and role changes are enforced on every request by re-hydrating the user; revoke-on-change as a write-side action lands with the M3 endpoints in Phase 7B. G2 is pending the manual checklist and signature.
+**Phase 7A status (2026-11-01)**: M2.1 and M2.3–M2.8 are implemented on the server, the mobile app and the admin console; M2.2 remains as delivered in Phase 6. The Entra SSO requirement is met on the disabled path only: the sign-in UI is removed and the server exchange is gated behind `SSO_ENABLED`; end-to-end SSO (INT-01 enabled) is recorded as a G2 limitation pending a test tenant. Deactivation and role changes are enforced on every request by re-hydrating the user; write-side session revocation now exists — deactivation, role changes and admin password resets revoke every session (Phase 7B). G2 is pending the manual checklist and signature.
 
 **Requirements**
 
@@ -236,6 +236,8 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 ### M3 — Employee lifecycle & organization administration (Phase 7)
 
 **Outcome**: HR can run the employee lifecycle from the admin console.
+
+**Phase 7B status (2026-11-02)**: M3.1–M3.7 are implemented on the server and in the admin console, and the write-side session revocation deferred in Phase 7A now exists. Automated evidence is green: `npm run verify:all` covers 47 mobile tests; backend typecheck, 97 unit tests in 12 suites and `nest build`; 41 API tests in 5 suites against the isolated `macqhr_test` database (`employees.e2e-spec.ts` 24 cases); 12 admin Vitest tests in 3 suites and a production build. The manual G2 checklist has not been executed; it is recorded, unchecked, in `SPRINT_PLAN.md`, and the SHA-bound `docs/qa/gates/phase-7.md` will be created only after it runs and Talha signs it. INT-01's enabled path remains blocked on a test Entra tenant.
 
 **Requirements**
 
