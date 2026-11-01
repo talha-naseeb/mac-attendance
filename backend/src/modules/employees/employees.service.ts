@@ -176,20 +176,21 @@ export class EmployeesService {
 
     if (query.department) where.department = query.department;
     if (query.branchId) where.branchId = query.branchId;
-    if (query.search) {
+    const term = query.search?.trim();
+    if (term) {
       where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
-        { employeeId: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
-        { jobTitle: { contains: query.search, mode: 'insensitive' } },
+        { firstName: { contains: term, mode: 'insensitive' } },
+        { lastName: { contains: term, mode: 'insensitive' } },
+        { employeeId: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+        { jobTitle: { contains: term, mode: 'insensitive' } },
       ];
     }
 
     const direction = query.direction ?? 'asc';
     const orderBy: Prisma.UserOrderByWithRelationInput[] =
       query.sort === 'name'
-        ? [{ lastName: direction }, { firstName: direction }]
+        ? [{ lastName: direction }, { firstName: direction }, { employeeId: 'asc' }]
         : query.sort === 'department'
           ? [{ department: direction }, { employeeId: 'asc' }]
           : query.sort === 'status'

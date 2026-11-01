@@ -14,6 +14,6 @@ export class AdminEmployeeQueryDto {
   @IsOptional() @IsEnum(EmployeeStatusFilter) status?: EmployeeStatusFilter;
   @IsOptional() @IsIn(['employeeId', 'name', 'department', 'status']) sort?: string;
   @IsOptional() @IsIn(['asc', 'desc']) direction?: 'asc' | 'desc';
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10000) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
 }
