@@ -86,6 +86,13 @@ export class EmploymentChangesService {
         if (dto.role === user.role) {
           throw new BadRequestException('The employee already holds this role.');
         }
+        if (
+          user.role === 'SUPER_ADMIN' &&
+          dto.role !== 'SUPER_ADMIN' &&
+          actor.role !== 'SUPER_ADMIN'
+        ) {
+          throw new ForbiddenException('Only a Super Admin can change a Super Admin role.');
+        }
         if (dto.role === 'SUPER_ADMIN' && actor.role !== 'SUPER_ADMIN') {
           throw new ForbiddenException('Only a Super Admin can grant the Super Admin role.');
         }

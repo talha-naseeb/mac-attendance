@@ -299,6 +299,52 @@ describe('EmploymentChangesService', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
+  it('forbids an HR admin from demoting a Super Admin before any write', async () => {
+    const { prisma, guards, sessions, service } = build();
+    const superAdmin = { ...user, role: 'SUPER_ADMIN' };
+    prisma.user.findUnique.mockResolvedValue(superAdmin);
+
+    await expect(
+      service.apply('user-1', {
+        type: 'ROLE',
+        effectiveDate: today,
+        reason: 'Demotion attempt',
+        role: 'MANAGER',
+      } as any, actor),
+    ).rejects.toThrow(
+      new ForbiddenException('Only a Super Admin can change a Super Admin role.'),
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.employmentChange.create).not.toHaveBeenCalled();
+    expect(guards.assertSuperAdminRetained).not.toHaveBeenCalled();
+    expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('lets a Super Admin demote another Super Admin once retention is proven', async () => {
+    const { prisma, guards, sessions, service } = build();
+    const superAdmin = { ...user, role: 'SUPER_ADMIN' };
+    prisma.user.findUnique.mockResolvedValue(superAdmin);
+    prisma.employmentChange.create.mockResolvedValue({ id: 'change-11' });
+    prisma.user.update.mockResolvedValue({ ...superAdmin, role: 'HR_ADMIN' });
+
+    await service.apply('user-1', {
+      type: 'ROLE',
+      effectiveDate: today,
+      reason: 'Handing over ownership',
+      role: 'HR_ADMIN',
+    } as any, { ...actor, role: 'SUPER_ADMIN' });
+
+    expect(guards.assertSuperAdminRetained).toHaveBeenCalledWith('user-1', prisma);
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: expect.objectContaining({ role: 'HR_ADMIN', canAccessWebAdmin: true }),
+    });
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith('user-1', 'ROLE_CHANGE');
+  });
+
   it('does not swallow audit failures', async () => {
     const { prisma, audit, service } = build();
     prisma.user.findUnique.mockResolvedValue(user);
