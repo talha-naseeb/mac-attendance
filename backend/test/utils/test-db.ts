@@ -1,7 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 
+const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
+if (!testDatabaseUrl) {
+  throw new Error(
+    'TEST_DATABASE_URL is required before importing test-db; load test/setup-env.ts first.',
+  );
+}
+
 export const testPrisma = new PrismaClient({
-  datasources: { db: { url: process.env.TEST_DATABASE_URL! } },
+  datasources: { db: { url: testDatabaseUrl } },
 });
 
 export async function resetDatabase(): Promise<void> {
