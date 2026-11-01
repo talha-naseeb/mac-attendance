@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
+import { SessionService } from './session.service';
 
 export interface JwtPayload {
   sub: string;
@@ -12,6 +13,7 @@ export interface JwtPayload {
   branchId?: string | null;
   name: string;
   canAccessWebAdmin?: boolean;
+  sid?: string;
 }
 
 @Injectable()
@@ -19,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private sessionService: SessionService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -28,8 +31,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    if (!payload.sub || !payload.email) {
+    if (!payload.sub || !payload.email || !payload.sid) {
       throw new UnauthorizedException('Invalid JWT payload claims.');
+    }
+
+    const session = await this.sessionService.findActive(payload.sid);
+    if (!session) {
+      throw new UnauthorizedException('Your session has ended. Sign in again.');
     }
 
     // Re-hydrate security-sensitive claims so role removal and deactivation
@@ -46,6 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         lastName: true,
         canAccessWebAdmin: true,
         isActive: true,
+        mustChangePassword: true,
       },
     });
     if (!user || !user.isActive) {
@@ -60,6 +69,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       branchId: user.branchId,
       name: `${user.firstName} ${user.lastName}`,
       canAccessWebAdmin: user.canAccessWebAdmin,
+      sessionId: session.id,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }

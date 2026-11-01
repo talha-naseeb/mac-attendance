@@ -2,101 +2,65 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Prisma, SessionRevokeReason, UserRole } from '@prisma/client';
 import { createPublicKey, verify as verifySignature } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../../common/services/audit.service';
 import { LoginDto, SsoLoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtPayload } from './jwt.strategy';
+import { SessionService } from './session.service';
+
+type UserProfile = Prisma.UserGetPayload<{
+  include: {
+    branch: true;
+    manager: { select: { firstName: true; lastName: true } };
+  };
+}>;
+
+interface SessionSubject {
+  id: string;
+  employeeId: string;
+  email: string;
+  role: UserRole;
+  branchId: string | null;
+  firstName: string;
+  lastName: string;
+  canAccessWebAdmin: boolean;
+}
+
+interface RequestMeta {
+  ipAddress?: string;
+  userAgent?: string;
+}
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly dummyHash = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8ba0A5i8XGZof1N0PqQ7gKcpqBfG5S';
   private entraJwksCache?: { keys: Array<Record<string, unknown>>; expiresAt: number };
 
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private sessionService: SessionService,
+    private audit: AuditService,
   ) {}
 
-  async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
-
-    const user = await this.prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-      include: {
-        branch: true,
-        manager: { select: { firstName: true, lastName: true } },
-      },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password.');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('This account has been deactivated. Please contact HR.');
-    }
-
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      throw new UnauthorizedException('Invalid email or password.');
-    }
-
-    const payload: JwtPayload = {
-      sub: user.id,
-      employeeId: user.employeeId,
-      email: user.email,
-      role: user.role,
-      branchId: user.branchId,
-      name: `${user.firstName} ${user.lastName}`,
-      canAccessWebAdmin: user.canAccessWebAdmin,
-    };
-
-    const token = this.jwtService.sign(payload);
-
+  async login(loginDto: LoginDto, meta: RequestMeta = {}) {
+    const user = await this.authenticateCredentials(loginDto.email, loginDto.password);
+    const tokens = await this.establishSession(user, meta);
     return {
-      accessToken: token,
-      user: {
-        id: user.id,
-        employeeId: user.employeeId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        department: user.department,
-        jobTitle: user.jobTitle,
-        fullNameAr: user.fullNameAr,
-        titleAr: user.titleAr,
-        departmentAr: user.departmentAr,
-        nationalId: user.nationalId,
-        iqamaNumber: user.iqamaNumber,
-        avatarInitials: user.avatarInitials,
-        avatarPresetId: user.avatarPresetId,
-        avatarColor: user.avatarColor,
-        createdAt: user.createdAt,
-        isRemoteAllowed: user.isRemoteAllowed,
-        manager: user.manager,
-        avatarUrl: user.avatarUrl,
-        canAccessWebAdmin: user.canAccessWebAdmin,
-        branch: user.branch
-          ? {
-              id: user.branch.id,
-              name: user.branch.name,
-              nameAr: user.branch.nameAr,
-              code: user.branch.code,
-              latitude: user.branch.latitude,
-              longitude: user.branch.longitude,
-              geofenceRadiusMeters: user.branch.geofenceRadiusMeters,
-            }
-          : null,
-      },
+      ...tokens,
+      user: this.toPublicUser(user),
     };
   }
 
@@ -104,20 +68,25 @@ export class AuthService {
    * The web console has a distinct sign-in endpoint so employee credentials
    * cannot be used to establish an administration-console session.
    */
-  async adminLogin(loginDto: LoginDto) {
-    const result = await this.login(loginDto);
+  async adminLogin(loginDto: LoginDto, meta: RequestMeta = {}) {
+    const user = await this.authenticateCredentials(loginDto.email, loginDto.password);
     if (
-      !result.user.canAccessWebAdmin ||
-      (result.user.role !== 'HR_ADMIN' && result.user.role !== 'SUPER_ADMIN')
+      !user.canAccessWebAdmin ||
+      (user.role !== 'HR_ADMIN' && user.role !== 'SUPER_ADMIN')
     ) {
       throw new ForbiddenException(
         'This account is not authorized to access the MacqHR administration console.',
       );
     }
-    return result;
+    const tokens = await this.establishSession(user, meta);
+    return { ...tokens, user: this.toPublicUser(user) };
   }
 
-  async ssoLogin(ssoDto: SsoLoginDto) {
+  async ssoLogin(ssoDto: SsoLoginDto, meta: RequestMeta = {}) {
+    if (!this.configService.get<boolean>('sso.enabled')) {
+      throw new NotFoundException('Microsoft Entra SSO is not enabled for this deployment.');
+    }
+
     const claims = await this.verifyEntraIdToken(ssoDto.ssoToken);
     const emailClaim = claims.preferred_username ?? claims.email ?? claims.upn;
     if (typeof emailClaim !== 'string' || !emailClaim.includes('@')) {
@@ -130,7 +99,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email },
       include: {
         branch: true,
         manager: { select: { firstName: true, lastName: true } },
@@ -142,11 +111,148 @@ export class AuthService {
         `User ${email} does not exist in corporate directory. SSO sync required.`,
       );
     }
-
     if (!user.isActive) {
       throw new UnauthorizedException('Account has been disabled.');
     }
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException('Invalid email or password.');
+    }
 
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { ssoSubject: claims.sub ? String(claims.sub) : null },
+    });
+
+    const tokens = await this.establishSession(user, meta);
+    return { ...tokens, user: this.toPublicUser(user) };
+  }
+
+  async refresh(refreshToken: string, meta: RequestMeta) {
+    const rotated = await this.sessionService.rotate(refreshToken, meta);
+    const user = await this.prisma.user.findUnique({
+      where: { id: rotated.userId },
+      include: { branch: true, manager: { select: { firstName: true, lastName: true } } },
+    });
+    if (!user || !user.isActive) {
+      await this.sessionService.revoke(rotated.sessionId, SessionRevokeReason.DEACTIVATED);
+      throw new UnauthorizedException('Your session has ended. Sign in again.');
+    }
+    return {
+      accessToken: this.signAccessToken(user, rotated.sessionId),
+      refreshToken: rotated.refreshToken,
+      expiresIn: this.configService.get<string>('auth.accessTokenTtl') || '15m',
+      user: this.toPublicUser(user),
+    };
+  }
+
+  async logout(sessionId: string): Promise<void> {
+    await this.sessionService.revoke(sessionId, SessionRevokeReason.LOGOUT);
+    await this.audit.record({
+      action: 'AUTH_LOGOUT',
+      resource: 'AuthSession',
+      details: { sessionId },
+    });
+  }
+
+  async changePassword(
+    userId: string,
+    sessionId: string,
+    dto: ChangePasswordDto,
+    meta: RequestMeta,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User profile not found.');
+    const matches = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!matches) throw new UnauthorizedException('The current password is incorrect.');
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('Choose a password you have not used as your current password.');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+    await this.sessionService.revokeAllForUser(userId, SessionRevokeReason.PASSWORD_CHANGE);
+    await this.audit.record({
+      actorUserId: userId,
+      action: 'AUTH_PASSWORD_CHANGED',
+      resource: 'User',
+      details: { sessionId },
+      ipAddress: meta.ipAddress,
+    });
+    const refreshed = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { branch: true, manager: { select: { firstName: true, lastName: true } } },
+    });
+    const tokens = await this.establishSession(refreshed, meta);
+    return { ...tokens, user: this.toPublicUser(refreshed!) };
+  }
+
+  private async authenticateCredentials(email: string, password: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: {
+        branch: true,
+        manager: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    if (!user) {
+      await bcrypt.compare(password, this.dummyHash);
+      throw new UnauthorizedException('Invalid email or password.');
+    }
+
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      throw new UnauthorizedException('Invalid email or password.');
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      const attempts = user.failedLoginAttempts + 1;
+      const maxAttempts = this.configService.get<number>('auth.maxFailedLogins') ?? 5;
+      const lockoutMinutes = this.configService.get<number>('auth.lockoutMinutes') ?? 15;
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: attempts,
+          lockedUntil:
+            attempts >= maxAttempts
+              ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
+              : null,
+        },
+      });
+      await this.audit.record({
+        actorUserId: user.id,
+        action: attempts >= maxAttempts ? 'AUTH_LOGIN_LOCKED' : 'AUTH_LOGIN_FAILED',
+        resource: 'User',
+        details: { attempts },
+      });
+      throw new UnauthorizedException('Invalid email or password.');
+    }
+
+    // Only disclose deactivation once the password is proven, so a failed
+    // login never reveals whether an email belongs to an active account.
+    if (!user.isActive) {
+      throw new UnauthorizedException('This account has been deactivated. Please contact HR.');
+    }
+
+    if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null },
+      });
+    }
+
+    return user;
+  }
+
+  private signAccessToken(user: SessionSubject, sessionId: string): string {
     const payload: JwtPayload = {
       sub: user.id,
       employeeId: user.employeeId,
@@ -155,37 +261,61 @@ export class AuthService {
       branchId: user.branchId,
       name: `${user.firstName} ${user.lastName}`,
       canAccessWebAdmin: user.canAccessWebAdmin,
+      sid: sessionId,
     };
+    return this.jwtService.sign(payload);
+  }
 
-    const token = this.jwtService.sign(payload);
-
+  private async establishSession(user: SessionSubject, meta: RequestMeta) {
+    const issued = await this.sessionService.createSession({
+      userId: user.id,
+      role: user.role,
+      ...meta,
+    });
     return {
-      accessToken: token,
-      user: {
-        id: user.id,
-        employeeId: user.employeeId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        role: user.role,
-        department: user.department,
-        jobTitle: user.jobTitle,
-        fullNameAr: user.fullNameAr,
-        titleAr: user.titleAr,
-        departmentAr: user.departmentAr,
-        nationalId: user.nationalId,
-        iqamaNumber: user.iqamaNumber,
-        avatarInitials: user.avatarInitials,
-        avatarPresetId: user.avatarPresetId,
-        avatarColor: user.avatarColor,
-        createdAt: user.createdAt,
-        isRemoteAllowed: user.isRemoteAllowed,
-        manager: user.manager,
-        avatarUrl: user.avatarUrl,
-        canAccessWebAdmin: user.canAccessWebAdmin,
-        branch: user.branch,
-      },
+      accessToken: this.signAccessToken(user, issued.sessionId),
+      refreshToken: issued.refreshToken,
+      expiresIn: this.configService.get<string>('auth.accessTokenTtl') || '15m',
+    };
+  }
+
+  private toPublicUser(user: UserProfile) {
+    return {
+      id: user.id,
+      employeeId: user.employeeId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      name: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      department: user.department,
+      jobTitle: user.jobTitle,
+      fullNameAr: user.fullNameAr,
+      titleAr: user.titleAr,
+      departmentAr: user.departmentAr,
+      nationalId: user.nationalId,
+      iqamaNumber: user.iqamaNumber,
+      avatarInitials: user.avatarInitials,
+      avatarPresetId: user.avatarPresetId,
+      avatarColor: user.avatarColor,
+      createdAt: user.createdAt,
+      isRemoteAllowed: user.isRemoteAllowed,
+      manager: user.manager,
+      avatarUrl: user.avatarUrl,
+      canAccessWebAdmin: user.canAccessWebAdmin,
+      branch: user.branch
+        ? {
+            id: user.branch.id,
+            name: user.branch.name,
+            nameAr: user.branch.nameAr,
+            code: user.branch.code,
+            latitude: user.branch.latitude,
+            longitude: user.branch.longitude,
+            geofenceRadiusMeters: user.branch.geofenceRadiusMeters,
+          }
+        : null,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 

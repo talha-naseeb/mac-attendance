@@ -13,9 +13,9 @@ import { SessionService } from './session.service';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('jwt.secret') || 'default-macq-jwt-secret-2026',
+        secret: configService.getOrThrow<string>('jwt.secret'),
         signOptions: {
-          expiresIn: configService.get<string>('jwt.expiresIn') || '7d',
+          expiresIn: configService.get<string>('auth.accessTokenTtl') || '15m',
         },
       }),
       inject: [ConfigService],

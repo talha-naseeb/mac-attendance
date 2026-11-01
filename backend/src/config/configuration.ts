@@ -45,6 +45,17 @@ export interface AppConfig {
     clientId: string;
     clientSecret: string;
   };
+  auth: {
+    accessTokenTtl: string;
+    refreshTokenDays: number;
+    absoluteSessionHours: number;
+    superAdminAbsoluteSessionHours: number;
+    maxFailedLogins: number;
+    lockoutMinutes: number;
+  };
+  sso: {
+    enabled: boolean;
+  };
 }
 
 export default (): AppConfig => {
@@ -96,6 +107,17 @@ export default (): AppConfig => {
       tenantId: process.env.AZURE_TENANT_ID || '',
       clientId: process.env.AZURE_CLIENT_ID || '',
       clientSecret: process.env.AZURE_CLIENT_SECRET || '',
+    },
+    auth: {
+      accessTokenTtl: process.env.JWT_ACCESS_EXPIRATION || '15m',
+      refreshTokenDays: parseInt(process.env.REFRESH_TOKEN_DAYS || '7', 10),
+      absoluteSessionHours: parseInt(process.env.SESSION_ABSOLUTE_HOURS || '720', 10),
+      superAdminAbsoluteSessionHours: parseInt(process.env.SUPER_ADMIN_SESSION_HOURS || '8', 10),
+      maxFailedLogins: parseInt(process.env.MAX_FAILED_LOGINS || '5', 10),
+      lockoutMinutes: parseInt(process.env.LOCKOUT_MINUTES || '15', 10),
+    },
+    sso: {
+      enabled: process.env.SSO_ENABLED === 'true',
     },
   };
 };
