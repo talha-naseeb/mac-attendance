@@ -1,34 +1,65 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
+import { SessionService } from '../auth/session.service';
 import { EmployeesService } from './employees.service';
+import { OrganizationGuardService } from './organization-guard.service';
 
 function createPrismaMock() {
-  return {
+  const prisma = {
     user: {
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
     },
     leaveBalance: {
       createMany: jest.fn(),
     },
+    leaveRequest: {
+      updateMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
+  // Transactions receive this same mock so assertions can inspect the client
+  // the service handed to the guard and the audit service.
+  prisma.$transaction.mockImplementation((callback: (tx: typeof prisma) => unknown) =>
+    callback(prisma),
+  );
+  return prisma;
 }
 
 function createAuditMock() {
   return { record: jest.fn() };
 }
 
+function buildService() {
+  const prisma = createPrismaMock();
+  const organizationGuard = { assertSuperAdminRetained: jest.fn() };
+  const sessionService = { revokeAllForUser: jest.fn() };
+  const audit = createAuditMock();
+  const service = new EmployeesService(
+    prisma as unknown as PrismaService,
+    organizationGuard as unknown as OrganizationGuardService,
+    sessionService as unknown as SessionService,
+    audit as unknown as AuditService,
+  );
+  return { prisma, organizationGuard, sessionService, audit, service };
+}
+
+const hrActor = {
+  id: 'hr-1',
+  employeeId: 'EMP-HR',
+  email: 'hr@macqhr.sa',
+  role: 'HR_ADMIN',
+  name: 'HR Admin',
+};
+
 describe('EmployeesService profile access', () => {
   let prisma: ReturnType<typeof createPrismaMock>;
   let service: EmployeesService;
 
   beforeEach(() => {
-    prisma = createPrismaMock();
-    service = new EmployeesService(
-      prisma as unknown as PrismaService,
-      createAuditMock() as unknown as AuditService,
-    );
+    ({ prisma, service } = buildService());
   });
 
   it('returns only the limited work profile to a colleague', async () => {
@@ -143,5 +174,93 @@ describe('EmployeesService profile access', () => {
       select: { id: true },
     });
     expect(result).not.toHaveProperty('passwordHash');
+  });
+});
+
+describe('EmployeesService deactivation safeguards', () => {
+  it('forbids an HR admin from deactivating a Super Admin without opening a transaction', async () => {
+    const { prisma, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue({ id: 'sa-1' });
+    prisma.user.findUniqueOrThrow.mockResolvedValue({ role: 'SUPER_ADMIN' });
+
+    await expect(service.deactivate('sa-1', 'Resigned', hrActor)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('guards retention, cancels live leave, and audits inside the deactivation transaction', async () => {
+    const { prisma, organizationGuard, sessionService, audit, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue({ id: 'emp-2' });
+    prisma.user.findUniqueOrThrow.mockResolvedValue({ role: 'EMPLOYEE' });
+    prisma.leaveRequest.updateMany.mockResolvedValue({ count: 2 });
+    prisma.user.update.mockResolvedValue({ id: 'emp-2', isActive: false });
+
+    const result = await service.deactivate('emp-2', 'Resigned', hrActor);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(organizationGuard.assertSuperAdminRetained).toHaveBeenCalledWith('emp-2', prisma);
+
+    const cancelQuery = prisma.leaveRequest.updateMany.mock.calls[0][0];
+    expect(cancelQuery.where).toEqual({ userId: 'emp-2', status: 'PENDING' });
+    expect(cancelQuery.data).toMatchObject({ status: 'REJECTED', decidedById: 'hr-1' });
+    expect(cancelQuery.data.rejectionReason).toBeTruthy();
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'emp-2' },
+      data: { isActive: false },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        actorUserId: 'hr-1',
+        action: 'EMPLOYEE_DEACTIVATED',
+        resource: 'User',
+        details: {
+          userId: 'emp-2',
+          reason: 'Resigned',
+          pendingLeaveRequestsCancelled: 2,
+        },
+      },
+      prisma,
+    );
+    expect(sessionService.revokeAllForUser).toHaveBeenCalledWith('emp-2', 'DEACTIVATED');
+    expect(result).toEqual({ deactivated: true, pendingLeaveRequestsCancelled: 2 });
+  });
+
+  it('returns not found when reactivating an unknown employee', async () => {
+    const { prisma, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.reactivate('missing', 'Returning', hrActor)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('reactivates a known employee and audits inside the transaction', async () => {
+    const { prisma, sessionService, audit, service } = buildService();
+    prisma.user.findUnique.mockResolvedValue({ id: 'emp-2' });
+    prisma.user.update.mockResolvedValue({ id: 'emp-2', isActive: true });
+
+    const result = await service.reactivate('emp-2', 'Returning from leave', hrActor);
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'emp-2' },
+      data: { isActive: true },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        actorUserId: 'hr-1',
+        action: 'EMPLOYEE_REACTIVATED',
+        resource: 'User',
+        details: { userId: 'emp-2', reason: 'Returning from leave' },
+      },
+      prisma,
+    );
+    expect(sessionService.revokeAllForUser).not.toHaveBeenCalled();
+    expect(result).toEqual({ reactivated: true });
   });
 });

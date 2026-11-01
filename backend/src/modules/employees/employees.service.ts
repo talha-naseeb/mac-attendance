@@ -9,7 +9,9 @@ import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
+import { SessionService } from '../auth/session.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { OrganizationGuardService } from './organization-guard.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employees.dto';
 import {
   AdminEmployeeQueryDto,
@@ -67,6 +69,8 @@ const LIMITED_PROFILE_SELECT = {
 export class EmployeesService {
   constructor(
     private prisma: PrismaService,
+    private organizationGuard: OrganizationGuardService,
+    private sessionService: SessionService,
     private audit: AuditService,
   ) {}
 
@@ -366,5 +370,74 @@ export class EmployeesService {
     });
     const { passwordHash, ...safeUser } = updated;
     return safeUser;
+  }
+
+  /**
+   * Deactivating a person is one transaction: a surviving Super Admin is
+   * guaranteed, live leave requests are cancelled, the account is switched off
+   * and the audit trail is written together with those changes. Sessions are
+   * revoked only once the transaction has committed.
+   */
+  async deactivate(id: string, reason: string, actor: AuthenticatedUser) {
+    await this.ensureEmployeeExists(id);
+    const target = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      select: { role: true },
+    });
+    if (target.role === 'SUPER_ADMIN' && actor.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only a Super Admin can deactivate a Super Admin.');
+    }
+
+    const cancelled = await this.prisma.$transaction(async (tx) => {
+      await this.organizationGuard.assertSuperAdminRetained(id, tx);
+
+      const pending = await tx.leaveRequest.updateMany({
+        where: { userId: id, status: 'PENDING' },
+        data: {
+          status: 'REJECTED',
+          rejectionReason: 'Account deactivated by HR.',
+          decidedById: actor.id,
+          decidedAt: new Date(),
+        },
+      });
+      await tx.user.update({ where: { id }, data: { isActive: false } });
+      await this.audit.record(
+        {
+          actorUserId: actor.id,
+          action: 'EMPLOYEE_DEACTIVATED',
+          resource: 'User',
+          details: { userId: id, reason, pendingLeaveRequestsCancelled: pending.count },
+        },
+        tx,
+      );
+      return pending.count;
+    });
+
+    await this.sessionService.revokeAllForUser(id, 'DEACTIVATED');
+
+    return { deactivated: true, pendingLeaveRequestsCancelled: cancelled };
+  }
+
+  /**
+   * Reactivation re-enables the account. Sessions are not recreated; the
+   * employee signs in again.
+   */
+  async reactivate(id: string, reason: string, actor: AuthenticatedUser) {
+    await this.ensureEmployeeExists(id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id }, data: { isActive: true } });
+      await this.audit.record(
+        {
+          actorUserId: actor.id,
+          action: 'EMPLOYEE_REACTIVATED',
+          resource: 'User',
+          details: { userId: id, reason },
+        },
+        tx,
+      );
+    });
+
+    return { reactivated: true };
   }
 }

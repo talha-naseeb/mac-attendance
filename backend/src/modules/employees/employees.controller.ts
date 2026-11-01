@@ -11,7 +11,11 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { EmployeesService } from './employees.service';
 import { EmploymentChangesService } from './employment-changes.service';
-import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employees.dto';
+import {
+  CreateEmployeeDto,
+  EmploymentStatusDto,
+  UpdateEmployeeDto,
+} from './dto/employees.dto';
 import { AdminEmployeeQueryDto } from './dto/employee-admin.dto';
 import { EmploymentChangeDto } from './dto/employment-change.dto';
 import { Roles, UserRole } from '../../common/decorators/roles.decorator';
@@ -78,6 +82,32 @@ export class EmployeesController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.employmentChanges.apply(id, dto, actor);
+  }
+
+  @Post(':id/deactivate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Deactivate an employee, cancel live leave, and revoke sessions',
+  })
+  async deactivate(
+    @Param('id') id: string,
+    @Body() dto: EmploymentStatusDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.employeesService.deactivate(id, dto.reason, actor);
+  }
+
+  @Post(':id/reactivate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Reactivate a deactivated employee' })
+  async reactivate(
+    @Param('id') id: string,
+    @Body() dto: EmploymentStatusDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.employeesService.reactivate(id, dto.reason, actor);
   }
 
   @Post()

@@ -9,6 +9,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Length,
   Max,
   Min,
   ValidateNested,
@@ -176,4 +177,11 @@ export class UpdateEmployeeDto {
   @IsString()
   @IsOptional()
   departmentAr?: string;
+}
+
+export class EmploymentStatusDto {
+  @ApiProperty({ example: 'Resigned' })
+  @IsString()
+  @Length(3, 300)
+  reason: string;
 }

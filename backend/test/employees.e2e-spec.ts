@@ -590,4 +590,239 @@ describe('Employee administration (e2e)', () => {
       await testPrisma.employmentChange.count({ where: { userId: employee.id } }),
     ).toBe(0);
   });
+
+  it('EMP-07: deactivation blocks sign-in, revokes tokens, and hides the person', async () => {
+    const employee = await createUser(testPrisma, {
+      email: 'leave@macqhr.sa',
+      employeeId: 'EMP-L',
+    });
+    const hr = await testPrisma.user.findUniqueOrThrow({
+      where: { email: 'hr@macqhr.sa' },
+    });
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'leave@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    const token = login.body.accessToken;
+
+    // A live request must be cancelled by the deactivation, not left pending.
+    // The leave API validates against its own LeaveType enum ('ANNUAL').
+    await request(app.getHttpServer())
+      .post('/api/leaves/request')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        type: 'ANNUAL',
+        startDate: '2026-12-01',
+        endDate: '2026-12-03',
+        reason: 'Family trip',
+      })
+      .expect(201);
+
+    const deactivated = await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/deactivate`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ reason: 'Resigned' })
+      .expect(201);
+
+    expect(deactivated.body).toEqual({
+      deactivated: true,
+      pendingLeaveRequestsCancelled: 1,
+    });
+
+    const leave = await testPrisma.leaveRequest.findFirstOrThrow({
+      where: { userId: employee.id },
+    });
+    expect(leave.status).toBe('REJECTED');
+    expect(leave.decidedById).toBe(hr.id);
+    expect(leave.decidedAt).toBeTruthy();
+    expect(leave.rejectionReason).toBeTruthy();
+
+    const audit = await testPrisma.auditLog.findFirst({
+      where: { action: 'EMPLOYEE_DEACTIVATED', resource: 'User' },
+    });
+    expect(audit).toBeTruthy();
+    expect(audit!.actorUserId).toBe(hr.id);
+    const details = audit!.detailsJson as Record<string, unknown>;
+    expect(details.userId).toBe(employee.id);
+    expect(details.reason).toBe('Resigned');
+    expect(details.pendingLeaveRequestsCancelled).toBe(1);
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'leave@macqhr.sa', password: TEST_PASSWORD })
+      .expect(401);
+
+    const directory = await request(app.getHttpServer())
+      .get('/api/directory')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(directory.body.every((item: any) => item.email !== 'leave@macqhr.sa')).toBe(true);
+  });
+
+  it('EMP-08: refuses to deactivate the last active Super Admin', async () => {
+    const superAdmin = await createUser(testPrisma, {
+      email: 'owner@macqhr.sa',
+      employeeId: 'EMP-OWNER',
+      role: 'SUPER_ADMIN',
+    });
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/admin/login')
+      .send({ email: 'owner@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+
+    // The fixture database is truncated per test, so this owner is the only active Super Admin.
+    await request(app.getHttpServer())
+      .post(`/api/employees/${superAdmin.id}/deactivate`)
+      .set('Authorization', `Bearer ${login.body.accessToken}`)
+      .send({ reason: 'Test' })
+      .expect(409);
+
+    const persisted = await testPrisma.user.findUniqueOrThrow({ where: { id: superAdmin.id } });
+    expect(persisted.isActive).toBe(true);
+    expect(
+      await testPrisma.auditLog.count({ where: { action: 'EMPLOYEE_DEACTIVATED' } }),
+    ).toBe(0);
+  });
+
+  it('EMP-09: rejects self-management and cycles', async () => {
+    const a = await createUser(testPrisma, { email: 'a@x.sa', employeeId: 'EMP-A1' });
+    const b = await createUser(testPrisma, { email: 'b@x.sa', employeeId: 'EMP-B1' });
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${a.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'MANAGER',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'Self',
+        managerId: a.id,
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${b.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'MANAGER',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'B reports to A',
+        managerId: a.id,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${a.id}/changes`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({
+        type: 'MANAGER',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        reason: 'Cycle',
+        managerId: b.id,
+      })
+      .expect(400);
+  });
+
+  it('EMP-10: reactivation restores sign-in and is audited', async () => {
+    const employee = await createUser(testPrisma, {
+      email: 'return@macqhr.sa',
+      employeeId: 'EMP-RETURN',
+    });
+    const hr = await testPrisma.user.findUniqueOrThrow({
+      where: { email: 'hr@macqhr.sa' },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/deactivate`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ reason: 'Sabbatical' })
+      .expect(201);
+
+    const reactivated = await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/reactivate`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ reason: 'Returned from sabbatical' })
+      .expect(201);
+    expect(reactivated.body).toEqual({ reactivated: true });
+
+    const persisted = await testPrisma.user.findUniqueOrThrow({ where: { id: employee.id } });
+    expect(persisted.isActive).toBe(true);
+
+    const audit = await testPrisma.auditLog.findFirst({
+      where: { action: 'EMPLOYEE_REACTIVATED', resource: 'User' },
+    });
+    expect(audit).toBeTruthy();
+    expect(audit!.actorUserId).toBe(hr.id);
+    expect((audit!.detailsJson as Record<string, unknown>).reason).toBe(
+      'Returned from sabbatical',
+    );
+
+    // Sessions are not recreated; the employee simply signs in again.
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'return@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/employees/nonexistent-employee-id/reactivate')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ reason: 'Unknown person' })
+      .expect(404);
+  });
+
+  it('EMP-03: a new hire lands only in their own manager queue', async () => {
+    const managerA = await createUser(testPrisma, {
+      email: 'manager.a@macqhr.sa',
+      employeeId: 'EMP-MA',
+      role: 'MANAGER',
+    });
+    await createUser(testPrisma, {
+      email: 'manager.b@macqhr.sa',
+      employeeId: 'EMP-MB',
+      role: 'MANAGER',
+    });
+    const hire = await createUser(testPrisma, {
+      email: 'hire@macqhr.sa',
+      employeeId: 'EMP-HIRE',
+      managerId: managerA.id,
+    });
+
+    const hireLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'hire@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/leaves/request')
+      .set('Authorization', `Bearer ${hireLogin.body.accessToken}`)
+      .send({
+        type: 'ANNUAL',
+        startDate: '2026-12-01',
+        endDate: '2026-12-03',
+        reason: 'Family trip',
+      })
+      .expect(201);
+
+    const managerALogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'manager.a@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    const queueA = await request(app.getHttpServer())
+      .get('/api/leaves/pending')
+      .set('Authorization', `Bearer ${managerALogin.body.accessToken}`)
+      .expect(200);
+    expect(queueA.body.some((item: any) => item.userId === hire.id)).toBe(true);
+
+    const managerBLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'manager.b@macqhr.sa', password: TEST_PASSWORD })
+      .expect(201);
+    const queueB = await request(app.getHttpServer())
+      .get('/api/leaves/pending')
+      .set('Authorization', `Bearer ${managerBLogin.body.accessToken}`)
+      .expect(200);
+    expect(queueB.body.some((item: any) => item.userId === hire.id)).toBe(false);
+  });
 });
