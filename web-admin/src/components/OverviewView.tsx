@@ -44,7 +44,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   ).size;
   const onSiteRate = employees.length ? Math.round((checkedIn / employees.length) * 100) : 0;
   const pendingLeaves = leaves.filter((request) => request.status === 'PENDING').length;
-  const approvedLeaves = leaves.filter((request) => request.status === 'APPROVED').length;
+  // `employees` is the active roster; deactivated employees keep approved leave
+  // history in the tab but must not appear on the live Who's Off card.
+  const activeEmployeeIds = new Set(employees.map((employee) => employee.employeeId));
+  const approvedLeaves = leaves.filter(
+    (request) =>
+      request.status === 'APPROVED' && activeEmployeeIds.has(request.employeeId),
+  ).length;
 
   return (
     <div className="space-y-6">

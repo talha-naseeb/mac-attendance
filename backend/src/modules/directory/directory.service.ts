@@ -15,6 +15,9 @@ export class DirectoryService {
         status: 'APPROVED',
         startDate: { lte: endOfToday },
         endDate: { gte: startOfToday },
+        // Deactivation rejects live requests but keeps approved history; an
+        // inactive employee must not stay on the live Who's Off list.
+        user: { isActive: true },
       },
       include: {
         user: {

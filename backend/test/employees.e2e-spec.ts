@@ -663,6 +663,47 @@ describe('Employee administration (e2e)', () => {
     expect(directory.body.every((item: any) => item.email !== 'leave@macqhr.sa')).toBe(true);
   });
 
+  it("M3.5: deactivation removes the person from Who's Off but keeps approved history", async () => {
+    const employee = await createUser(testPrisma, {
+      email: 'onleave@macqhr.sa',
+      employeeId: 'EMP-ONLEAVE',
+    });
+    const approvedLeave = await testPrisma.leaveRequest.create({
+      data: {
+        userId: employee.id,
+        type: 'ANNUAL',
+        startDate: new Date(),
+        endDate: new Date(),
+        daysCount: 1,
+        status: 'APPROVED',
+      },
+    });
+
+    const before = await request(app.getHttpServer())
+      .get('/api/directory/whos-off')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(before.body.some((entry: any) => entry.employee.id === employee.id)).toBe(true);
+
+    await request(app.getHttpServer())
+      .post(`/api/employees/${employee.id}/deactivate`)
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ reason: 'Resigned while on leave' })
+      .expect(201);
+
+    const after = await request(app.getHttpServer())
+      .get('/api/directory/whos-off')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .expect(200);
+    expect(after.body.some((entry: any) => entry.employee.id === employee.id)).toBe(false);
+
+    // History is preserved: deactivation does not rewrite the approved row.
+    const preserved = await testPrisma.leaveRequest.findUniqueOrThrow({
+      where: { id: approvedLeave.id },
+    });
+    expect(preserved.status).toBe('APPROVED');
+  });
+
   it('EMP-08: refuses to deactivate the last active Super Admin', async () => {
     const superAdmin = await createUser(testPrisma, {
       email: 'owner@macqhr.sa',
