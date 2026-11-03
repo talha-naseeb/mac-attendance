@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "MacqHR",
-    "slug": "macqhr",
+    "name": "Shiftly",
+    "slug": "shiftly",
     "version": "1.0.0",
-    "scheme": "macqhr",
+    "scheme": "shiftly",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,15 +15,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.macquires.macqhr",
+      "bundleIdentifier": "com.macquires.shiftly",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "MacqHR requires high-accuracy GPS location to verify your presence inside the Macquires office geofence when clocking in or out.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "MacqHR uses geofence monitoring to support automatic attendance verification at Macquires branches.",
-        "NSFaceIDUsageDescription": "MacqHR uses Face ID liveness authentication to secure your employee workspace and attendance punches."
+        "NSLocationWhenInUseUsageDescription": "Shiftly requires high-accuracy GPS location to verify your presence inside the office geofence when clocking in or out.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Shiftly uses geofence monitoring to support automatic attendance verification at company branches.",
+        "NSFaceIDUsageDescription": "Shiftly uses Face ID liveness authentication to secure your employee workspace and attendance punches."
       }
     },
     "android": {
-      "package": "com.macquires.macqhr",
+      "package": "com.macquires.shiftly",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#001629"
@@ -40,7 +40,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow MacqHR to verify your Macquires office geofence location during attendance."
+          "locationAlwaysAndWhenInUsePermission": "Allow Shiftly to verify your office geofence location during attendance."
         }
       ]
     ],

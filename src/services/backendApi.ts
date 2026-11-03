@@ -400,7 +400,7 @@ async function request<T>(
       });
     } catch {
       throw new BackendApiError(
-        'Unable to reach the MacqHR server. Check your API address and connection.',
+        'Unable to reach the Shiftly server. Check your API address and connection.',
       );
     }
   };

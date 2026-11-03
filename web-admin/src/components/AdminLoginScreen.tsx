@@ -59,13 +59,23 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
       <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-macq-navy flex items-center justify-center shadow-md border border-white/10">
-            <svg viewBox="0 0 100 100" className="w-5 h-5" aria-hidden="true">
-              <circle cx="50" cy="30" r="14" fill="#FE5800" />
-              <path d="M18 80 L34 46 L50 66 L66 46 L82 80 Z" fill="#FFFFFF" />
+            {/* Concept 02: Dual Shift Pulse */}
+            <svg viewBox="0 0 200 200" className="w-5 h-5" fill="none" aria-hidden="true">
+              <path
+                d="M 88 31 L 113 31 L 68 76 L 68 96 L 54 96 C 38 96, 32 86, 40 74 L 88 31 Z"
+                fill="#0F4C7A"
+              />
+              <path
+                d="M 112 169 L 87 169 L 132 124 L 132 104 L 146 104 C 162 104, 168 114, 160 126 L 112 169 Z"
+                fill="#0F4C7A"
+              />
+              <polygon points="173,14 148,14 64,100 89,100" fill="#FFFFFF" />
+              <polygon points="111,104 136,104 52,190 27,190" fill="#FFFFFF" />
+              <circle cx="140" cy="83" r="11" fill="#FE5800" />
             </svg>
           </div>
           <span className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-            Mac<span className="text-macq-orange">Q</span>HR
+            Shift<span className="text-macq-orange">ly</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-macq-orange/15 text-macq-orange font-bold uppercase tracking-wider">
               {isArabic ? 'الإدارة' : 'Admin'}
             </span>
@@ -113,7 +123,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
-                {isArabic ? 'بوابة إدارة MacQHR المركزية' : 'MacQHR Admin Console'}
+                {isArabic ? 'بوابة إدارة Shiftly المركزية' : 'Shiftly Admin Console'}
               </h1>
               <p className="mt-2.5 text-xs sm:text-sm text-slate-300 leading-relaxed">
                 {isArabic
@@ -187,7 +197,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="admin@macquires.com"
+                    placeholder="admin@email.com"
                     className="w-full bg-transparent py-3 text-sm text-slate-900 placeholder-slate-400 outline-none dark:text-white"
                     autoComplete="email"
                   />
@@ -249,8 +259,8 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
       {/* Footer */}
       <footer className="w-full max-w-5xl mx-auto text-center py-2 text-[11px] text-slate-400 dark:text-slate-500">
         {isArabic
-          ? 'MacQHR Enterprise HRMS • جميع الجلسات محمية ومُسجلة في سجل التدقيق الأمني'
-          : 'MacQHR Enterprise HRMS • All administrative sessions are token-bound and audited'}
+          ? 'Shiftly Enterprise HRMS • جميع الجلسات محمية ومُسجلة في سجل التدقيق الأمني'
+          : 'Shiftly Enterprise HRMS • All administrative sessions are token-bound and audited'}
       </footer>
     </main>
   );

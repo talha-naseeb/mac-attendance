@@ -29,9 +29,9 @@ async function bootstrap() {
 
   // Setup Swagger OpenAPI interactive documentation
   const config = new DocumentBuilder()
-    .setTitle('Mac-HR Enterprise API')
+    .setTitle('Shiftly Enterprise API')
     .setDescription(
-      'Mac-HR Backend REST Services: 4-Tier RBAC, 6-Layer Anti-Spoofing Attendance, Saudi Labor Law Leaves, and GOSI Payroll.',
+      'Shiftly Backend REST Services: 4-Tier RBAC, 6-Layer Anti-Spoofing Attendance, Saudi Labor Law Leaves, and GOSI Payroll.',
     )
     .setVersion('1.0.0')
     .addBearerAuth(

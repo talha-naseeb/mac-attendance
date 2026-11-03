@@ -102,7 +102,7 @@ export function resolveTeamsPresenceFromAttendance(params: {
     return {
       availability: 'Offline',
       activity: 'OutOfOffice',
-      statusMessage: 'Out of Office • Approved Leave via MacqHR',
+      statusMessage: 'Out of Office • Approved Leave via Shiftly',
       lastSyncedIso: nowIso,
     };
   }
@@ -111,7 +111,7 @@ export function resolveTeamsPresenceFromAttendance(params: {
     return {
       availability: 'Away',
       activity: 'OffWork',
-      statusMessage: 'Shift Completed • Checked out via MacqHR',
+      statusMessage: 'Shift Completed • Checked out via Shiftly',
       lastSyncedIso: nowIso,
     };
   }
@@ -120,7 +120,7 @@ export function resolveTeamsPresenceFromAttendance(params: {
     return {
       availability: 'BeRightBack',
       activity: 'BeRightBack',
-      statusMessage: 'On Break • MacqHR Attendance',
+      statusMessage: 'On Break • Shiftly Attendance',
       lastSyncedIso: nowIso,
     };
   }
@@ -128,7 +128,7 @@ export function resolveTeamsPresenceFromAttendance(params: {
   return {
     availability: 'Available',
     activity: 'Available',
-    statusMessage: 'In Office • Verified at Riyadh HQ via MacqHR',
+    statusMessage: 'In Office • Verified at Riyadh HQ via Shiftly',
     lastSyncedIso: nowIso,
   };
 }
@@ -173,7 +173,7 @@ export function buildTeamsApprovalAdaptiveCard(request: {
               type: 'TextBlock',
               size: 'Medium',
               weight: 'Bolder',
-              text: `MacqHR Approval: ${request.headline}`,
+              text: `Shiftly Approval: ${request.headline}`,
             },
             {
               type: 'FactSet',
@@ -183,16 +183,16 @@ export function buildTeamsApprovalAdaptiveCard(request: {
           actions: [
             {
               type: 'Action.Http',
-              title: 'Approve in MacqHR',
+              title: 'Approve in Shiftly',
               method: 'POST',
-              url: `https://api.macquires.com/v1/approvals/${request.id}/decision`,
+              url: `https://api.shiftly.app/v1/approvals/${request.id}/decision`,
               body: JSON.stringify({ decision: 'Approved', source: 'MS_TEAMS' }),
             },
             {
               type: 'Action.Http',
               title: 'Reject',
               method: 'POST',
-              url: `https://api.macquires.com/v1/approvals/${request.id}/decision`,
+              url: `https://api.shiftly.app/v1/approvals/${request.id}/decision`,
               body: JSON.stringify({ decision: 'Rejected', source: 'MS_TEAMS' }),
             },
           ],
@@ -221,12 +221,12 @@ export function createOutlookLeaveCalendarEvent(params: {
 
   return {
     id: `ms-cal-${Date.now()}`,
-    subject: `[MacqHR OOF] ${params.employeeName} — ${params.leaveType}`,
+    subject: `[Shiftly OOF] ${params.employeeName} — ${params.leaveType}`,
     startIso: `${year}-${month}-${startDay}T08:00:00+03:00`,
     endIso: `${year}-${month}-${endDay}T17:00:00+03:00`,
     showAs: 'oof',
     isAllDay: true,
-    categories: ['MacqHR Leave', params.leaveType],
+    categories: ['Shiftly Leave', params.leaveType],
     syncedToExchange: true,
   };
 }

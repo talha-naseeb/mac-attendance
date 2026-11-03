@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { getMacqLogoSpec } from '../services/logoSpec';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { TYPOGRAPHY } from '../theme/typography';
+export { ShiftlyLogo, type ShiftlyLogoProps } from './ShiftlyLogo';
 
 export interface MacqLogoProps {
   colors: ThemeColors;

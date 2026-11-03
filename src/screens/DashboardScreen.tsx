@@ -11,7 +11,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { DashboardSectionSkeleton } from '../components/DashboardSkeleton';
 import { ExecutiveSidebarDrawer } from '../components/ExecutiveSidebarDrawer';
-import { MacqLogo } from '../components/MacqLogo';
+import { ShiftlyLogo } from '../components/ShiftlyLogo';
 import { makeTr } from '../i18n/localize';
 import { TRANSLATIONS } from '../i18n/translations';
 import {
@@ -968,14 +968,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const listHeader = useMemo(
     () => (
       <View>
-        {/* Top Header Bar: Clicking Concept A MacqLogo opens Option A Sidebar Drawer */}
+        {/* Top Header Bar: Clicking ShiftlyLogo opens Option A Sidebar Drawer */}
         <View style={[styles.headerRow, rtlRow(isRTL)]}>
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => setSidebarOpen(true)}
-            accessibilityLabel="Open MacqHR Sidebar and Profile Settings"
+            accessibilityLabel="Open Shiftly Sidebar and Profile Settings"
           >
-            <MacqLogo colors={colors} size="md" showWordmark={false} />
+            <ShiftlyLogo colors={colors} size="md" showWordmark={false} />
           </TouchableOpacity>
 
           <View style={[styles.headerIconsRow, rtlRow(isRTL)]}>

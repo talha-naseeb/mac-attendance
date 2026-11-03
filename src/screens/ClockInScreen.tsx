@@ -122,7 +122,7 @@ export const ClockInScreen: React.FC<ClockInScreenProps> = ({
     if (!eligibility.canClock) {
       const reason =
         verdict.violationDetails[0] ||
-        'Attendance restricted by MacqHR Anti-Spoofing Policy.';
+        'Attendance restricted by Shiftly Anti-Spoofing Policy.';
       setSecurityBannerMsg(
         isRTL
           ? `تم حظر تسجيل الحضور أمنياً: ${verdict.violations.join(' ، ')}`

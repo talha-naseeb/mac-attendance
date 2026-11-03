@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   BackHandler,
   Platform,
   StatusBar,
@@ -29,7 +30,7 @@ import {
   INITIAL_WHOS_OFF,
 } from './src/data/mockData';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { MacqLogo } from './src/components/MacqLogo';
+import { ShiftlyLogo } from './src/components/ShiftlyLogo';
 import { NotchedBottomBar } from './src/components/NotchedBottomBar';
 import { AdminOrgPanelModal } from './src/components/AdminOrgPanelModal';
 import { TRANSLATIONS } from './src/i18n/translations';
@@ -757,14 +758,29 @@ function MacqHRApp() {
           ]}
         >
           <StatusBar barStyle="light-content" />
-          <MacqLogo
+          <ShiftlyLogo
             colors={darkColors}
             size="xl"
             layout="stacked"
             showWordmark={true}
-            showSubtitle={true}
+            showSubtitle={false}
             forceLightWordmark={true}
           />
+          <View style={{ position: 'absolute', bottom: 56, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={MACQUIRES_PALETTE.orangePantone} />
+            <Text
+              style={{
+                color: '#94A3B8',
+                fontSize: 12,
+                fontWeight: '700',
+                marginTop: 12,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+              }}
+            >
+              Smart Attendance
+            </Text>
+          </View>
         </TouchableOpacity>
       </SafeAreaProvider>
     );
@@ -842,12 +858,12 @@ function MacqHRApp() {
           <StatusBar barStyle="light-content" />
           <View style={styles.lockCard}>
             <View style={{ marginBottom: 16 }}>
-              <MacqLogo
+              <ShiftlyLogo
                 colors={lightColors}
                 size="lg"
                 layout="stacked"
                 showWordmark={true}
-                showSubtitle={true}
+                showSubtitle={false}
               />
             </View>
             <Text style={styles.lockTitle} numberOfLines={1}>

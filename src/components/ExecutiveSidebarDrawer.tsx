@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { MacqLogo } from './MacqLogo';
+import { ShiftlyLogo } from './ShiftlyLogo';
 import {
   EditableEmployeeProfile,
   getAvatarPresetById,
@@ -166,13 +166,13 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* Brand Top Header: MacqLogo + MACQUIRES PEOPLE */}
+              {/* Brand Top Header: ShiftlyLogo */}
               <View style={[styles.brandTopRow, rtlRow(isRTL)]}>
-                <MacqLogo
+                <ShiftlyLogo
                   colors={colors}
                   size="sm"
                   showWordmark={true}
-                  showSubtitle={true}
+                  showSubtitle={false}
                 />
               </View>
 

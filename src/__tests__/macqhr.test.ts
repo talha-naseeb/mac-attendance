@@ -17,7 +17,7 @@ import {
   verifyPunchSignature,
 } from '../services/offlineSyncAndCompliance';
 import { buildSmoothBezierCradleGeometry } from '../services/bottomNavGeometry';
-import { getMacqLogoSpec } from '../services/logoSpec';
+import { getMacqLogoSpec, getShiftlyLogoSpec } from '../services/logoSpec';
 import {
   deriveAvatarInitials,
   detectCountryFromPhoneInput,
@@ -554,6 +554,36 @@ describeSuite(
         assertEqual(spec.humanApexCircle.fill, MACQUIRES_PALETTE.orangePantone);
         assertTrue(spec.mPillarsPath.startsWith('M9 36V16'));
         assertEqual(spec.baseVerificationBarPath, 'M16 39H32');
+      }
+    );
+
+    itCase(
+      'TC-SH.1: Enforces Concept 02 ("The Dual Shift Pulse") official brand palette and concept ID',
+      () => {
+        const lightSpec = getShiftlyLogoSpec(false);
+        const darkSpec = getShiftlyLogoSpec(true);
+
+        assertEqual(lightSpec.conceptId, 'CONCEPT_DUAL_SHIFT_PULSE');
+        assertEqual(lightSpec.viewBox, '0 0 200 200');
+        assertEqual(lightSpec.colors.badgeBackground, MACQUIRES_PALETTE.prussianBlue);
+        assertEqual(darkSpec.colors.badgeBackground, MACQUIRES_PALETTE.oxfordBlue);
+        assertEqual(lightSpec.colors.pulseOrange, MACQUIRES_PALETTE.orangePantone);
+        assertEqual(lightSpec.colors.whiteSlash, MACQUIRES_PALETTE.white);
+      }
+    );
+
+    itCase(
+      'TC-SH.2: Generates valid vector geometry for Dual Shift Pulse wings and central attendance radar telemetry',
+      () => {
+        const spec = getShiftlyLogoSpec(false);
+
+        assertTrue(spec.upperNavyWingPath.startsWith('M88 31L113 31'));
+        assertTrue(spec.lowerNavyWingPath.startsWith('M112 169L87 169'));
+        assertEqual(spec.upperWhiteSlashPoints, '173,14 148,14 64,100 89,100');
+        assertEqual(spec.lowerWhiteSlashPoints, '111,104 136,104 52,190 27,190');
+        assertEqual(spec.radarPulseCenter.cx, 140);
+        assertEqual(spec.radarPulseCenter.cy, 83);
+        assertEqual(spec.radarPulseCenter.r, 11);
       }
     );
   }

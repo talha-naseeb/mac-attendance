@@ -18,7 +18,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[MacqHR] Uncaught render error:', error, info.componentStack);
+    console.error('[Shiftly] Uncaught render error:', error, info.componentStack);
   }
 
   private handleRetry = () => this.setState({ error: null });

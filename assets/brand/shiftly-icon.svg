@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="120" y1="80" x2="904" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#002C52"/>
+      <stop offset="100%" stop-color="#001426"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+    <filter id="iconGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="28" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle App Badge -->
+  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#bgGrad)"/>
+  <rect x="32" y="32" width="960" height="960" rx="224" stroke="url(#borderGrad)" stroke-width="6"/>
+
+  <!-- Dual Shift Pulse Emblem scaled to 768px -->
+  <g filter="url(#iconGlow)" transform="translate(128, 128) scale(3.84)">
+    
+    <!-- Top-Left Navy Wing -->
+    <path
+      d="M 88 31
+         L 113 31
+         L 68 76
+         L 68 96
+         L 54 96
+         C 38 96, 32 86, 40 74
+         L 88 31 Z"
+      fill="#0F4C7A"
+    />
+
+    <!-- Bottom-Right Navy Wing (180° symmetry) -->
+    <path
+      d="M 112 169
+         L 87 169
+         L 132 124
+         L 132 104
+         L 146 104
+         C 162 104, 168 114, 160 126
+         L 112 169 Z"
+      fill="#0F4C7A"
+    />
+
+    <!-- Upper White Slash -->
+    <polygon
+      points="173,14  148,14  64,100  89,100"
+      fill="#FFFFFF"
+    />
+
+    <!-- Lower White Slash -->
+    <polygon
+      points="111,104  136,104  52,190  27,190"
+      fill="#FFFFFF"
+    />
+
+    <!-- Vibrant Orange Pulse Beacon -->
+    <circle cx="140" cy="83" r="11" fill="#FE5800" />
+    
+  </g>
+</svg>

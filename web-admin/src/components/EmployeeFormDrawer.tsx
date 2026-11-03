@@ -217,7 +217,7 @@ export const EmployeeFormDrawer: React.FC<EmployeeFormDrawerProps> = ({
                 disabled={isEdit}
                 onChange={(event) => setField('email', event.target.value)}
                 className={FIELD_CLASS}
-                placeholder="name@macqhr.sa"
+                placeholder="name@email.com"
               />
               {fieldError('email')}
             </div>

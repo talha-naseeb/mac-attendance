@@ -125,7 +125,7 @@ function getApiMessage(error: unknown): string {
       ? message.join(', ')
       : message || 'The server could not complete this request.';
   }
-  return 'Unable to reach the MacqHR API. Check that the backend is running.';
+  return 'Unable to reach the Shiftly API. Check that the backend is running.';
 }
 
 function assertAdminUser(

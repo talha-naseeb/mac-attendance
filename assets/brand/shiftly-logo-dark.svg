@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" width="720" height="200" fill="none">
+  <rect width="720" height="200" rx="28" fill="#001629"/>
+
+  <!-- Icon Badge on Left -->
+  <g transform="translate(44, 36)">
+    <rect width="128" height="128" rx="32" fill="#002C52" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
+    <g transform="translate(8, 8) scale(0.56)">
+      
+    <!-- Top-Left Navy Wing -->
+    <path
+      d="M 88 31
+         L 113 31
+         L 68 76
+         L 68 96
+         L 54 96
+         C 38 96, 32 86, 40 74
+         L 88 31 Z"
+      fill="#0F4C7A"
+    />
+
+    <!-- Bottom-Right Navy Wing (180° symmetry) -->
+    <path
+      d="M 112 169
+         L 87 169
+         L 132 124
+         L 132 104
+         L 146 104
+         C 162 104, 168 114, 160 126
+         L 112 169 Z"
+      fill="#0F4C7A"
+    />
+
+    <!-- Upper White Slash -->
+    <polygon
+      points="173,14  148,14  64,100  89,100"
+      fill="#FFFFFF"
+    />
+
+    <!-- Lower White Slash -->
+    <polygon
+      points="111,104  136,104  52,190  27,190"
+      fill="#FFFFFF"
+    />
+
+    <!-- Vibrant Orange Pulse Beacon -->
+    <circle cx="140" cy="83" r="11" fill="#FE5800" />
+    
+    </g>
+  </g>
+
+  <!-- Typography Lockup -->
+  <text x="204" y="118" font-family="'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" font-size="64" font-weight="900" letter-spacing="-1.8">
+    <tspan fill="#FFFFFF">Shift</tspan><tspan fill="#FE5800">ly</tspan>
+  </text>
+  <text x="206" y="146" font-family="'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="700" fill="#94A3B8" letter-spacing="3.2">
+    SMART ATTENDANCE
+  </text>
+</svg>

@@ -289,8 +289,8 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
           <Feather name="lock" size={12} color={colors.textMuted} />
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
             {isRTL
-              ? 'MacqHR • محمي بتشفير جلسات Macquires'
-              : 'MacqHR • Secured by Macquires session encryption'}
+              ? 'Shiftly • محمي بتشفير الجلسات المتقدم'
+              : 'Shiftly • Secured by advanced session encryption'}
           </Text>
         </View>
       </ScrollView>

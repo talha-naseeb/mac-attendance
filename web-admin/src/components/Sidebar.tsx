@@ -131,15 +131,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="h-16 px-4 flex items-center justify-between border-b border-macq-borderDark/40 bg-macq-dark/95 backdrop-blur-sm">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 rounded-xl bg-macq-navy flex items-center justify-center flex-shrink-0 shadow-lg border border-white/10">
-            <svg viewBox="0 0 100 100" className="w-6 h-6" aria-hidden="true">
-              <circle cx="50" cy="30" r="14" fill="#FE5800" />
-              <path d="M18 80 L34 46 L50 66 L66 46 L82 80 Z" fill="#FFFFFF" />
+            {/* Concept 02: Dual Shift Pulse */}
+            <svg viewBox="0 0 200 200" className="w-6 h-6" fill="none" aria-hidden="true">
+              <path
+                d="M 88 31 L 113 31 L 68 76 L 68 96 L 54 96 C 38 96, 32 86, 40 74 L 88 31 Z"
+                fill="#0F4C7A"
+              />
+              <path
+                d="M 112 169 L 87 169 L 132 124 L 132 104 L 146 104 C 162 104, 168 114, 160 126 L 112 169 Z"
+                fill="#0F4C7A"
+              />
+              <polygon points="173,14 148,14 64,100 89,100" fill="#FFFFFF" />
+              <polygon points="111,104 136,104 52,190 27,190" fill="#FFFFFF" />
+              <circle cx="140" cy="83" r="11" fill="#FE5800" />
             </svg>
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
-                Mac<span className="text-macq-orange">Q</span>HR
+                Shift<span className="text-macq-orange">ly</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-macq-orange/20 text-macq-orange font-bold uppercase tracking-wider">
                   {isArabic ? 'إدارة' : 'Admin'}
                 </span>

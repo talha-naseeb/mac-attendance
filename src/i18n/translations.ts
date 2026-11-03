@@ -213,7 +213,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationSchema> = {
     back: 'Back',
     dashboardTab: 'Dashboard',
     biometricSubtitle:
-      'Authenticate with Face ID / Touch ID to access your MacqHR employee self-service workspace.',
+      'Authenticate with Face ID / Touch ID to access your Shiftly employee self-service workspace.',
     authenticateAs: 'Authenticate as',
   },
   ar: {
@@ -317,7 +317,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationSchema> = {
     back: 'رجوع',
     dashboardTab: 'الرئيسية',
     biometricSubtitle:
-      'قم بالمصادقة باستخدام بصمة الوجه أو الإصبع للوصول إلى مساحة عمل الموظف في MacqHR.',
+      'قم بالمصادقة باستخدام بصمة الوجه أو الإصبع للوصول إلى مساحة عمل الموظف في Shiftly.',
     authenticateAs: 'المصادقة باسم',
   },
 };

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { MacqLogo } from '../components/MacqLogo';
+import { ShiftlyLogo } from '../components/ShiftlyLogo';
 import {
   AuthCredentials,
   AuthSession,
@@ -106,13 +106,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Central Brand Presentation: Concept A Logo */}
+        {/* Central Brand Presentation: Shiftly Dual Shift Pulse Logo */}
         <View style={styles.brandHero}>
-          <MacqLogo
+          <ShiftlyLogo
             colors={colors}
             size="lg"
             showWordmark={true}
-            showSubtitle={true}
+            showSubtitle={false}
           />
           <Text
             style={[
@@ -121,7 +121,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               rtlText(isRTL),
             ]}
           >
-            {isRTL ? 'مرحباً بك مجدداً' : 'Welcome to MacqHR'}
+            {isRTL ? 'تسجيل الدخول' : 'Sign In'}
           </Text>
           <Text
             style={[
@@ -131,8 +131,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             ]}
           >
             {isRTL
-              ? 'سجّل الدخول إلى منصة إدارة الموارد البشرية الذكية'
-              : 'Sign in to access your corporate workspace & attendance'}
+              ? 'أدخل بيانات حسابك للمتابعة إلى مساحة العمل'
+              : 'Enter your credentials to access your workspace'}
           </Text>
         </View>
 
@@ -192,7 +192,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               ]}
               value={email}
               onChangeText={setEmail}
-              placeholder="name@macquires.sa"
+              placeholder="name@email.com"
               placeholderTextColor={colors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -296,10 +296,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         {/* Footer info */}
         <View style={styles.footerWrap}>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
-            MacqHR® • Macquires Corporate Attendance & HRMS
+            {isRTL ? 'Shiftly • الحضور الذكي وإدارة فرق العمل' : 'Shiftly • Smart Attendance'}
           </Text>
           <Text style={[styles.footerSubText, { color: colors.textMuted }]}>
-            Secured by Macquires session encryption
+            {isRTL ? 'محمي بتشفير الجلسات المتقدم' : 'Secured by advanced session encryption'}
           </Text>
         </View>
       </ScrollView>
