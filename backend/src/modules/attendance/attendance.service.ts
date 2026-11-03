@@ -210,6 +210,26 @@ export class AttendanceService {
       `Attendance punch [${dto.type}] recorded for user ${user.employeeId} at ${branch.name} (${distanceMeters}m)`,
     );
 
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: 'ATTENDANCE_PUNCH_ACCEPTED',
+          resource: 'AttendanceRecord',
+          detailsJson: {
+            recordId: record.id,
+            type: dto.type,
+            branchId: branch.id,
+            branchName: branch.name,
+            workMode: dto.workMode === 'REMOTE' ? 'REMOTE' : 'OFFICE',
+            distanceMeters: Math.round(distanceMeters),
+          },
+        },
+      });
+    } catch (auditError) {
+      this.logger.error('Failed to write attendance acceptance audit log.', auditError);
+    }
+
     return {
       message: `${dto.type === PunchType.CHECK_IN ? 'Check-in' : 'Check-out'} recorded successfully.`,
       record,

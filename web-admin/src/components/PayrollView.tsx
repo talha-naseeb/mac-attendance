@@ -13,21 +13,28 @@ interface PayrollViewProps {
   payroll: PayrollSummary;
 }
 
-export const PayrollView: React.FC<PayrollViewProps> = ({ onExportWps, isArabic, employees, payroll }) => {
+export const PayrollView: React.FC<PayrollViewProps> = ({
+  onExportWps,
+  isArabic,
+  employees,
+  payroll,
+}) => {
   const { totals } = payroll;
 
   return (
     <div className="space-y-6">
       {/* Mudad WPS Action Card */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-macq-navy via-macq-dark to-slate-900 text-white border border-white/10 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-macq-navy via-macq-dark to-slate-900 text-white border border-white/10 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-            <h2 className="font-extrabold text-lg text-white">
-              {isArabic ? 'نظام حماية الأجور السعودي (منصة مدد)' : 'Saudi Wage Protection System (Mudad WPS)'}
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+            <h2 className="font-extrabold text-base sm:text-lg text-white">
+              {isArabic
+                ? 'نظام حماية الأجور السعودي (منصة مدد)'
+                : 'Saudi Wage Protection System (Mudad WPS)'}
             </h2>
           </div>
-          <p className="text-xs text-slate-300 max-w-2xl">
+          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
             {isArabic
               ? 'توليد وتصدير ملف مسير الرواتب المعتمد من وزارة الموارد البشرية والتنمية الاجتماعية والبنك المركزي السعودي (ساما)'
               : 'Direct integration file conforming to Saudi Ministry of Human Resources and SAMA banking standards.'}
@@ -35,11 +42,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onExportWps, isArabic,
         </div>
 
         <button
+          type="button"
           onClick={onExportWps}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-macq-orange hover:bg-macq-orange/90 text-white font-bold text-xs shadow-lg shadow-macq-orange/25 transition-all flex-shrink-0"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-macq-orange hover:bg-macq-orange/90 text-white font-bold text-xs shadow-lg shadow-macq-orange/25 transition-all flex-shrink-0"
         >
           <Download size={16} />
-          <span>{isArabic ? 'تحميل ملف مدد (WPS CSV)' : 'Download Mudad WPS File'}</span>
+          <span>
+            {isArabic ? 'تحميل ملف مدد (WPS CSV)' : 'Download Mudad WPS File'}
+          </span>
         </button>
       </div>
 
@@ -50,7 +60,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onExportWps, isArabic,
             {isArabic ? 'إجمالي الراتب الأساسي' : 'Total Basic Salaries'}
           </span>
           <span className="text-xl font-black text-slate-900 dark:text-white">
-            {totals.totalBasicSar.toLocaleString()} <span className="text-xs font-semibold text-slate-400">SAR</span>
+            {totals.totalBasicSar.toLocaleString()}{' '}
+            <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
 
@@ -59,16 +70,20 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onExportWps, isArabic,
             {isArabic ? 'بدلات السكن والنقل' : 'Housing & Transport'}
           </span>
           <span className="text-xl font-black text-slate-900 dark:text-white">
-            {(totals.totalHousingSar + totals.totalTransportSar).toLocaleString()} <span className="text-xs font-semibold text-slate-400">SAR</span>
+            {(totals.totalHousingSar + totals.totalTransportSar).toLocaleString()}{' '}
+            <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
 
         <div className="p-4 rounded-xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm">
           <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider block mb-1">
-            {isArabic ? 'استقطاعات التأمينات (الموظفون 9.75%)' : 'GOSI Employee Share (9.75%)'}
+            {isArabic
+              ? 'استقطاعات التأمينات (الموظفون 9.75%)'
+              : 'GOSI Employee Share (9.75%)'}
           </span>
           <span className="text-xl font-black text-rose-600 dark:text-rose-400">
-            {totals.totalGosiEmployeeSar.toLocaleString()} <span className="text-xs font-semibold text-slate-400">SAR</span>
+            {totals.totalGosiEmployeeSar.toLocaleString()}{' '}
+            <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
 
@@ -77,26 +92,80 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onExportWps, isArabic,
             {isArabic ? 'صافي مسير الرواتب المودع' : 'Net Disbursed via Bank'}
           </span>
           <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-            {totals.totalNetDisbursedSar.toLocaleString()} <span className="text-xs font-semibold text-slate-400">SAR</span>
+            {totals.totalNetDisbursedSar.toLocaleString()}{' '}
+            <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
       </div>
 
-      {/* WPS File Preview Table */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+      {/* WPS File Preview Container */}
+      <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
             <FileSpreadsheet size={18} className="text-macq-orange" />
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
-              {isArabic ? 'معاينة سجلات مسير الرواتب المعتمدة' : 'Mudad WPS Payroll Ledger Preview'}
+            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+              {isArabic
+                ? 'معاينة سجلات مسير الرواتب المعتمدة'
+                : 'Mudad WPS Payroll Ledger Preview'}
             </h3>
           </div>
-          <span className="text-xs text-slate-400 font-mono">
+          <span className="text-[11px] text-slate-400 font-mono">
             EST_ID: 7001928374 • SAMA COMPLIANT
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile Responsive Payroll Cards (< md) */}
+        <div className="md:hidden space-y-3">
+          {employees.map((emp) => (
+            <div
+              key={`mobile-pay-${emp.id}`}
+              className="p-4 rounded-xl bg-slate-50 dark:bg-macq-surfaceDark/60 border border-slate-200/70 dark:border-slate-800 space-y-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                    {emp.name}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                    {emp.employeeId} • ID: {emp.nationalOrIqamaId}
+                  </p>
+                </div>
+                <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                  {emp.netSalarySar.toLocaleString()} SAR
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 text-[11px] font-mono">
+                <div>
+                  <span className="text-slate-400 font-sans block text-[10px]">
+                    {isArabic ? 'الأساسي' : 'Basic'}
+                  </span>
+                  <span className="text-slate-800 dark:text-slate-200">
+                    {emp.basicSalarySar.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block text-[10px]">
+                    {isArabic ? 'السكن' : 'Housing'}
+                  </span>
+                  <span className="text-slate-800 dark:text-slate-200">
+                    {emp.housingAllowanceSar.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-sans block text-[10px]">
+                    {isArabic ? 'التأمينات' : 'GOSI'}
+                  </span>
+                  <span className="text-rose-500">
+                    -{emp.gosiEmployeeDeductionSar.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Structured Table (md+) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left rtl:text-right text-xs border-collapse min-w-[700px]">
             <thead>
               <tr className="border-b border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider bg-slate-50/70 dark:bg-zinc-950/40">

@@ -169,7 +169,7 @@ export const EmployeeFormDrawer: React.FC<EmployeeFormDrawerProps> = ({
       aria-label={title}
     >
       <div className="h-full w-full max-w-xl overflow-y-auto bg-white dark:bg-macq-cardDark border-s border-slate-200 dark:border-macq-borderDark/60 shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 dark:border-macq-borderDark/60 bg-white/95 dark:bg-macq-cardDark/95 px-6 py-4 backdrop-blur">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 dark:border-macq-borderDark/60 bg-white/95 dark:bg-macq-cardDark/95 px-4 sm:px-6 py-4 backdrop-blur">
           <div>
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-macq-orange" />
@@ -189,7 +189,7 @@ export const EmployeeFormDrawer: React.FC<EmployeeFormDrawerProps> = ({
           </button>
         </div>
 
-        <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4 px-6 py-5">
+        <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4 px-4 sm:px-6 py-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="emp-id" className={LABEL_CLASS}>

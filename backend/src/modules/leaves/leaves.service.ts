@@ -190,6 +190,23 @@ export class LeavesService {
       `Leave request [${dto.type}] submitted by ${user?.email} for ${daysCount} days. Teams card generated.`,
     );
 
+    if (this.prisma.auditLog?.create) {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: 'LEAVE_REQUEST_SUBMITTED',
+          resource: 'LeaveRequest',
+          detailsJson: {
+            requestId: leaveRequest.id,
+            type: dto.type,
+            daysCount,
+            startDate: dto.startDate,
+            endDate: dto.endDate,
+          },
+        },
+      });
+    }
+
     return {
       message: 'Leave request submitted successfully. Awaiting manager approval.',
       request: leaveRequest,
@@ -341,6 +358,23 @@ export class LeavesService {
     this.logger.log(
       `Leave request ${requestId} marked ${dto.decision} by user ${decisionUserId}.`,
     );
+
+    if (this.prisma.auditLog?.create) {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: decisionUserId,
+          action: `LEAVE_REQUEST_${dto.decision}`,
+          resource: 'LeaveRequest',
+          detailsJson: {
+            requestId,
+            employeeUserId: leaveRequest.userId,
+            type: leaveRequest.type,
+            daysCount: leaveRequest.daysCount,
+            decision: dto.decision,
+          },
+        },
+      });
+    }
 
     return {
       message: `Leave request has been ${dto.decision.toLowerCase()}.`,

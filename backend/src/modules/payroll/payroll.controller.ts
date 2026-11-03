@@ -2,6 +2,7 @@ import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PayrollService } from './payroll.service';
+import { AuditService } from '../../common/services/audit.service';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -10,7 +11,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 @Controller('payroll')
 @ApiBearerAuth()
 export class PayrollController {
-  constructor(private readonly payrollService: PayrollService) {}
+  constructor(
+    private readonly payrollService: PayrollService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get('my-payslip')
   @ApiOperation({ summary: 'Get current employee payslip with GOSI deductions' })
@@ -33,8 +37,18 @@ export class PayrollController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Download Saudi Mudad Wage Protection System (WPS) CSV file' })
-  async exportWps(@Res() res: Response, @Query('month') month?: string) {
+  async exportWps(
+    @Res() res: Response,
+    @CurrentUser() actor?: AuthenticatedUser,
+    @Query('month') month?: string,
+  ) {
     const csvContent = await this.payrollService.generateMudadWpsFile(month);
+    await this.audit.record({
+      actorUserId: actor?.id ?? null,
+      action: 'PAYROLL_WPS_EXPORTED',
+      resource: 'Payroll',
+      details: { month: month || 'current' },
+    });
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(
       'Content-Disposition',

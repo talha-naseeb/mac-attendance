@@ -277,7 +277,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
           <select
             value={query.department}
             onChange={(event) => updateQuery({ department: event.target.value })}
@@ -387,9 +387,133 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-macq-borderDark/60 dark:bg-macq-cardDark">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-macq-borderDark/60 dark:bg-macq-cardDark">
+        {/* Mobile Responsive Employee Cards (< md) */}
         <div
-          className={`overflow-x-auto transition-opacity ${
+          className={`md:hidden space-y-3 transition-opacity ${
+            loading && rows.length > 0 ? 'opacity-60' : ''
+          }`}
+        >
+          {loading &&
+            rows.length === 0 &&
+            Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={`mobile-emp-skel-${index}`}
+                className="h-28 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse"
+              />
+            ))}
+
+          {!loading && !error && rows.length === 0 && (
+            <div className="py-10 text-center">
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                {isArabic ? 'لا يوجد موظفون مطابقون' : 'No employees match these filters'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {isArabic
+                  ? 'جرّب مسح البحث أو تغيير الحالة.'
+                  : 'Try clearing the search or changing the status filter.'}
+              </p>
+            </div>
+          )}
+
+          {rows.map((employee) => (
+            <div
+              key={`mobile-emp-${employee.id}`}
+              className="p-4 rounded-xl bg-slate-50 dark:bg-macq-surfaceDark/60 border border-slate-200/70 dark:border-slate-800 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {employee.name}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {employee.employeeId} • {employee.email}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {employee.jobTitle} ({employee.department})
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold flex-shrink-0 ${statusBadgeClass(
+                    employee,
+                  )}`}
+                >
+                  {employeeStatusLabel(employee, isArabic)}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${roleBadgeClass(
+                      employee.role,
+                    )}`}
+                  >
+                    {employee.role}
+                  </span>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    {employee.branchName}
+                  </span>
+                </div>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {employee.netSalarySar.toLocaleString()} SAR
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelected(employee);
+                    setDrawer('edit');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                >
+                  <Pencil size={13} />
+                  <span>{isArabic ? 'تعديل' : 'Edit'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelected(employee);
+                    setDrawer('change');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                >
+                  <ArrowRightLeft size={13} />
+                  <span>{isArabic ? 'التوظيف' : 'Change'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleResetPassword(employee)}
+                  disabled={isMutating(employee)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 disabled:opacity-50"
+                >
+                  <KeyRound size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openStatusDialog(employee)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold ${
+                    employee.status === 'INACTIVE'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {employee.status === 'INACTIVE' ? (
+                    <UserCheck size={13} />
+                  ) : (
+                    <UserX size={13} />
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Structured Table (md+) */}
+        <div
+          className={`hidden md:block overflow-x-auto transition-opacity ${
             loading && rows.length > 0 ? 'opacity-60' : ''
           }`}
         >

@@ -74,6 +74,43 @@ export interface AdminPortalData {
   payroll: PayrollSummary;
 }
 
+export interface AuditLogActor {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+}
+
+export interface AuditLogItem {
+  id: string;
+  action: string;
+  resource: string;
+  detailsJson: Record<string, unknown> | null;
+  ipAddress: string | null;
+  createdAt: string;
+  actor: AuditLogActor | null;
+}
+
+export interface PaginatedAuditLogs {
+  items: AuditLogItem[];
+  page: number;
+  pageSize: number;
+  maxPages: number;
+  total: number;
+  windowTotal: number;
+  totalPages: number;
+}
+
+export interface AuditLogsQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  resource?: string;
+  action?: string;
+}
+
 export class ApiError extends Error {
   constructor(message: string) {
     super(message);
@@ -281,28 +318,87 @@ function mapAttendance(record: RawAttendance): LivePunchLog {
   };
 }
 
-export async function loadAdminPortalData(): Promise<AdminPortalData> {
+export async function fetchAdminEmployees(): Promise<AdminEmployee[]> {
   try {
-    const [employeesResponse, branchesResponse, leavesResponse, attendanceResponse, payrollResponse] =
-      await Promise.all([
-        apiClient.get<{ items: RawEmployee[] }>('/employees/admin', {
-          params: { status: 'ACTIVE', pageSize: 100 },
-        }),
-        apiClient.get<RawBranch[]>('/branches/admin'),
-        apiClient.get<RawLeave[]>('/leaves/admin'),
-        apiClient.get<RawAttendance[]>('/attendance/all?limit=100'),
-        apiClient.get<PayrollSummary>('/payroll/summary'),
-      ]);
-    return {
-      employees: employeesResponse.data.items.map(mapEmployee),
-      branches: branchesResponse.data.map(mapBranch),
-      leaves: leavesResponse.data.map(mapLeave),
-      attendance: attendanceResponse.data.map(mapAttendance),
-      payroll: payrollResponse.data,
-    };
+    const { data } = await apiClient.get<{ items: RawEmployee[] }>('/employees/admin', {
+      params: { status: 'ACTIVE', pageSize: 100 },
+    });
+    return data.items.map(mapEmployee);
   } catch (error) {
     throw new ApiError(getApiMessage(error));
   }
+}
+
+export async function fetchAdminBranches(): Promise<AdminBranch[]> {
+  try {
+    const { data } = await apiClient.get<RawBranch[]>('/branches/admin');
+    return data.map(mapBranch);
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchAdminLeaves(): Promise<AdminLeaveItem[]> {
+  try {
+    const { data } = await apiClient.get<RawLeave[]>('/leaves/admin');
+    return data.map(mapLeave);
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchAdminAttendance(): Promise<LivePunchLog[]> {
+  try {
+    const { data } = await apiClient.get<RawAttendance[]>('/attendance/all?limit=100');
+    return data.map(mapAttendance);
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchAdminPayrollSummary(): Promise<PayrollSummary> {
+  try {
+    const { data } = await apiClient.get<PayrollSummary>('/payroll/summary');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchAuditLogs(
+  query: AuditLogsQuery = {},
+): Promise<PaginatedAuditLogs> {
+  try {
+    const { data } = await apiClient.get<PaginatedAuditLogs>('/audit-logs', {
+      params: {
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 50,
+        ...(query.search?.trim() ? { search: query.search.trim() } : {}),
+        ...(query.resource && query.resource !== 'ALL' ? { resource: query.resource } : {}),
+        ...(query.action && query.action !== 'ALL' ? { action: query.action } : {}),
+      },
+    });
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function loadAdminPortalData(): Promise<AdminPortalData> {
+  const [employees, branches, leaves, attendance, payroll] = await Promise.all([
+    fetchAdminEmployees(),
+    fetchAdminBranches(),
+    fetchAdminLeaves(),
+    fetchAdminAttendance(),
+    fetchAdminPayrollSummary(),
+  ]);
+  return {
+    employees,
+    branches,
+    leaves,
+    attendance,
+    payroll,
+  };
 }
 
 export async function decideLeave(
@@ -341,6 +437,14 @@ export async function saveBranch(
     } else {
       await apiClient.post('/branches', payload);
     }
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function deleteBranch(id: string) {
+  try {
+    await apiClient.delete(`/branches/${id}`);
   } catch (error) {
     throw new ApiError(getApiMessage(error));
   }

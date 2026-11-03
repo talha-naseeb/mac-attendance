@@ -58,6 +58,13 @@ export class AuthService {
   async login(loginDto: LoginDto, meta: RequestMeta = {}) {
     const user = await this.authenticateCredentials(loginDto.email, loginDto.password);
     const tokens = await this.establishSession(user, meta);
+    await this.audit.record({
+      actorUserId: user.id,
+      action: 'AUTH_LOGIN_SUCCESS',
+      resource: 'AuthSession',
+      details: { surface: 'MOBILE', role: user.role },
+      ipAddress: meta.ipAddress,
+    });
     return {
       ...tokens,
       user: this.toPublicUser(user),
@@ -74,11 +81,25 @@ export class AuthService {
       !user.canAccessWebAdmin ||
       (user.role !== 'HR_ADMIN' && user.role !== 'SUPER_ADMIN')
     ) {
+      await this.audit.record({
+        actorUserId: user.id,
+        action: 'AUTH_ADMIN_LOGIN_FORBIDDEN',
+        resource: 'AuthSession',
+        details: { surface: 'WEB_ADMIN', role: user.role },
+        ipAddress: meta.ipAddress,
+      });
       throw new ForbiddenException(
         'This account is not authorized to access the MacqHR administration console.',
       );
     }
     const tokens = await this.establishSession(user, meta);
+    await this.audit.record({
+      actorUserId: user.id,
+      action: 'AUTH_ADMIN_LOGIN_SUCCESS',
+      resource: 'AuthSession',
+      details: { surface: 'WEB_ADMIN', role: user.role },
+      ipAddress: meta.ipAddress,
+    });
     return { ...tokens, user: this.toPublicUser(user) };
   }
 

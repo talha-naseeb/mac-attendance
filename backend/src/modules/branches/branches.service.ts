@@ -57,8 +57,8 @@ export class BranchesService {
     });
   }
 
-  async create(createDto: CreateBranchDto) {
-    return this.prisma.branch.create({
+  async create(createDto: CreateBranchDto, actorUserId?: string) {
+    const created = await this.prisma.branch.create({
       data: {
         ...createDto,
         nameAr: createDto.nameAr || createDto.name,
@@ -67,11 +67,27 @@ export class BranchesService {
         radiusMeters: createDto.geofenceRadiusMeters ?? 150,
       },
     });
+    if (this.prisma.auditLog?.create) {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: actorUserId ?? null,
+          action: 'BRANCH_CREATED',
+          resource: 'Branch',
+          detailsJson: {
+            branchId: created.id,
+            name: created.name,
+            city: created.city,
+            geofenceRadiusMeters: created.geofenceRadiusMeters,
+          },
+        },
+      });
+    }
+    return created;
   }
 
-  async update(id: string, updateDto: UpdateBranchDto) {
+  async update(id: string, updateDto: UpdateBranchDto, actorUserId?: string) {
     await this.findById(id);
-    return this.prisma.branch.update({
+    const updated = await this.prisma.branch.update({
       where: { id },
       data: {
         ...updateDto,
@@ -80,5 +96,65 @@ export class BranchesService {
           : {}),
       },
     });
+    if (this.prisma.auditLog?.create) {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: actorUserId ?? null,
+          action: 'BRANCH_UPDATED',
+          resource: 'Branch',
+          detailsJson: {
+            branchId: updated.id,
+            name: updated.name,
+            geofenceRadiusMeters: updated.geofenceRadiusMeters,
+          },
+        },
+      });
+    }
+    return updated;
+  }
+
+  async remove(id: string, actorUserId?: string) {
+    const branch = await this.findById(id);
+
+    if (this.prisma.user?.updateMany) {
+      await this.prisma.user.updateMany({
+        where: { branchId: id },
+        data: { branchId: null },
+      });
+    }
+    if (this.prisma.attendanceRecord?.updateMany) {
+      await this.prisma.attendanceRecord.updateMany({
+        where: { branchId: id },
+        data: { branchId: null },
+      });
+    }
+
+    await this.prisma.branch.delete({
+      where: { id },
+    });
+
+    if (this.prisma.auditLog?.create) {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: actorUserId ?? null,
+          action: 'BRANCH_DELETED',
+          resource: 'Branch',
+          detailsJson: {
+            branchId: branch.id,
+            name: branch.name,
+            code: branch.code,
+            city: branch.city,
+            unassignedEmployeesCount: branch.users?.length ?? 0,
+          },
+        },
+      });
+    }
+
+    return {
+      deleted: true,
+      id: branch.id,
+      name: branch.name,
+      unassignedEmployeesCount: branch.users?.length ?? 0,
+    };
   }
 }

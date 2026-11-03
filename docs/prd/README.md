@@ -1,10 +1,10 @@
-# MacqHR — Product Requirements & Delivery Plan (Phases 6–11)
+# MacqHR — Product Requirements & Delivery Plan (Phases 6–12)
 
-**Version**: 1.0 (approved at G0)
+**Version**: 1.1 (updated 2026-11-03 with product strategy, remote/break rules, and Phase 12 M11 scope)
 **Owner**: Talha — Macquires
 **Approver**: Talha (manual sign-off required at every gate)
-**Date**: 31 October 2026
-**Status**: Approved at G0 on 31 October 2026. Phase 6 is implemented and awaiting G1.
+**Date**: 3 November 2026
+**Status**: Approved at G0 on 31 October 2026. Phase 6 is approved at G1 (`578b65d`). Phase 7A and Phase 7B are implemented and awaiting G2.
 **Supersedes for forward work**: the unchecked Phase 4–5 items and stale status lines in [`SPRINT_PLAN.md`](../../SPRINT_PLAN.md)
 **Companions**: [Test plan](./test-plan.md) · [Document review](./document-review.md) · [Account model](../account-model/README.md) · [Demo storyboard](../demo/README.md)
 
@@ -16,7 +16,7 @@ This PRD defines **what we will build next, in what order, how it will be tested
 
 - **Sections 1–5** are the product context and scope.
 - **Section 6** defines modules and required behavior.
-- **Section 7** sequences the work into six phases.
+- **Section 7** sequences the work into seven phases (Phases 6–12), followed by Multi-Tenant SaaS in Phase 13+.
 - **Sections 8–9** define the working agreement and your manual approval gates.
 - **Section 10** points to 90 detailed test cases; **Sections 11–16** cover non-functional requirements, telemetry, risks, and open decisions.
 
@@ -24,11 +24,11 @@ Anything labelled **Proposed** is a recommendation that needs your confirmation.
 
 ### In scope
 
-Production-ready MacqHR v1 for Macquires: mobile app, NestJS API, PostgreSQL database, and web administration console, covering employee self-service, attendance, leave, approvals, payroll export, notifications, and the operational controls needed to run it safely.
+Production-ready MacqHR v1 for Macquires (single-company first): mobile app (for Employees and Managers), NestJS API, PostgreSQL database, and web administration console (for HR Admin and Super Admin), covering employee self-service, attendance & breaks, leave, approvals, payroll export, notifications, allowance/reimbursement claims & personal document vault (Phase 12), and the operational controls needed to run it safely.
 
-### Out of scope for Phases 6–11
+### Out of scope for Phases 6–12
 
-- Multi-tenant workspaces, personal (B2C) accounts, entitlements, billing — designed in [docs/account-model](../account-model/README.md), scheduled after v1.
+- Multi-tenant workspaces, personal (B2C) accounts, entitlements, billing — designed in [docs/account-model](../account-model/README.md), scheduled for **Phase 13+** once Macquires v1 is complete.
 - Google Workspace SSO (Microsoft Entra only in this plan).
 - Native app rewrite; we continue with Expo/React Native.
 - Full general-ledger accounting. Payroll scope is defined in M8.
@@ -272,12 +272,12 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 
 - **M4.1** Treat client signals as untrusted. A punch is accepted only when device integrity and biometric evidence can be verified or attested according to an agreed policy; otherwise it is rejected or explicitly flagged and excluded from auto-approval.
 - **M4.2** Define and implement the day boundary per employee work location (proposed: Asia/Riyadh for office and Saudi-based staff, Asia/Karachi for the Pakistan remote hub). `dateIso`, team views, Who's Off, and reports must use the same boundary.
-- **M4.3** Persist breaks: start/end events, total break minutes, and net working minutes. The current UI-only toggle is not sufficient.
+- **M4.3** Persist breaks: `BREAK_START` and `BREAK_END` events on the workday timeline, total break minutes, and net working minutes. The current UI-only toggle is not sufficient.
 - **M4.4** Enforce one open check-in per employee per workday and prevent duplicate/concurrent punches.
 - **M4.5** Offline attendance: queue punches locally with tamper evidence, sync exactly once, show pending/synced/failed states, and reject tampered or stale submissions. If secure device signing is not ready, the feature stays disabled and hidden rather than pretending to work.
 - **M4.6** Attendance correction workflow: employee requests a fix with date, type, time, and reason; manager/HR approves or rejects; the original record is preserved and the correction is auditable.
 - **M4.7** Admin attendance view: filters by date, branch, status, work mode; drill-down to punch telemetry; CSV export.
-- **M4.8** Handle remote work explicitly: approved remote punches are marked `REMOTE`, still pass integrity checks, and are visible to the manager.
+- **M4.8** Handle remote work with two explicit modes: (1) Permanent remote staff (`User.isRemoteAllowed`) can check in/out and log breaks daily without needing a per-day approval, while (2) Office-assigned staff request a per-day remote approval when working from home. All remote punches still pass integrity checks and are visible to the manager.
 - **M4.9** Exempt roles (Super Admin) and attendance-exempt employees are handled consistently and visibly.
 
 **Rules**
@@ -465,6 +465,33 @@ Baselines for latency, cold start, and crash-free rate must be captured in Phase
 
 ---
 
+### M11 — Allowances, reimbursement claims & personal document vault (Phase 12)
+
+**Outcome**: employees can submit receipt-backed allowance and insurance claims from the mobile app and maintain their personal/compliance documents, while Managers and HR Admin review, approve, and feed approved reimbursements into payroll.
+
+**Requirements**
+
+- **M11.1** Claim categories & policy limits: support **Medical**, **Insurance**, **Petrol / Travel**, and **Wi-Fi / Internet** reimbursement claims with configurable monthly or annual caps per category/role.
+- **M11.2** Receipt & bill attachments: employees upload photo/PDF bills or medical receipts from the mobile app when submitting a claim.
+- **M11.3** Approval routing: claims follow the two-stage approval pipeline (`PENDING_MANAGER → PENDING_HR → APPROVED`), with a privacy option on **Medical / Insurance** claims to route directly to `HR_ADMIN` without exposing sensitive medical bills to the line manager.
+- **M11.4** Payroll integration: approved claims for an open payroll period are automatically included as non-taxable reimbursements/allowances on the employee's next payroll run and payslip.
+- **M11.5** Personal Document Vault: employees and HR can upload, view, and verify profile documents (National ID / Iqama / CNIC, Passport, Medical Insurance Card, Employment Contract) with optional expiry dates and automated expiry reminders.
+
+**Rules**
+
+- Every claim submission requires at least one supporting receipt/document attachment and an amount greater than zero within the category policy cap (or flagged for HR exception review).
+- Medical/Insurance claims marked private are visible only to the employee, `HR_ADMIN`, and `SUPER_ADMIN`.
+- Once a claim is linked to a locked payroll run, its amount and status are immutable.
+- Document vault files are access-controlled: only the employee, `HR_ADMIN`, and `SUPER_ADMIN` can view personal identity or insurance documents.
+
+**Acceptance**
+
+- An employee submits a Wi-Fi or Petrol claim with a receipt on mobile; the manager approves stage 1, HR approves stage 2, and the approved amount appears on the period payroll run.
+- An employee submits a Medical/Insurance claim with direct-to-HR routing; the line manager cannot view the medical attachment, and HR can approve/reject it from the web console.
+- An employee uploads an ID/Insurance document with an expiry date, and HR can verify it and see upcoming expirations in the admin console.
+
+---
+
 ## 7. Phases and sequence
 
 Durations are **indicative** and should be confirmed at kickoff. Each phase ends with a manual gate; a phase does not start until the previous gate is approved.
@@ -473,11 +500,12 @@ Durations are **indicative** and should be confirmed at kickoff. Each phase ends
 |---|---|---|---|---|---|
 | **6** | Foundation & trust | 1–2 weeks | M1, M2 stopgaps, M9 demo-control removal | Code fully tracked; CI runs `verify:all`; migrations committed; default secrets/CORS fixed; client role switcher and prefilled credentials removed; employee PII guarded; gate hook v2 | G1 |
 | **7** | Identity & employee lifecycle | 2 weeks | M2, M3 | Refresh/revocation; forced password change; rate limiting; admin employee CRUD; role/manager/branch/remote changes; SSO decision executed | G2 |
-| **8** | Attendance integrity | 2–3 weeks | M4 | Unverified signals no longer accepted; local-day boundary; break persistence; offline decision; corrections workflow; admin attendance view/export | G3 |
+| **8** | Attendance integrity & breaks | 2–3 weeks | M4 | Unverified signals no longer accepted; local-day boundary; two remote modes (permanent `isRemoteAllowed` vs. per-day office remote approval); `BREAK_START` / `BREAK_END` persistence; offline decision; corrections workflow; admin attendance view/export | G3 |
 | **9** | Leave & approvals v2 | 2–3 weeks | M5, M9 leave UX | Two-stage pipeline; ledger; holidays; overlap/half-day; cancellation; attachments; full calendar and types | G4 |
 | **10** | Admin console & notifications | 2 weeks | M6, M7.1–M7.2 | Employee/attendance/leave admin complete; reports; audit viewer; persisted notifications and push | G5 |
 | **11** | Payroll, integrations & release | 3 weeks | M7.3–M7.7, M8, M10 | Payroll run + WPS validation; Teams/Outlook dispatch; EAS builds; pinning; monitoring/backup; store/MDM | G6 |
-| **12+** | Workspace & tenancy | Later | Account-model D1–D5 | Separate PRD and migration plan | — |
+| **12** | Allowances, claims & document vault | 2–3 weeks | M11 | Receipt-backed Medical, Insurance, Petrol, and Wi-Fi claims with policy caps & payroll payout; Manager → HR approval with direct-to-HR medical privacy; profile Document Vault with expiry tracking | G7 |
+| **13+** | Multi-tenant SaaS workspaces | Later | Account-model D1–D5 | Upgrade single-company MacqHR into multi-tenant B2B SaaS (`Workspace`, `Membership`, per-tenant SSO, Platform Super Admin & seat billing) | — |
 
 ### 7.1 Phase dependencies
 
@@ -743,9 +771,13 @@ Recommended defaults are shown; confirm or change each one.
 | D-07 | Working timezone for the Pakistan remote hub | Asia/Karachi per employee; office staff Asia/Riyadh |
 | D-08 | Payroll scope: calculation + export only, or full run/lock? | Full run/lock, because WPS needs stable period totals |
 | D-09 | GPS and document retention periods | GPS 90 days; documents while employed + 7 years; legal review |
-| D-10 | Multi-tenant workspace model now or after v1? | After v1, per account-model phases |
+| D-10 | Multi-tenant workspace model now or after v1? | **Approved (2026-11-03)**: Single-company first (Macquires v1, Phases 6–12), then upgrade to Multi-Tenant B2B SaaS in Phase 13+ |
 | D-11 | Test tooling: add Playwright for admin or stay with Testing Library + manual? | Testing Library first; revisit Playwright if admin grows |
 | D-12 | Who else, if anyone, may sign a gate when you are unavailable? | No delegate for v1 |
+| D-13 | Surface split between Mobile App and Web Console in v1 | **Approved (2026-11-03)**: Mobile App for Employees & Managers (daily self-service + team approvals); Web Admin Console for HR Admin & Super Admin |
+| D-14 | Medical, Insurance, Petrol, and Wi-Fi allowances model | **Approved (2026-11-03)**: Receipt/bill-backed reimbursement claims against policy limits, paid out on next payroll run (Phase 12 — M11) |
+| D-15 | Approval pipeline & document handling for claims and employee files | **Approved (2026-11-03)**: Two-stage Manager → HR approval with direct-to-HR privacy option for Medical/Insurance; per-request attachments plus a Personal Document Vault on the employee profile (Phase 12 — M11) |
+| D-16 | Remote vs. Office attendance and Break tracking (Phase 8) | **Approved (2026-11-03)**: Two remote modes — permanent remote staff (`isRemoteAllowed`) check in/out & log breaks daily without per-day approval; office staff request per-day remote approval when working from home; both log `BREAK_START` / `BREAK_END` on the workday timeline |
 
 ---
 
