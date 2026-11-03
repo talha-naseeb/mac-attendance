@@ -57,6 +57,42 @@ enum SessionRevokeReason {
   ADMIN_REVOKE
 }
 
+enum LocationVerdict {
+  INSIDE_OFFICE
+  OUTSIDE_OFFICE
+  INSIDE_DECLARED_ZONE
+  OUTSIDE_DECLARED_ZONE
+  UNVERIFIED
+}
+
+enum RemoteRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ExceptionType {
+  OUTSIDE_OFFICE_GEOFENCE
+  OUTSIDE_DECLARED_ZONE
+  EXCESSIVE_DISTANCE
+  LATE_DECLARATION
+  LOW_ACCURACY_CHECKOUT
+  UNVERIFIED_CHECKOUT
+}
+
+enum ExceptionSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ExceptionStatus {
+  OPEN
+  ACCEPTED
+  ESCALATED
+}
+
 enum EmploymentChangeType {
   TRANSFER
   PROMOTION
@@ -129,16 +165,21 @@ model User {
   branch   Branch? @relation(fields: [branchId], references: [id])
 
   // Relations
-  attendance      AttendanceRecord[]
-  leaveBalances   LeaveBalance[]
-  leaveRequests   LeaveRequest[]         @relation("EmployeeRequests")
-  decidedLeaves   LeaveRequest[]         @relation("DecidedByManager")
-  offlinePunches  OfflinePunchQueue[]
-  auditLogs       AuditLog[]
-  sessions        AuthSession[]
-  employeeChanges EmploymentChange[]     @relation("EmployeeChanges")
-  changesMade     EmploymentChange[]     @relation("EmploymentChangeActor")
-  salaryRecords   EmployeeSalaryRecord[]
+  attendance         AttendanceRecord[]
+  attendanceDays     AttendanceDay[]
+  remoteRequests     RemoteWorkRequest[]    @relation("EmployeeRemoteRequests")
+  decidedRemoteReqs  RemoteWorkRequest[]    @relation("RemoteRequestDecisions")
+  savedLocations     SavedLocation[]
+  reviewedExceptions AttendanceException[]  @relation("ExceptionReviewer")
+  leaveBalances      LeaveBalance[]
+  leaveRequests      LeaveRequest[]         @relation("EmployeeRequests")
+  decidedLeaves      LeaveRequest[]         @relation("DecidedByManager")
+  offlinePunches     OfflinePunchQueue[]
+  auditLogs          AuditLog[]
+  sessions           AuthSession[]
+  employeeChanges    EmploymentChange[]     @relation("EmployeeChanges")
+  changesMade        EmploymentChange[]     @relation("EmploymentChangeActor")
+  salaryRecords      EmployeeSalaryRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -176,10 +217,13 @@ model AttendanceRecord {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  dayId String?
+  day   AttendanceDay? @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
   branchId String?
   branch   Branch? @relation(fields: [branchId], references: [id])
 
-  type         String   @default("CHECK_IN") // CHECK_IN | CHECK_OUT
+  type         String   @default("CHECK_IN") // CHECK_IN | CHECK_OUT | BREAK_START | BREAK_END | RELOCATION
   timestamp    DateTime @default(now())
   dateIso      String? // e.g. "2026-10-24"
   clockInTime  String? // e.g. "09:02 AM"
@@ -198,6 +242,15 @@ model AttendanceRecord {
   wifiBssid         String?
   biometricVerified Boolean @default(true)
 
+  // Location event metadata
+  clientEventId      String?
+  reasonCode         String?
+  verdict            LocationVerdict?
+  distanceToDeclared Float?
+  source             String?
+  capturedAt         DateTime?
+  lateSubmission     Boolean          @default(false)
+
   // Offline Punch tracking
   wasOfflineSynced Boolean @default(false)
   offlineSignature String?
@@ -210,10 +263,112 @@ model AttendanceRecord {
   workingMinutes Int @default(0)
   breakMinutes   Int @default(0)
 
+  exceptions AttendanceException[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([status])
+  @@index([dayId])
+}
+
+model AttendanceDay {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  dateIso         String // YYYY-MM-DD in local timezone
+  mode            WorkMode           @default(OFFICE)
+  remoteRequestId String?
+  remoteRequest   RemoteWorkRequest? @relation(fields: [remoteRequestId], references: [id], onDelete: SetNull)
+
+  declaredLabel        String?
+  declaredLatitude     Float?
+  declaredLongitude    Float?
+  declaredRadiusMeters Float?    @default(500)
+  declaredSource       String? // DECLARED | CHECK_IN_LOCATION | SAVED_LOCATION
+  declaredAt           DateTime?
+
+  status             AttendanceStatus @default(INCOMPLETE)
+  firstCheckInAt     DateTime?
+  lastCheckOutAt     DateTime?
+  workingMinutes     Int              @default(0)
+  breakMinutes       Int              @default(0)
+  openExceptionCount Int              @default(0)
+
+  events     AttendanceRecord[]
+  exceptions AttendanceException[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dateIso])
+  @@index([dateIso])
+  @@index([status])
+}
+
+model RemoteWorkRequest {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("EmployeeRemoteRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  startDateIso String // YYYY-MM-DD, inclusive
+  endDateIso   String // YYYY-MM-DD, inclusive
+  reason       String
+  status       RemoteRequestStatus @default(PENDING)
+
+  decidedById     String?
+  decidedBy       User?     @relation("RemoteRequestDecisions", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?
+  rejectionReason String?
+
+  days      AttendanceDay[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId, status])
+  @@index([status, startDateIso])
+}
+
+model SavedLocation {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label        String
+  latitude     Float
+  longitude    Float
+  radiusMeters Float   @default(500)
+  isDefault    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model AttendanceException {
+  id       String            @id @default(uuid())
+  dayId    String
+  day      AttendanceDay     @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  recordId String?
+  record   AttendanceRecord? @relation(fields: [recordId], references: [id], onDelete: SetNull)
+
+  type        ExceptionType
+  severity    ExceptionSeverity @default(MEDIUM)
+  status      ExceptionStatus   @default(OPEN)
+  detailsJson Json?
+
+  reviewedById String?
+  reviewedBy   User?     @relation("ExceptionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dayId])
   @@index([status])
 }
 

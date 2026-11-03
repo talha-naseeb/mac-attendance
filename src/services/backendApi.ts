@@ -518,7 +518,7 @@ export async function loadMobileApiData(
 export async function submitPunchToBackend(
   token: string,
   payload: {
-    type: 'CHECK_IN' | 'CHECK_OUT';
+    type: 'CHECK_IN' | 'CHECK_OUT' | 'BREAK_START' | 'BREAK_END' | 'RELOCATION';
     latitude: number;
     longitude: number;
     accuracyMeters: number;
@@ -530,10 +530,16 @@ export async function submitPunchToBackend(
     wifiBssid?: string;
     bleBeaconDetected?: boolean;
     workMode?: 'OFFICE' | 'REMOTE';
+    clientEventId?: string;
+    reasonCode?: string;
   },
 ) {
   return request('/attendance/punch', {
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export async function fetchTodayAttendance(token: string) {
+  return request('/attendance/today', { method: 'GET' }, token);
 }

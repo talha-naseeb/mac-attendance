@@ -14,6 +14,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export enum PunchType {
   CHECK_IN = 'CHECK_IN',
   CHECK_OUT = 'CHECK_OUT',
+  BREAK_START = 'BREAK_START',
+  BREAK_END = 'BREAK_END',
+  RELOCATION = 'RELOCATION',
 }
 
 export class PunchAttendanceDto {
@@ -81,6 +84,16 @@ export class PunchAttendanceDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ example: '3fa85f64-5717-4562-b3fc-2c963f66afa6' })
+  @IsString()
+  @IsOptional()
+  clientEventId?: string;
+
+  @ApiPropertyOptional({ example: 'CONNECTIVITY' })
+  @IsString()
+  @IsOptional()
+  reasonCode?: string;
 }
 
 export class OfflinePunchItemDto {

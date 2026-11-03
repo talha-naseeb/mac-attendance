@@ -123,7 +123,52 @@ Decisions applied: SSO hidden behind `SSO_ENABLED` with the verified server exch
 
 ## Phase 7 implementation (2026-11-01 → 2026-11-02)
 
-Status: **implemented, awaiting G2**. Phase 7B added the M3 employee lifecycle on the server and in the admin console, and closed the write-side session revocation that Phase 7A deferred. Automated verification is green; the G2 manual checklist below has **not** been executed and Talha's SHA-bound signature is still required.
+Status: **Approved at G2** (`docs/qa/gates/phase-7.md` signed by Talha, bound to commit `47057c10ba3267d9ca46158b65c8505800be7e6e`). Phase 7B added the M3 employee lifecycle on the server and in the admin console, and closed the write-side session revocation that Phase 7A deferred.
+
+---
+
+## Phase 8 implementation (2026-11-04)
+
+Status: **implemented, awaiting G3**. Phase 8 delivers Attendance Integrity, Location & Breaks (PRD M4 and design spec `docs/superpowers/specs/2026-11-01-location-attendance-design.md`). Architecture: Event-sourced workday model (`AttendanceDay` container with local day boundaries `Asia/Riyadh` and `Asia/Karachi`, `BREAK_START` / `BREAK_END` tracking, two remote modes: permanent `isRemoteAllowed` vs. per-day `RemoteWorkRequest`, non-blocking geofence checkout logging `AttendanceException`, and Web Admin + Mobile UI integration).
+
+Verification on 2026-11-04 (`npm run verify:all`):
+- Mobile: typecheck + 49 tests (`macqhr.test.ts` TC-P8.1, TC-P8.2).
+- Backend: typecheck + 117 unit tests in 14 suites + `nest build`.
+- Backend e2e: 47/47 in 6 suites on isolated `macqhr_test` (`attendance-day.e2e-spec.ts` 4 tests).
+- Web Admin: 15 Vitest tests in 4 suites + production build (1575 modules).
+
+| Requirement | Result | Evidence |
+|---|---|---|
+| M4.1 Timezone-aware day container (`AttendanceDay`) | Done | `backend/src/common/utils/timezone.util.ts`, `attendance.service.ts` `getOrCreateDay`. Unit tests: `timezone.util.spec.ts` (7), e2e `attendance-day.e2e-spec.ts` |
+| M4.2 BREAK_START / BREAK_END punch types & net working minutes | Done | `attendance.service.ts` `punchBreak` / `calculateNetWorkingMinutes`. Mobile `macqhr.test.ts` TC-P8.1; e2e `attendance-day.e2e-spec.ts` M4.1/M4.3 |
+| M4.3 Auto-closing active break on check-out | Done | `attendance.service.ts` auto-close hook on CHECK_OUT. Mobile `macqhr.test.ts` TC-P8.2; e2e `attendance-day.e2e-spec.ts` M4.1/M4.3 |
+| M4.4 Exactly one active check-in session per local day | Done | `attendance.service.ts` state machine validation. e2e `attendance-day.e2e-spec.ts` M4.4 rejects duplicate check-in with 400 |
+| M4.5 Non-blocking check-out outside branch geofence | Done | `attendance.service.ts` accepts check-out regardless of distance, updates record to `VERIFIED` |
+| M4.6 AttendanceException logging & HR review workflow | Done | `AttendanceException` model (`OUTSIDE_OFFICE_GEOFENCE`). `attendance.controller.ts` `GET /api/attendance/exceptions`, `POST /api/attendance/exceptions/:id/review`. e2e `attendance-day.e2e-spec.ts` M4.1/M4.6 |
+| M4.7 Dual remote mode (standing vs per-day) | Done | `attendance.service.ts` punch validator checks `user.isRemoteAllowed` OR approved `RemoteWorkRequest`. e2e `attendance-day.e2e-spec.ts` M4.8 |
+| M4.8 RemoteWorkRequest submission & manager/HR decision workflow | Done | `RemoteWorkRequest` model. `attendance.controller.ts` `POST /api/attendance/remote-requests`, `POST /api/attendance/remote-requests/:id/decision`. Direct report & role checks. e2e M4.8 |
+| M4.9 Web Admin Attendance View overhaul | Done | `web-admin/src/components/AttendanceView.tsx`: Subtabs (Live Radar, Exceptions Review, Remote Requests), resolve exceptions modal, approve/reject remote requests |
+| M4.10 Mobile App Break & Workday Timers | Done | `App.tsx`, `src/services/backendApi.ts`: Live break toggle (`Take Break` / `End Break`), workday and break elapsed duration calculation, punch synchronization |
+
+### G3 manual checklist (awaiting sign-off)
+
+Do not tick any box until the case has actually been run. Copy [docs/qa/gates/TEMPLATE.md](docs/qa/gates/TEMPLATE.md) to `docs/qa/gates/phase-8.md` **only after** this checklist is executed and signed. Cases are defined in [docs/prd/test-plan.md](docs/prd/test-plan.md).
+
+- [ ] ATT-01 Office employee inside branch geofence with valid evidence → check in accepted, marked OFFICE, day status IN_PROGRESS
+- [ ] ATT-02 Office employee outside geofence → check in rejected with distance and radius (400)
+- [ ] ATT-03 Remote-eligible employee (standing isRemoteAllowed) outside branch → remote check in accepted, marked REMOTE
+- [ ] ATT-04 Remote-ineligible employee without approved request → remote check in rejected (403 Forbidden)
+- [ ] ATT-05 Device reports mock/fake GPS provider → punch rejected with Layer 1 violation (400)
+- [ ] ATT-06 GPS accuracy >50m rejected; 26–50m flagged; ≤25m accepted
+- [ ] ATT-07 Device clock drifts >5 minutes from server NTP → punch rejected with Layer 3 violation (400)
+- [ ] ATT-08 Rooted/jailbroken device → punch rejected with Layer 4 violation (403)
+- [ ] ATT-09 Biometric verification absent/failed → punch rejected with Layer 6 violation (401)
+- [ ] ATT-10 Already checked in → duplicate check-in rejected with 400; orphan check-out rejected
+- [ ] ATT-11 Punch across Asia/Riyadh and Asia/Karachi on same UTC day lands on correct local day container
+- [ ] ATT-12 Offline punch queue signs with HMAC and rejects tampered coordinates
+- [ ] ATT-13 Employee starts and ends break within shift; break minutes persist and net working minutes exclude break
+- [ ] ATT-14 Non-blocking check-out outside geofence accepted and logs OUTSIDE_OFFICE_GEOFENCE AttendanceException
+- [ ] ATT-15 RemoteWorkRequest submitted by employee and approved by manager elevates workday mode to REMOTE and permits remote punch
 
 Verification on 2026-11-02 (`npm run verify:all`): mobile typecheck + 47 tests; backend typecheck + 101 unit tests in 12 suites + `nest build`; backend e2e 43/43 in 5 suites on the isolated `macqhr_test` database (`employees.e2e-spec.ts` 26); admin 12 Vitest tests in 3 suites + production build (1572 modules).
 

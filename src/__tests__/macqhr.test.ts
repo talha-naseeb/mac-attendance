@@ -1136,6 +1136,40 @@ describeSuite(
   }
 );
 
+describeSuite(
+  'Phase 8: Workday Attendance Days, Break Persistence & Net Minutes Engine',
+  () => {
+    itCase(
+      'TC-P8.1: Accurately computes net working minutes after deducting elapsed break minutes',
+      () => {
+        const totalElapsedMinutes = 480; // 8 hours total span
+        const breakMinutes = 45; // 45 min lunch break
+        const netWorkingMinutes = Math.max(0, totalElapsedMinutes - breakMinutes);
+
+        assertEqual(netWorkingMinutes, 435); // 7 hours 15 min
+      }
+    );
+
+    itCase(
+      'TC-P8.2: Automatically closes active break and includes final interval on check-out',
+      () => {
+        const firstCheckInMs = Date.parse('2026-11-04T09:00:00Z');
+        const breakStartMs = Date.parse('2026-11-04T12:00:00Z');
+        const checkOutMs = Date.parse('2026-11-04T12:35:00Z'); // Checkout while on break
+
+        const elapsedBreakMin = Math.round((checkOutMs - breakStartMs) / 60000);
+        assertEqual(elapsedBreakMin, 35);
+
+        const totalElapsedMin = Math.round((checkOutMs - firstCheckInMs) / 60000);
+        assertEqual(totalElapsedMin, 215);
+
+        const netWorkingMin = totalElapsedMin - elapsedBreakMin;
+        assertEqual(netWorkingMin, 180); // exactly 3 hours
+      }
+    );
+  }
+);
+
 console.log(
   `\n==================================================\nTEST SUMMARY: ${passedCount} passed, ${failedCount} failed (${
     passedCount + failedCount

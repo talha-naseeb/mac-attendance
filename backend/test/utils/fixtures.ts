@@ -26,6 +26,7 @@ export async function createUser(
     role: 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN' | 'SUPER_ADMIN';
     isActive: boolean;
     mustChangePassword: boolean;
+    isRemoteAllowed: boolean;
     branchId: string | null;
     managerId: string | null;
   }> = {},
@@ -33,7 +34,7 @@ export async function createUser(
   const branch = overrides.branchId === undefined ? await createBranch(prisma) : null;
   return prisma.user.create({
     data: {
-      employeeId: overrides.employeeId ?? 'EMP-T01',
+      employeeId: overrides.employeeId ?? `EMP-T${Math.floor(Math.random() * 900000 + 100000)}`,
       email: overrides.email ?? 'test.employee@macqhr.sa',
       passwordHash: await bcrypt.hash(TEST_PASSWORD, 10),
       role: overrides.role ?? 'EMPLOYEE',
@@ -48,6 +49,7 @@ export async function createUser(
       branchId: overrides.branchId === undefined ? branch!.id : overrides.branchId,
       managerId: overrides.managerId ?? null,
       isActive: overrides.isActive ?? true,
+      isRemoteAllowed: overrides.isRemoteAllowed ?? false,
       mustChangePassword: overrides.mustChangePassword ?? false,
       canAccessWebAdmin:
         overrides.role === 'HR_ADMIN' || overrides.role === 'SUPER_ADMIN',

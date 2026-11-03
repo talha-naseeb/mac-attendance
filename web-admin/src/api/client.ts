@@ -467,3 +467,71 @@ export async function downloadWps() {
     throw new ApiError(getApiMessage(error));
   }
 }
+
+export interface AttendanceExceptionItem {
+  id: string;
+  type: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'OPEN' | 'ACCEPTED' | 'ESCALATED';
+  detailsJson: any;
+  createdAt: string;
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  day: {
+    dateIso: string;
+    mode: string;
+    user: { fullName: string; employeeId: string; department: string };
+  };
+}
+
+export interface RemoteWorkRequestItem {
+  id: string;
+  startDateIso: string;
+  endDateIso: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  createdAt: string;
+  user: { fullName: string; employeeId: string; department: string };
+}
+
+export async function fetchAttendanceExceptions(): Promise<AttendanceExceptionItem[]> {
+  try {
+    const { data } = await apiClient.get<AttendanceExceptionItem[]>('/attendance/exceptions');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function reviewAttendanceException(
+  id: string,
+  decision: 'ACCEPTED' | 'ESCALATED',
+  reviewNote?: string,
+): Promise<void> {
+  try {
+    await apiClient.post(`/attendance/exceptions/${id}/review`, { decision, reviewNote });
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchPendingRemoteRequests(): Promise<RemoteWorkRequestItem[]> {
+  try {
+    const { data } = await apiClient.get<RemoteWorkRequestItem[]>('/attendance/remote-requests/pending');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function decideRemoteRequest(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED',
+  rejectionReason?: string,
+): Promise<void> {
+  try {
+    await apiClient.post(`/attendance/remote-requests/${id}/decision`, { decision, rejectionReason });
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
