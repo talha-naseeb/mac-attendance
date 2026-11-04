@@ -68,10 +68,15 @@ export class OrganizationGuardService {
     });
     if (!target) return 0;
     if (target.role === 'HR_ADMIN' || target.role === 'SUPER_ADMIN') {
-      return this.prisma.leaveRequest.count({ where: { status: 'PENDING' } });
+      return this.prisma.leaveRequest.count({
+        where: { status: { in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR'] } },
+      });
     }
     return this.prisma.leaveRequest.count({
-      where: { status: 'PENDING', user: { managerId, isActive: true } },
+      where: {
+        status: { in: ['PENDING', 'PENDING_MANAGER'] },
+        user: { managerId, isActive: true },
+      },
     });
   }
 }

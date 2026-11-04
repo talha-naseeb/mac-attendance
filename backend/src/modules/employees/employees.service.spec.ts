@@ -208,7 +208,10 @@ describe('EmployeesService deactivation safeguards', () => {
     expect(organizationGuard.assertSuperAdminRetained).toHaveBeenCalledWith('emp-2', prisma);
 
     const cancelQuery = prisma.leaveRequest.updateMany.mock.calls[0][0];
-    expect(cancelQuery.where).toEqual({ userId: 'emp-2', status: 'PENDING' });
+    expect(cancelQuery.where).toEqual({
+      userId: 'emp-2',
+      status: { in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR'] },
+    });
     expect(cancelQuery.data).toMatchObject({ status: 'REJECTED', decidedById: 'hr-1' });
     expect(cancelQuery.data.rejectionReason).toBeTruthy();
 

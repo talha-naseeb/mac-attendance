@@ -184,6 +184,16 @@ interface RawLeave {
   daysCount: number;
   reason: string | null;
   status: AdminLeaveItem['status'];
+  stage?: 'STAGE_1_MANAGER' | 'STAGE_2_HR' | 'COMPLETED';
+  routedDirectlyToHr?: boolean;
+  isHalfDay?: boolean;
+  halfDayPeriod?: 'MORNING' | 'AFTERNOON' | null;
+  attachmentUrl?: string | null;
+  managerComments?: string | null;
+  hrComments?: string | null;
+  rejectionReason?: string | null;
+  managerReviewedBy?: { firstName: string; lastName: string } | null;
+  hrReviewedBy?: { firstName: string; lastName: string } | null;
   createdAt: string;
   user: { employeeId: string; firstName: string; lastName: string; department: string };
 }
@@ -284,6 +294,17 @@ function mapLeave(request: RawLeave): AdminLeaveItem {
     daysCount: request.daysCount,
     reason: request.reason || '—',
     status: request.status,
+    stage: request.stage,
+    routedDirectlyToHr: request.routedDirectlyToHr,
+    isHalfDay: request.isHalfDay,
+    halfDayPeriod: request.halfDayPeriod,
+    attachmentUrl: request.attachmentUrl,
+    managerReviewedByName: request.managerReviewedBy
+      ? `${request.managerReviewedBy.firstName} ${request.managerReviewedBy.lastName}`
+      : null,
+    managerComments: request.managerComments,
+    hrComments: request.hrComments,
+    rejectionReason: request.rejectionReason,
     teamsNotificationDispatched: true,
     appliedOn: request.createdAt.slice(0, 10),
   };
@@ -404,9 +425,15 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
 export async function decideLeave(
   id: string,
   decision: 'APPROVED' | 'REJECTED',
+  comments?: string,
+  isHrOverride?: boolean,
 ) {
   try {
-    await apiClient.patch(`/leaves/${id}/decision`, { decision });
+    await apiClient.patch(`/leaves/${id}/decision`, {
+      decision,
+      comments,
+      isHrOverride,
+    });
   } catch (error) {
     throw new ApiError(getApiMessage(error));
   }

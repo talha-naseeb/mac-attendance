@@ -30,6 +30,7 @@ enum WorkMode {
 enum LeaveType {
   ANNUAL_VACATION
   SICK_LEAVE
+  SICK_ON_FILE
   HAJJ_LEAVE
   PATERNITY_LEAVE
   MATERNITY_LEAVE
@@ -38,6 +39,7 @@ enum LeaveType {
   REMOTE_WORK
   CASUAL_LEAVE
   UNPAID_LEAVE
+  EMERGENCY_LEAVE
 }
 
 enum LeaveStatus {
@@ -46,6 +48,21 @@ enum LeaveStatus {
   PENDING_HR
   APPROVED
   REJECTED
+  CANCELLED
+}
+
+enum LeaveStage {
+  STAGE_1_MANAGER
+  STAGE_2_HR
+  COMPLETED
+}
+
+enum LeaveLedgerEntryType {
+  ACCRUAL
+  USAGE
+  ADJUSTMENT
+  CARRYOVER
+  CANCELLATION_RESTORE
 }
 
 enum SessionRevokeReason {
@@ -171,9 +188,13 @@ model User {
   decidedRemoteReqs  RemoteWorkRequest[]    @relation("RemoteRequestDecisions")
   savedLocations     SavedLocation[]
   reviewedExceptions AttendanceException[]  @relation("ExceptionReviewer")
-  leaveBalances      LeaveBalance[]
-  leaveRequests      LeaveRequest[]         @relation("EmployeeRequests")
-  decidedLeaves      LeaveRequest[]         @relation("DecidedByManager")
+  leaveBalances         LeaveBalance[]
+  leaveRequests         LeaveRequest[]         @relation("EmployeeRequests")
+  decidedLeaves         LeaveRequest[]         @relation("DecidedByManager")
+  reviewedLeavesManager LeaveRequest[]         @relation("LeaveManagerReviewer")
+  reviewedLeavesHr      LeaveRequest[]         @relation("LeaveHrReviewer")
+  leaveLedgerEntries    LeaveBalanceLedger[]   @relation("UserLeaveLedgers")
+  createdLedgerEntries  LeaveBalanceLedger[]   @relation("LedgerCreatedBy")
   offlinePunches     OfflinePunchQueue[]
   auditLogs          AuditLog[]
   sessions           AuthSession[]
@@ -378,15 +399,19 @@ model LeaveBalance {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   leaveType     String
-  totalDays     Int
-  usedDays      Int    @default(0)
-  remainingDays Int    @default(30)
-  year          Int    @default(2026)
+  totalDays     Float
+  usedDays      Float    @default(0)
+  pendingDays   Float    @default(0)
+  remainingDays Float    @default(30)
+  year          Int      @default(2026)
+
+  ledgerEntries LeaveBalanceLedger[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, leaveType, year])
+  @@index([userId, year])
 }
 
 model LeaveRequest {
@@ -397,12 +422,29 @@ model LeaveRequest {
   type          String   @default("ANNUAL")
   startDate     DateTime
   endDate       DateTime
-  daysCount     Int
+  daysCount     Float    @default(1.0)
+  isHalfDay     Boolean  @default(false)
+  halfDayPeriod String?  // MORNING, AFTERNOON
   reason        String?
   attachmentUrl String?
 
-  status String @default("PENDING") // PENDING, APPROVED, REJECTED
+  status             String     @default("PENDING_MANAGER") // PENDING_MANAGER, PENDING_HR, APPROVED, REJECTED, CANCELLED
+  stage              LeaveStage @default(STAGE_1_MANAGER)
+  routedDirectlyToHr Boolean    @default(false)
 
+  // Stage 1: Line Manager Review
+  managerReviewedById String?
+  managerReviewedBy   User?     @relation("LeaveManagerReviewer", fields: [managerReviewedById], references: [id], onDelete: SetNull)
+  managerReviewedAt   DateTime?
+  managerComments     String?
+
+  // Stage 2: HR Admin Review
+  hrReviewedById String?
+  hrReviewedBy   User?     @relation("LeaveHrReviewer", fields: [hrReviewedById], references: [id], onDelete: SetNull)
+  hrReviewedAt   DateTime?
+  hrComments     String?
+
+  // Legacy fields
   reviewedBy      String?
   reviewedAt      DateTime?
   decidedById     String?
@@ -410,15 +452,60 @@ model LeaveRequest {
   decidedAt       DateTime?
   rejectionReason String?
 
+  // Cancellation
+  cancelledAt        DateTime?
+  cancellationReason String?
+
   // MS 365 Cloud Sync Identifiers
   teamsAdaptiveCardMessageId String?
   outlookCalendarEventId     String?
+
+  ledgerEntries LeaveBalanceLedger[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([status])
+  @@index([stage])
+  @@index([startDate, endDate])
+}
+
+model LeaveBalanceLedger {
+  id        String               @id @default(uuid())
+  balanceId String
+  balance   LeaveBalance         @relation(fields: [balanceId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                 @relation("UserLeaveLedgers", fields: [userId], references: [id], onDelete: Cascade)
+
+  leaveType     String
+  entryType     LeaveLedgerEntryType
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+
+  requestId   String?
+  request     LeaveRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  reason      String?
+  createdById String?
+  createdBy   User?         @relation("LedgerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, leaveType])
+  @@index([balanceId])
+}
+
+model CompanyHoliday {
+  id        String   @id @default(uuid())
+  name      String
+  nameAr    String?
+  dateIso   String   @unique // YYYY-MM-DD
+  isOffDay  Boolean  @default(true)
+  country   String   @default("SA")
+  createdAt DateTime @default(now())
+
+  @@index([dateIso])
 }
 
 model OfflinePunchQueue {

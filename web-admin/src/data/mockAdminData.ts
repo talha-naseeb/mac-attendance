@@ -178,7 +178,16 @@ export interface AdminLeaveItem {
   endDate: string;
   daysCount: number;
   reason: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'PENDING_MANAGER' | 'PENDING_HR' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  stage?: 'STAGE_1_MANAGER' | 'STAGE_2_HR' | 'COMPLETED';
+  routedDirectlyToHr?: boolean;
+  isHalfDay?: boolean;
+  halfDayPeriod?: 'MORNING' | 'AFTERNOON' | null;
+  attachmentUrl?: string | null;
+  managerReviewedByName?: string | null;
+  managerComments?: string | null;
+  hrComments?: string | null;
+  rejectionReason?: string | null;
   teamsNotificationDispatched: boolean;
   appliedOn: string;
 }

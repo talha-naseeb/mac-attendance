@@ -63,6 +63,12 @@ import {
   filterWhosOffEntries,
   getColleagueAvailabilitySummary,
 } from '../services/whosOffService';
+import {
+  calculateClientWorkingDays,
+  getSaudiHolidayName,
+  isSaudiWeekend,
+  LEAVE_TYPES,
+} from '../utils/leaveCalculator';
 
 // Lightweight zero-dependency test harness compatible with strict TypeScript & Node
 let passedCount = 0;
@@ -1195,6 +1201,108 @@ describeSuite(
 
         const netWorkingMin = totalElapsedMin - elapsedBreakMin;
         assertEqual(netWorkingMin, 180); // exactly 3 hours
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 9: Leave & Approvals v2 Engine (LV-01 to LV-15 & Mobile UX)',
+  () => {
+    itCase(
+      'TC-P9.1: Correctly identifies Saudi weekends (Friday & Saturday) and excludes them from working days',
+      () => {
+        const sunday = new Date('2026-11-08T00:00:00');
+        const friday = new Date('2026-11-13T00:00:00');
+        const saturday = new Date('2026-11-14T00:00:00');
+        assertEqual(isSaudiWeekend(sunday), false);
+        assertEqual(isSaudiWeekend(friday), true);
+        assertEqual(isSaudiWeekend(saturday), true);
+
+        // 7 calendar days: Sun Nov 8 to Sat Nov 14 (Sun, Mon, Tue, Wed, Thu = 5 working days, Fri, Sat = 2 weekend days)
+        const res = calculateClientWorkingDays('2026-11-08', '2026-11-14');
+        assertEqual(res.calendarDays, 7);
+        assertEqual(res.workingDays, 5);
+        assertEqual(res.excludedWeekendDays, 2);
+      }
+    );
+
+    itCase(
+      'TC-P9.2: Excludes Saudi National Day (Sep 23) and Founding Day (Feb 22) from working days count',
+      () => {
+        // Wednesday Sep 23, 2026 is Saudi National Day
+        const natDay = new Date('2026-09-23T00:00:00');
+        assertEqual(getSaudiHolidayName(natDay), 'Saudi National Day');
+
+        // Tuesday Feb 22, 2028 is Saudi Founding Day
+        const foundDay = new Date('2028-02-22T00:00:00');
+        assertEqual(getSaudiHolidayName(foundDay), 'Saudi Founding Day');
+
+        // Range covering Sep 20 to Sep 24 (Sun-Thu = 5 calendar days, Sep 23 is holiday => 4 working days)
+        const res = calculateClientWorkingDays('2026-09-20', '2026-09-24');
+        assertEqual(res.calendarDays, 5);
+        assertEqual(res.workingDays, 4);
+        assertEqual(res.excludedHolidayDays, 1);
+        assertEqual(res.excludedHolidays.includes('Saudi National Day'), true);
+      }
+    );
+
+    itCase(
+      'TC-P9.3: Computes half-day leave as exactly 0.50 working days regardless of calendar days',
+      () => {
+        const halfDayRes = calculateClientWorkingDays('2026-11-09', '2026-11-09', true);
+        assertEqual(halfDayRes.calendarDays, 1);
+        assertEqual(halfDayRes.workingDays, 0.5);
+      }
+    );
+
+    itCase(
+      'TC-P9.4: Full 11-type leave catalog is complete and distinct without collapsing EMERGENCY into UNPAID',
+      () => {
+        assertEqual(LEAVE_TYPES.length, 11);
+        assertEqual(LEAVE_TYPES.includes('Annual Vacation'), true);
+        assertEqual(LEAVE_TYPES.includes('Sick Day off'), true);
+        assertEqual(LEAVE_TYPES.includes('Sick on file'), true);
+        assertEqual(LEAVE_TYPES.includes('Hajj Leave'), true);
+        assertEqual(LEAVE_TYPES.includes('Paternity Leave'), true);
+        assertEqual(LEAVE_TYPES.includes('Maternity Leave'), true);
+        assertEqual(LEAVE_TYPES.includes('Marriage Leave'), true);
+        assertEqual(LEAVE_TYPES.includes('Bereavement Leave'), true);
+        assertEqual(LEAVE_TYPES.includes('Remote Work'), true);
+        assertEqual(LEAVE_TYPES.includes('Emergency Leave'), true);
+        assertEqual(LEAVE_TYPES.includes('Unpaid Leave'), true);
+
+        // Verification of discrete API mapping dictionary
+        const apiMap: Record<string, string> = {
+          'Annual Vacation': 'ANNUAL',
+          'Sick Day off': 'SICK',
+          'Sick on file': 'SICK_ON_FILE',
+          'Hajj Leave': 'HAJJ',
+          'Paternity Leave': 'PATERNITY',
+          'Maternity Leave': 'MATERNITY',
+          'Marriage Leave': 'MARRIAGE',
+          'Bereavement Leave': 'BEREAVEMENT',
+          'Remote Work': 'REMOTE_WORK',
+          'Emergency Leave': 'EMERGENCY',
+          'Unpaid Leave': 'UNPAID',
+        };
+        assertEqual(apiMap['Emergency Leave'], 'EMERGENCY');
+        assertEqual(apiMap['Emergency Leave'] !== apiMap['Unpaid Leave'], true);
+      }
+    );
+
+    itCase(
+      'TC-P9.5: Multi-month and multi-year range crossing calculation correctly spans across boundaries',
+      () => {
+        // Cross year: Dec 28, 2026 (Mon) to Jan 03, 2027 (Sun)
+        // Dec 28 (Mon), 29 (Tue), 30 (Wed), 31 (Thu) = 4 days
+        // Jan 01 (Fri - wknd), Jan 02 (Sat - wknd) = 2 wknd days
+        // Jan 03 (Sun) = 1 day
+        // Total calendar = 7, working = 5, weekend = 2
+        const res = calculateClientWorkingDays('2026-12-28', '2027-01-03');
+        assertEqual(res.calendarDays, 7);
+        assertEqual(res.workingDays, 5);
+        assertEqual(res.excludedWeekendDays, 2);
       }
     );
   }

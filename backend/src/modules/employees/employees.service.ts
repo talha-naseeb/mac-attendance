@@ -392,7 +392,10 @@ export class EmployeesService {
       await this.organizationGuard.assertSuperAdminRetained(id, tx);
 
       const pending = await tx.leaveRequest.updateMany({
-        where: { userId: id, status: 'PENDING' },
+        where: {
+          userId: id,
+          status: { in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR'] },
+        },
         data: {
           status: 'REJECTED',
           rejectionReason: 'Account deactivated by HR.',

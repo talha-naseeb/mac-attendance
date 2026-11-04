@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNotEmpty,
@@ -10,6 +11,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export enum LeaveType {
   ANNUAL = 'ANNUAL',
   SICK = 'SICK',
+  SICK_ON_FILE = 'SICK_ON_FILE',
   HAJJ = 'HAJJ',
   PATERNITY = 'PATERNITY',
   MATERNITY = 'MATERNITY',
@@ -17,6 +19,7 @@ export enum LeaveType {
   BEREAVEMENT = 'BEREAVEMENT',
   REMOTE_WORK = 'REMOTE_WORK',
   UNPAID = 'UNPAID',
+  EMERGENCY = 'EMERGENCY',
 }
 
 export enum LeaveDecision {
@@ -45,7 +48,17 @@ export class SubmitLeaveRequestDto {
   @IsNotEmpty()
   reason: string;
 
-  @ApiPropertyOptional({ example: 'https://storage.macqhr.sa/attachments/medical-cert-01.pdf' })
+  @ApiPropertyOptional({ example: false, description: 'True if requesting half day (0.5)' })
+  @IsBoolean()
+  @IsOptional()
+  isHalfDay?: boolean;
+
+  @ApiPropertyOptional({ example: 'MORNING', enum: ['MORNING', 'AFTERNOON'] })
+  @IsString()
+  @IsOptional()
+  halfDayPeriod?: 'MORNING' | 'AFTERNOON';
+
+  @ApiPropertyOptional({ example: 'https://storage.shiftly.app/attachments/medical-cert-01.pdf' })
   @IsString()
   @IsOptional()
   attachmentUrl?: string;
@@ -61,4 +74,16 @@ export class LeaveDecisionDto {
   @IsString()
   @IsOptional()
   comments?: string;
+
+  @ApiPropertyOptional({ example: false, description: 'True if HR Admin is overriding Stage 1 Line Manager review' })
+  @IsBoolean()
+  @IsOptional()
+  isHrOverride?: boolean;
+}
+
+export class CancelLeaveRequestDto {
+  @ApiPropertyOptional({ example: 'Family plans changed, rescheduling trip.' })
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }

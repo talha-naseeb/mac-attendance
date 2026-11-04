@@ -2,6 +2,11 @@ export type LeaveType =
   | 'Annual Vacation'
   | 'Sick Day off'
   | 'Sick on file'
+  | 'Hajj Leave'
+  | 'Paternity Leave'
+  | 'Maternity Leave'
+  | 'Marriage Leave'
+  | 'Bereavement Leave'
   | 'Remote Work'
   | 'Emergency Leave'
   | 'Unpaid Leave';

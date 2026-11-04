@@ -153,7 +153,10 @@ describe('OrganizationGuardService', () => {
         select: { role: true },
       });
       expect(prisma.leaveRequest.count).toHaveBeenCalledWith({
-        where: { status: 'PENDING', user: { managerId: 'manager-1', isActive: true } },
+        where: {
+          status: { in: ['PENDING', 'PENDING_MANAGER'] },
+          user: { managerId: 'manager-1', isActive: true },
+        },
       });
     });
 
@@ -164,7 +167,7 @@ describe('OrganizationGuardService', () => {
 
       await expect(service.pendingApprovalsFor('hr-1')).resolves.toBe(7);
       expect(prisma.leaveRequest.count).toHaveBeenCalledWith({
-        where: { status: 'PENDING' },
+        where: { status: { in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR'] } },
       });
     });
 
@@ -175,7 +178,7 @@ describe('OrganizationGuardService', () => {
 
       await expect(service.pendingApprovalsFor('super-1')).resolves.toBe(11);
       expect(prisma.leaveRequest.count).toHaveBeenCalledWith({
-        where: { status: 'PENDING' },
+        where: { status: { in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR'] } },
       });
     });
 

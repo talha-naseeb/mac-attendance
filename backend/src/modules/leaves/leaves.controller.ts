@@ -5,11 +5,16 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { LeavesService } from './leaves.service';
-import { SubmitLeaveRequestDto, LeaveDecisionDto } from './dto/leaves.dto';
+import {
+  SubmitLeaveRequestDto,
+  LeaveDecisionDto,
+  CancelLeaveRequestDto,
+} from './dto/leaves.dto';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -24,6 +29,16 @@ export class LeavesController {
   @ApiOperation({ summary: 'Get current annual/sick/hajj leave balances' })
   async getBalances(@CurrentUser() user: AuthenticatedUser) {
     return this.leavesService.getBalances(user.id);
+  }
+
+  @Get('ledger')
+  @ApiOperation({ summary: 'Get immutable audit ledger of balance movements' })
+  @ApiQuery({ name: 'userId', required: false, description: 'Optional target user (HR/Super Admin only)' })
+  async getLedger(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('userId') targetUserId?: string,
+  ) {
+    return this.leavesService.getLedger(user.id, targetUserId, user.role);
   }
 
   @Post('request')
@@ -61,12 +76,22 @@ export class LeavesController {
   @Patch(':id/decision')
   @UseGuards(RolesGuard)
   @Roles(UserRole.MANAGER, UserRole.HR_ADMIN, UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Approve or reject an employee leave request' })
+  @ApiOperation({ summary: 'Approve or reject an employee leave request (Stage 1 or Stage 2)' })
   async makeDecision(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() dto: LeaveDecisionDto,
   ) {
     return this.leavesService.makeDecision(id, user.id, user.role, dto);
+  }
+
+  @Patch(':id/cancel')
+  @ApiOperation({ summary: 'Cancel a pending or pre-start approved leave request and restore balance' })
+  async cancelRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CancelLeaveRequestDto,
+  ) {
+    return this.leavesService.cancelRequest(id, user.id, user.role, dto);
   }
 }

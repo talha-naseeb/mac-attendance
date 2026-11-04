@@ -468,7 +468,15 @@ export async function changePassword(
 
 export async function submitLeaveToBackend(
   token: string,
-  payload: { type: string; startDate: string; endDate: string; reason: string },
+  payload: {
+    type: string;
+    startDate: string;
+    endDate: string;
+    reason: string;
+    isHalfDay?: boolean;
+    halfDayPeriod?: 'MORNING' | 'AFTERNOON';
+    attachmentUrl?: string;
+  },
 ) {
   return request('/leaves/request', {
     method: 'POST',

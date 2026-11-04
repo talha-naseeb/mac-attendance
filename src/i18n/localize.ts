@@ -66,6 +66,11 @@ const DICT_AR: Record<string, string> = {
   // ── Approvals ────────────────────────────────────────
   'Regular Overtime': 'عمل إضافي اعتيادي',
   'Annual Vacation': 'إجازة سنوية',
+  'Hajj Leave': 'إجازة حج',
+  'Paternity Leave': 'إجازة أبوة',
+  'Maternity Leave': 'إجازة أمومة',
+  'Marriage Leave': 'إجازة زواج',
+  'Bereavement Leave': 'إجازة وفاة',
   'Client Summit Travel Expense': 'مصاريف سفر قمة العملاء',
   'Expense Claim': 'مطالبة مصروفات',
   'Flight & Hotel': 'طيران وفندق',

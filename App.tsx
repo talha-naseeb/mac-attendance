@@ -569,51 +569,68 @@ function MacqHRApp() {
 
   const handleSubmitTimeOff = async (payload: {
     leaveType: LeaveType;
+    startDate: string;
+    endDate: string;
     fromDay: number;
     toDay: number;
     daysCount: number;
     notes: string;
     hasAttachment: boolean;
+    attachmentUrl?: string;
+    isHalfDay?: boolean;
+    halfDayPeriod?: 'MORNING' | 'AFTERNOON';
   }) => {
-    if (!authToken) {
-      return;
-    }
     const apiLeaveType = {
       'Annual Vacation': 'ANNUAL',
       'Sick Day off': 'SICK',
-      'Sick on file': 'SICK',
+      'Sick on file': 'SICK_ON_FILE',
+      'Hajj Leave': 'HAJJ',
+      'Paternity Leave': 'PATERNITY',
+      'Maternity Leave': 'MATERNITY',
+      'Marriage Leave': 'MARRIAGE',
+      'Bereavement Leave': 'BEREAVEMENT',
       'Remote Work': 'REMOTE_WORK',
-      'Emergency Leave': 'UNPAID',
+      'Emergency Leave': 'EMERGENCY',
       'Unpaid Leave': 'UNPAID',
     }[payload.leaveType] || 'UNPAID';
-    const selectedYear = new Date().getFullYear();
-    const selectedMonth = new Date().getMonth();
-    const startDate = toLocalIsoDate(selectedYear, selectedMonth, payload.fromDay);
-    const endDate = toLocalIsoDate(selectedYear, selectedMonth, payload.toDay);
-    try {
-      await submitLeaveToBackend(authToken, {
-        type: apiLeaveType,
-        startDate,
-        endDate,
-        reason: payload.notes || payload.leaveType,
-      });
-      await refreshMobileApiData(authToken, userRole);
-    } catch (error) {
-      setNotifications((prev) => [
-        {
-          id: `leave-error-${Date.now()}`,
-          title: 'Leave request was not submitted',
-          body: error instanceof Error ? error.message : 'Please try again.',
-          timeAgo: 'Just now',
-          read: false,
-        },
-        ...prev,
-      ]);
-      return;
+
+    const startDate = payload.startDate;
+    const endDate = payload.endDate;
+
+    if (authToken) {
+      try {
+        await submitLeaveToBackend(authToken, {
+          type: apiLeaveType,
+          startDate,
+          endDate,
+          reason: payload.notes || payload.leaveType,
+          isHalfDay: payload.isHalfDay,
+          halfDayPeriod: payload.halfDayPeriod,
+          attachmentUrl: payload.attachmentUrl,
+        });
+        await refreshMobileApiData(authToken, userRole);
+      } catch (error) {
+        setNotifications((prev) => [
+          {
+            id: `leave-error-${Date.now()}`,
+            title: 'Leave request was not submitted',
+            body: error instanceof Error ? error.message : 'Please try again.',
+            timeAgo: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ]);
+        return;
+      }
     }
+
     const empName = lang === 'ar' ? employeeProfile.fullNameAr : employeeProfile.fullName;
     const fromDateStr = formatDateForNotification(startDate);
     const toDateStr = formatDateForNotification(endDate);
+    const durationLabel = payload.isHalfDay
+      ? `${payload.daysCount} day (${payload.halfDayPeriod === 'MORNING' ? 'Morning' : 'Afternoon'})`
+      : `${payload.daysCount} days`;
+
     setNotifications((prev) => [
       {
         id: `notif-mgr-${Date.now()}`,
@@ -623,8 +640,8 @@ function MacqHRApp() {
             : `New Leave Request: ${empName}`,
         body:
           lang === 'ar'
-            ? `قدم ${empName} طلباً لإجازة (${payload.leaveType}) لمدة ${payload.daysCount} أيام (${fromDateStr} إلى ${toDateStr}). بانتظار موافقتك كمدير مباشر.`
-            : `${empName} requested ${payload.daysCount} days of ${payload.leaveType} (${fromDateStr} to ${toDateStr}). Awaiting your manager approval.`,
+            ? `قدم ${empName} طلباً لإجازة (${payload.leaveType}) لمدة ${durationLabel} (${fromDateStr} إلى ${toDateStr}). المرحلة 1: بانتظار موافقة المدير المباشر.`
+            : `${empName} requested ${durationLabel} of ${payload.leaveType} (${fromDateStr} to ${toDateStr}). Stage 1: Awaiting manager approval.`,
         timeAgo: 'Just now',
         read: false,
       },

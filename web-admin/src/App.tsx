@@ -400,8 +400,8 @@ export const App: React.FC = () => {
                 <LeavesView
                   isArabic={isArabic}
                   requests={leaves}
-                  onDecision={async (id, decision) => {
-                    await decideLeave(id, decision);
+                  onDecision={async (id, decision, comments, isHrOverride) => {
+                    await decideLeave(id, decision, comments, isHrOverride);
                     setLeaves(await fetchAdminLeaves());
                   }}
                 />

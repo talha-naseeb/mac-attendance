@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -9,37 +9,49 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { makeTr } from "../i18n/localize";
+import { makeTr } from '../i18n/localize';
 import { TRANSLATIONS } from '../i18n/translations';
 import { ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText } from '../theme/typography';
 import { LeaveType } from '../types/zenhr';
+import {
+  calculateClientWorkingDays,
+  getSaudiHolidayName,
+  isSaudiWeekend,
+  LEAVE_TYPES,
+} from '../utils/leaveCalculator';
 
-interface RequestTimeOffModalProps {
+export interface RequestTimeOffModalProps {
   visible: boolean;
   colors: ThemeColors;
   lang: AppLanguage;
   onClose: () => void;
   onSubmitRequest: (payload: {
     leaveType: LeaveType;
+    startDate: string;
+    endDate: string;
     fromDay: number;
     toDay: number;
     daysCount: number;
     notes: string;
     hasAttachment: boolean;
+    attachmentUrl?: string;
+    isHalfDay?: boolean;
+    halfDayPeriod?: 'MORNING' | 'AFTERNOON';
   }) => void | Promise<void>;
 }
 
-const LEAVE_TYPES: LeaveType[] = [
-  'Annual Vacation',
-  'Sick Day off',
-  'Remote Work',
-  'Emergency Leave',
-  'Unpaid Leave',
-];
+export { LEAVE_TYPES };
 
 const WEEKDAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 const WEEKDAYS_AR = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
+
+function formatIso(year: number, monthZeroIndexed: number, day: number): string {
+  const m = String(monthZeroIndexed + 1).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
+  return `${year}-${m}-${d}`;
+}
+
 export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
   visible,
   colors,
@@ -47,55 +59,128 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
   onClose,
   onSubmitRequest,
 }) => {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState<number>(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState<number>(today.getMonth());
+
   const [selectedLeaveType, setSelectedLeaveType] =
     useState<LeaveType>('Annual Vacation');
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [dateSheetOpen, setDateSheetOpen] = useState(true);
   const [rangeMode, setRangeMode] = useState<'single' | 'multiple'>('multiple');
-  const [fromDay, setFromDay] = useState<number>(11);
-  const [toDay, setToDay] = useState<number>(23);
+
+  // Day selection within current viewMonth
+  const [fromDay, setFromDay] = useState<number>(Math.min(today.getDate(), 20));
+  const [toDay, setToDay] = useState<number>(Math.min(today.getDate() + 4, 28));
+
+  // Half-day option
+  const [isHalfDay, setIsHalfDay] = useState<boolean>(false);
+  const [halfDayPeriod, setHalfDayPeriod] = useState<'MORNING' | 'AFTERNOON'>('MORNING');
+
+  // Attachment
+  const [attachmentFile, setAttachmentFile] = useState<{
+    name: string;
+    url: string;
+  } | null>(null);
+
   const [notes, setNotes] = useState<string>('');
-  const [hasAttachment, setHasAttachment] = useState<boolean>(false);
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonthLabel = currentDate.toLocaleDateString('en-US', { month: 'long' });
-  const currentMonthShortLabel = currentDate.toLocaleDateString('en-US', { month: 'short' });
-  const daysInCurrentMonth = new Date(currentYear, currentDate.getMonth() + 1, 0).getDate();
-  const daysInMonth = Array.from({ length: daysInCurrentMonth }, (_, i) => i + 1);
 
   const isRTL = lang === 'ar';
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
   const tr = makeTr(lang);
 
-  const daysCount =
-    rangeMode === 'single' ? 1 : Math.max(1, toDay - fromDay + 1);
+  // Month navigation
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+    setFromDay(1);
+    setToDay(1);
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+    setFromDay(1);
+    setToDay(1);
+  };
+
+  // Month metadata
+  const currentViewDate = useMemo(() => new Date(viewYear, viewMonth, 1), [viewYear, viewMonth]);
+  const monthName = currentViewDate.toLocaleDateString('en-US', { month: 'long' });
+  const monthShort = currentViewDate.toLocaleDateString('en-US', { month: 'short' });
+  const daysInMonthCount = useMemo(
+    () => new Date(viewYear, viewMonth + 1, 0).getDate(),
+    [viewYear, viewMonth],
+  );
+  const firstDayWeekday = useMemo(
+    () => new Date(viewYear, viewMonth, 1).getDay(),
+    [viewYear, viewMonth],
+  );
+  const daysInMonth = useMemo(
+    () => Array.from({ length: daysInMonthCount }, (_, i) => i + 1),
+    [daysInMonthCount],
+  );
+
+  // Working days & holiday calculation
+  const startDateIso = formatIso(viewYear, viewMonth, fromDay);
+  const effectiveToDay = rangeMode === 'single' || isHalfDay ? fromDay : toDay;
+  const endDateIso = formatIso(viewYear, viewMonth, effectiveToDay);
+
+  const calcResult = useMemo(
+    () => calculateClientWorkingDays(startDateIso, endDateIso, isHalfDay),
+    [startDateIso, endDateIso, isHalfDay],
+  );
+
+  const daysCount = calcResult.workingDays;
 
   const handleDayPress = (day: number) => {
-    if (rangeMode === 'single') {
+    if (rangeMode === 'single' || isHalfDay) {
       setFromDay(day);
       setToDay(day);
       return;
     }
-    if (day < fromDay || (fromDay !== toDay && day >= fromDay)) {
-      if (day < fromDay) {
-        setFromDay(day);
-      } else if (fromDay === toDay) {
-        setToDay(day);
-      } else {
-        setFromDay(day);
-        setToDay(day);
-      }
+    if (day < fromDay) {
+      setFromDay(day);
+    } else if (fromDay === toDay) {
+      setToDay(day);
+    } else {
+      setFromDay(day);
+      setToDay(day);
+    }
+  };
+
+  const handleToggleAttachment = () => {
+    if (attachmentFile) {
+      setAttachmentFile(null);
+    } else {
+      setAttachmentFile({
+        name: 'medical_certificate.pdf',
+        url: 'https://s3.me-central-1.amazonaws.com/shiftly-docs/medical_certificate.pdf',
+      });
     }
   };
 
   const handleSubmit = async () => {
     await onSubmitRequest({
       leaveType: selectedLeaveType,
+      startDate: startDateIso,
+      endDate: endDateIso,
       fromDay,
-      toDay: rangeMode === 'single' ? fromDay : toDay,
+      toDay: effectiveToDay,
       daysCount,
       notes,
-      hasAttachment,
+      hasAttachment: !!attachmentFile,
+      attachmentUrl: attachmentFile?.url,
+      isHalfDay,
+      halfDayPeriod: isHalfDay ? halfDayPeriod : undefined,
     });
   };
 
@@ -108,7 +193,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
     >
       <View style={[styles.root, { backgroundColor: colors.primary }]}>
         {/* Prussian Blue Header with Back & Close */}
-        <View style={[styles.tealHeader, rtlRow(isRTL)]}>
+        <View style={[styles.header, rtlRow(isRTL)]}>
           <TouchableOpacity
             onPress={onClose}
             style={styles.closeBtn}
@@ -121,17 +206,21 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
             />
           </TouchableOpacity>
           <Text
-            style={[styles.tealHeaderTitle, { flex: 1, textAlign: 'center' }]}
+            style={[styles.headerTitle, { flex: 1, textAlign: 'center' }]}
             numberOfLines={1}
           >
             {t.requestTimeOff}
           </Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeBtn}
+            accessibilityLabel="Close"
+          >
             <Feather name="x" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {/* Rounded Sheet Container matching shot_3.png */}
+        {/* Form Container */}
         <View
           style={[
             styles.formContainer,
@@ -143,12 +232,13 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
             showsVerticalScrollIndicator={false}
           >
             {/* Leave Type Field */}
-            <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>
+            <Text style={[styles.fieldLabel, { color: colors.textPrimary }, rtlText(isRTL)]}>
               Leave type <Text style={styles.asterisk}>*</Text>
             </Text>
             <TouchableOpacity
               style={[
                 styles.inputBox,
+                rtlRow(isRTL),
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
               onPress={() => setTypeDropdownOpen((prev) => !prev)}
@@ -156,7 +246,11 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
               <Text style={[styles.inputValue, { color: colors.textPrimary }]}>
                 {tr(selectedLeaveType)}
               </Text>
-              <Feather name="chevron-down" size={18} color={colors.textPrimary} />
+              <Feather
+                name={typeDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.textPrimary}
+              />
             </TouchableOpacity>
 
             {typeDropdownOpen && (
@@ -169,7 +263,12 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                 {LEAVE_TYPES.map((lt) => (
                   <TouchableOpacity
                     key={lt}
-                    style={styles.dropdownOption}
+                    style={[
+                      styles.dropdownOption,
+                      lt === selectedLeaveType && {
+                        backgroundColor: colors.surfaceSubtle,
+                      },
+                    ]}
                     onPress={() => {
                       setSelectedLeaveType(lt);
                       setTypeDropdownOpen(false);
@@ -206,18 +305,45 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
               onPress={() => setDateSheetOpen((prev) => !prev)}
             >
               <Text style={[styles.inputValue, { color: colors.textPrimary }, rtlText(isRTL)]}>
-                 {tr(`${currentMonthShortLabel} ${fromDay}, ${currentYear}`)} - {tr(`${currentMonthShortLabel} ${rangeMode === 'single' ? fromDay : toDay}, ${currentYear}`)}
+                {monthShort} {fromDay}, {viewYear} — {monthShort} {effectiveToDay}, {viewYear}
               </Text>
               <Feather name="calendar" size={18} color={colors.accent} />
             </TouchableOpacity>
 
-            {/* Length Display */}
-            <Text style={[styles.fieldLabel, { color: colors.textPrimary }, rtlText(isRTL)]}>
-              {t.lengthLabel}
-            </Text>
-            <Text style={[styles.lengthValue, { color: colors.textSecondary }, rtlText(isRTL)]}>
-              {daysCount.toFixed(2)} {t.days}
-            </Text>
+            {/* Duration & Exclusions Pill */}
+            <View
+              style={[
+                styles.summaryCard,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+              ]}
+            >
+              <View style={[styles.summaryRow, rtlRow(isRTL)]}>
+                <View style={styles.summaryMetric}>
+                  <Text style={[styles.metricLabel, { color: colors.textMuted }]}>
+                    Working Days
+                  </Text>
+                  <Text style={[styles.metricValue, { color: colors.accent }]}>
+                    {daysCount.toFixed(2)} {t.days}
+                  </Text>
+                </View>
+                {(calcResult.excludedWeekendDays > 0 || calcResult.excludedHolidayDays > 0) && (
+                  <View style={styles.summaryMetric}>
+                    <Text style={[styles.metricLabel, { color: colors.textMuted }]}>
+                      Exclusions (KSA)
+                    </Text>
+                    <Text style={[styles.metricExcluded, { color: colors.textSecondary }]}>
+                      {calcResult.excludedWeekendDays > 0 && `${calcResult.excludedWeekendDays} wknd `}
+                      {calcResult.excludedHolidayDays > 0 && `${calcResult.excludedHolidayDays} holiday`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {calcResult.excludedHolidays.length > 0 && (
+                <Text style={[styles.holidayTag, { color: colors.accent }]}>
+                  ⭐ {calcResult.excludedHolidays.join(', ')}
+                </Text>
+              )}
+            </View>
 
             {/* Notes Input */}
             <Text style={[styles.fieldLabel, { color: colors.textPrimary }, rtlText(isRTL)]}>
@@ -237,35 +363,53 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
               placeholderTextColor={colors.textMuted}
               value={notes}
               onChangeText={setNotes}
+              multiline
+              numberOfLines={3}
             />
 
-            {/* Attachment Document (Camera) matching shot_3.png */}
-            <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>
+            {/* Attachment Document Section */}
+            <Text style={[styles.fieldLabel, { color: colors.textPrimary }, rtlText(isRTL)]}>
               {t.attachmentDocument}
             </Text>
-            <View style={styles.attachmentRow}>
+            <View style={styles.attachmentContainer}>
               <TouchableOpacity
                 style={[
                   styles.cameraSquare,
                   {
                     backgroundColor: colors.surface,
-                    borderColor: hasAttachment ? colors.accent : colors.border,
+                    borderColor: attachmentFile ? colors.accent : colors.border,
                   },
                 ]}
-                onPress={() => setHasAttachment((prev) => !prev)}
+                onPress={handleToggleAttachment}
               >
                 <Feather
-                  name={hasAttachment ? 'check-circle' : 'camera'}
-                  size={22}
-                  color={hasAttachment ? colors.accent : colors.textSecondary}
+                  name={attachmentFile ? 'file-text' : 'paperclip'}
+                  size={20}
+                  color={attachmentFile ? colors.accent : colors.textSecondary}
                 />
               </TouchableOpacity>
-              <Text style={[styles.cameraCaption, { color: colors.textSecondary }]}>
-                {hasAttachment ? t.attachedFile : t.camera}
-              </Text>
+              {attachmentFile ? (
+                <View
+                  style={[
+                    styles.attachmentChip,
+                    { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.attachmentChipText, { color: colors.textPrimary }]}>
+                    {attachmentFile.name}
+                  </Text>
+                  <TouchableOpacity onPress={() => setAttachmentFile(null)}>
+                    <Feather name="x" size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={[styles.cameraCaption, { color: colors.textSecondary }]}>
+                  Attach medical certificate or document
+                </Text>
+              )}
             </View>
 
-            {/* Embedded "Select Date" Calendar Sheet matching shot_3.png */}
+            {/* Embedded Calendar Picker */}
             {dateSheetOpen && (
               <View
                 style={[
@@ -285,7 +429,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                   {t.selectDate}
                 </Text>
 
-                {/* One Day | Multiple Days Segmented Control */}
+                {/* Range Mode: Single Day vs Multiple Days */}
                 <View
                   style={[
                     styles.segmentedTrack,
@@ -295,12 +439,13 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.segmentBtn,
-                      rangeMode === 'single' && {
+                      rangeMode === 'single' && !isHalfDay && {
                         backgroundColor: colors.surface,
                       },
                     ]}
                     onPress={() => {
                       setRangeMode('single');
+                      setIsHalfDay(false);
                       setToDay(fromDay);
                     }}
                   >
@@ -309,7 +454,7 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                         styles.segmentText,
                         {
                           color:
-                            rangeMode === 'single'
+                            rangeMode === 'single' && !isHalfDay
                               ? colors.textPrimary
                               : colors.textMuted,
                         },
@@ -322,18 +467,21 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.segmentBtn,
-                      rangeMode === 'multiple' && {
+                      rangeMode === 'multiple' && !isHalfDay && {
                         backgroundColor: colors.surface,
                       },
                     ]}
-                    onPress={() => setRangeMode('multiple')}
+                    onPress={() => {
+                      setRangeMode('multiple');
+                      setIsHalfDay(false);
+                    }}
                   >
                     <Text
                       style={[
                         styles.segmentText,
                         {
                           color:
-                            rangeMode === 'multiple'
+                            rangeMode === 'multiple' && !isHalfDay
                               ? colors.textPrimary
                               : colors.textMuted,
                         },
@@ -342,87 +490,155 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                       {t.multipleDays}
                     </Text>
                   </TouchableOpacity>
-                </View>
 
-                {/* From Date / To Date Boxes */}
-                <View style={styles.fromToRow}>
-                  <View style={styles.fromToColumn}>
+                  {/* Half-Day Segment */}
+                  <TouchableOpacity
+                    style={[
+                      styles.segmentBtn,
+                      isHalfDay && {
+                        backgroundColor: colors.surface,
+                      },
+                    ]}
+                    onPress={() => {
+                      setIsHalfDay(true);
+                      setRangeMode('single');
+                      setToDay(fromDay);
+                    }}
+                  >
                     <Text
-                      style={[styles.fromToLabel, { color: colors.textPrimary }]}
-                    >
-                      {t.fromDate}
-                    </Text>
-                    <View
                       style={[
-                        styles.fromToBox,
-                        { borderColor: colors.border },
+                        styles.segmentText,
+                        {
+                          color: isHalfDay
+                            ? colors.accent
+                            : colors.textMuted,
+                        },
                       ]}
                     >
-                      <Text
-                        style={[styles.fromToValue, { color: colors.textPrimary }]}
-                      >
-                         {tr(`${currentMonthShortLabel} ${fromDay}, ${currentYear}`)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.fromToColumn}>
-                    <Text
-                      style={[styles.fromToLabel, { color: colors.textPrimary }]}
-                    >
-                      {t.toDate}
+                      ½ Half-Day
                     </Text>
-                    <View
-                      style={[
-                        styles.fromToBox,
-                        { borderColor: colors.accent, borderWidth: 1.5 },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.fromToValue, { color: colors.textPrimary }]}
-                      >
-                         {tr(`${currentMonthShortLabel} ${rangeMode === 'single' ? fromDay : toDay}, ${currentYear}`)}
-                      </Text>
-                    </View>
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
-                {/* Month Header */}
+                {/* Half-Day Period Selector */}
+                {isHalfDay && (
+                  <View style={[styles.halfDayTrack, { backgroundColor: colors.surfaceSubtle }]}>
+                    <TouchableOpacity
+                      style={[
+                        styles.halfDayBtn,
+                        halfDayPeriod === 'MORNING' && { backgroundColor: colors.surface },
+                      ]}
+                      onPress={() => setHalfDayPeriod('MORNING')}
+                    >
+                      <Text
+                        style={[
+                          styles.halfDayBtnText,
+                          {
+                            color:
+                              halfDayPeriod === 'MORNING'
+                                ? colors.accent
+                                : colors.textMuted,
+                          },
+                        ]}
+                      >
+                        Morning Shift (0.5d)
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.halfDayBtn,
+                        halfDayPeriod === 'AFTERNOON' && { backgroundColor: colors.surface },
+                      ]}
+                      onPress={() => setHalfDayPeriod('AFTERNOON')}
+                    >
+                      <Text
+                        style={[
+                          styles.halfDayBtnText,
+                          {
+                            color:
+                              halfDayPeriod === 'AFTERNOON'
+                                ? colors.accent
+                                : colors.textMuted,
+                          },
+                        ]}
+                      >
+                        Afternoon Shift (0.5d)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Month & Year Navigation Header with clickable chevrons */}
                 <View style={styles.monthNavRow}>
-                  <Feather
-                    name="chevron-left"
-                    size={20}
-                    color={colors.textPrimary}
-                  />
+                  <TouchableOpacity
+                    onPress={handlePrevMonth}
+                    style={styles.navArrowBtn}
+                    accessibilityLabel="Previous month"
+                  >
+                    <Feather
+                      name="chevron-left"
+                      size={22}
+                      color={colors.textPrimary}
+                    />
+                  </TouchableOpacity>
+
                   <Text style={[styles.monthTitle, { color: colors.textPrimary }]}>
-                     {tr(`${currentMonthLabel} ${currentYear}`)}
+                    {tr(`${monthName} ${viewYear}`)}
                   </Text>
-                  <Feather
-                    name="chevron-right"
-                    size={20}
-                    color={colors.textPrimary}
-                  />
+
+                  <TouchableOpacity
+                    onPress={handleNextMonth}
+                    style={styles.navArrowBtn}
+                    accessibilityLabel="Next month"
+                  >
+                    <Feather
+                      name="chevron-right"
+                      size={22}
+                      color={colors.textPrimary}
+                    />
+                  </TouchableOpacity>
                 </View>
 
                 {/* Weekday Headers */}
                 <View style={styles.weekdaysRow}>
-                  {(lang === 'ar' ? WEEKDAYS_AR : WEEKDAYS).map((wd) => (
+                  {(lang === 'ar' ? WEEKDAYS_AR : WEEKDAYS).map((wd, idx) => (
                     <Text
                       key={wd}
-                      style={[styles.weekdayText, { color: colors.textMuted }]}
+                      style={[
+                        styles.weekdayText,
+                        {
+                          color:
+                            idx === 5 || idx === 6
+                              ? colors.accent
+                              : colors.textMuted,
+                        },
+                      ]}
                     >
                       {wd}
                     </Text>
                   ))}
                 </View>
 
-                {/* Days Grid */}
+                {/* Days Grid with weekday alignment offset */}
                 <View style={styles.daysGrid}>
+                  {/* Leading empty slots */}
+                  {Array.from({ length: firstDayWeekday }).map((_, i) => (
+                    <View key={`empty-${i}`} style={styles.dayCell} />
+                  ))}
+
+                  {/* Day cells */}
                   {daysInMonth.map((day) => {
-                    const effectiveTo =
-                      rangeMode === 'single' ? fromDay : toDay;
-                    const isEndpoint = day === fromDay || day === effectiveTo;
-                    const isInRange = day > fromDay && day < effectiveTo;
+                    const isEndpoint =
+                      day === fromDay || day === effectiveToDay;
+                    const isInRange =
+                      !isHalfDay &&
+                      rangeMode === 'multiple' &&
+                      day > fromDay &&
+                      day < effectiveToDay;
+
+                    const dateObj = new Date(viewYear, viewMonth, day);
+                    const isWknd = isSaudiWeekend(dateObj);
+                    const holiday = getSaudiHolidayName(dateObj);
 
                     return (
                       <TouchableOpacity
@@ -447,18 +663,28 @@ export const RequestTimeOffModal: React.FC<RequestTimeOffModalProps> = ({
                                 ? '#FFFFFF'
                                 : isInRange
                                   ? colors.primary
-                                  : colors.textPrimary,
+                                  : isWknd
+                                    ? colors.textMuted
+                                    : colors.textPrimary,
                             },
                           ]}
                         >
                           {day}
                         </Text>
+                        {holiday && (
+                          <View
+                            style={[
+                              styles.holidayDot,
+                              { backgroundColor: colors.accent },
+                            ]}
+                          />
+                        )}
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
-                {/* Apply Button matching shot_3.png */}
+                {/* Apply Button */}
                 <TouchableOpacity
                   style={[
                     styles.applyButton,
@@ -484,29 +710,24 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 42,
   },
-  tealHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingBottom: 22,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  tealHeaderTitle: {
+  headerTitle: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeBtnText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
   },
   formContainer: {
     flex: 1,
@@ -514,8 +735,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
   },
   scrollContent: {
-    paddingHorizontal: 22,
-    paddingTop: 22,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 60,
   },
   fieldLabel: {
@@ -541,13 +762,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  dropdownChevron: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  calendarInputEmoji: {
-    fontSize: 17,
-  },
   dropdownList: {
     borderRadius: 14,
     borderWidth: 1,
@@ -562,10 +776,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  lengthValue: {
-    fontSize: 15,
+  summaryCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryMetric: {
+    flexDirection: 'column',
+  },
+  metricLabel: {
+    fontSize: 11,
     fontWeight: '600',
-    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  metricExcluded: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  holidayTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
   },
   notesInput: {
     borderRadius: 14,
@@ -574,26 +816,38 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     marginBottom: 10,
+    minHeight: 64,
   },
-  attachmentRow: {
-    alignItems: 'flex-start',
-    marginBottom: 18,
+  attachmentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
   },
   cameraSquare: {
-    width: 58,
-    height: 58,
+    width: 48,
+    height: 48,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
   },
-  cameraEmoji: {
-    fontSize: 22,
+  attachmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  attachmentChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   cameraCaption: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   calendarSheet: {
     borderRadius: 24,
@@ -609,63 +863,56 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   selectDateTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   segmentedTrack: {
     flexDirection: 'row',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   segmentBtn: {
     flex: 1,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 10,
     alignItems: 'center',
   },
   segmentText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  fromToRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 18,
-  },
-  fromToColumn: {
-    flex: 1,
-  },
-  fromToLabel: {
     fontSize: 13,
     fontWeight: '700',
-    marginBottom: 6,
   },
-  fromToBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
+  halfDayTrack: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
   },
-  fromToValue: {
-    fontSize: 14,
-    fontWeight: '600',
+  halfDayBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  halfDayBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   monthNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 10,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  monthArrow: {
-    fontSize: 22,
-    fontWeight: '700',
+  navArrowBtn: {
+    padding: 6,
+    borderRadius: 8,
   },
   monthTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
   weekdaysRow: {
@@ -674,7 +921,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   weekdayText: {
-    width: '14%',
+    width: '14.28%',
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
@@ -682,7 +929,7 @@ const styles = StyleSheet.create({
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   dayCell: {
     width: '14.28%',
@@ -695,9 +942,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  holidayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 2,
+  },
   applyButton: {
     borderRadius: 14,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
