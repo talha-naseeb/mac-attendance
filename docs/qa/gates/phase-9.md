@@ -3,7 +3,7 @@
 - **Approver**: Talha
 - **Date/time**: 2026-11-05T01:20:00+05:00
 - **Phase**: 9 (G4 — Leave & Approvals v2: M5 & M9 Leave UX)
-- **Commit**: TBD_CURRENT_SHA
+- **Commit**: 060f7d3b2e06f4a0882f567f8247c5bf000e3df8
 - **Build**: Local staging / main branch
 - **Environment**: staging
 - **Device**: iOS Simulator + Physical Device / Chrome & Safari Web Admin
