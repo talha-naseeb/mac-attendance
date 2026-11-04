@@ -3,7 +3,7 @@
 - **Approver**: Talha
 - **Date/time**: 2026-11-05T01:55:00+05:00
 - **Phase**: 10 (G5 — Admin Console Completion & Persisted Notifications: M6 & M7.1–M7.2)
-- **Commit**: HEAD
+- **Commit**: 646a6c6125360add3cc1c6fa8e78acbb7ed1f269
 - **Build**: Local staging / main branch
 - **Environment**: staging
 - **Device**: iOS Simulator + Physical Device / Chrome & Safari Web Admin
