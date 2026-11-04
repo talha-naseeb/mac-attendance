@@ -77,6 +77,7 @@ export const App: React.FC = () => {
     }
   });
   const [session, setSession] = useState<UserSession | null>(() => getStoredAdminSession());
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState<string | null>(null);
 
   // Route-scoped cached slices (loaded lazily only when the active route needs them)
   const [employees, setEmployees] = useState<AdminEmployee[] | null>(null);
@@ -205,14 +206,20 @@ export const App: React.FC = () => {
       setAttendance(null);
       setPayroll(null);
       setSelectedPunch(null);
+      setSessionExpiredNotice(
+        isArabic
+          ? 'انتهت صلاحية جلسة العمل الخاصة بك. يرجى إعادة تسجيل الدخول للمتابعة.'
+          : 'Your administrative session has expired. Please sign in again to continue.',
+      );
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     return () =>
       window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
-  }, []);
+  }, [isArabic]);
 
   const handleLogout = () => {
     clearAdminSession();
+    setSessionExpiredNotice(null);
     setSession(null);
     setEmployees(null);
     setBranches(null);
@@ -235,11 +242,15 @@ export const App: React.FC = () => {
   if (!session) {
     return (
       <AdminLoginScreen
-        onAuthenticated={setSession}
+        onAuthenticated={(newSession) => {
+          setSessionExpiredNotice(null);
+          setSession(newSession);
+        }}
         isDark={isDark}
         onToggleTheme={() => setIsDark((d) => !d)}
         isArabic={isArabic}
         onToggleLanguage={() => setIsArabic((a) => !a)}
+        sessionExpiredNotice={sessionExpiredNotice}
       />
     );
   }

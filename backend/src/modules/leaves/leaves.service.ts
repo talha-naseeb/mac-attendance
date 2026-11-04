@@ -14,12 +14,17 @@ import {
   LeaveDecision,
 } from './dto/leaves.dto';
 import { calculateWorkingDays } from '../../common/utils/leave-calculator.util';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class LeavesService {
   private readonly logger = new Logger(LeavesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications?: NotificationsService,
+  ) {}
 
   /**
    * Generates Microsoft Teams Adaptive Card JSON payload for manager approval notifications.
@@ -338,6 +343,26 @@ export class LeavesService {
       },
     });
 
+    if (this.notifications) {
+      if (!isManagerOrNoManager && user.managerId) {
+        await this.notifications.createNotification({
+          userId: user.managerId,
+          actorId: userId,
+          type: NotificationType.LEAVE_REQUEST,
+          title: `New Leave Request: ${user.firstName} ${user.lastName}`,
+          titleAr: `طلب إجازة جديد: ${user.firstName} ${user.lastName}`,
+          body: `${user.firstName} requested ${daysCount} days of ${dto.type}. Stage 1: Line Manager review.`,
+          bodyAr: `قدم ${user.firstName} طلباً لإجازة ${dto.type} لمدة ${daysCount} أيام. المرحلة 1: مراجعة المدير المباشر.`,
+          dataJson: {
+            requestId: leaveRequest.id,
+            leaveType: dto.type,
+            daysCount,
+            route: 'approvals',
+          },
+        });
+      }
+    }
+
     return {
       message: `Leave request submitted successfully. Awaiting approval from ${nextApprover}.`,
       request: leaveRequest,
@@ -543,6 +568,24 @@ export class LeavesService {
         },
       });
 
+      if (this.notifications) {
+        await this.notifications.createNotification({
+          userId: leaveRequest.userId,
+          actorId: decisionUserId,
+          type: NotificationType.LEAVE_REJECTION,
+          title: 'Leave Request Rejected',
+          titleAr: 'تم رفض طلب الإجازة',
+          body: `Your ${leaveRequest.type} leave request (${leaveRequest.daysCount} days) was rejected: ${dto.comments || 'No comment provided'}.`,
+          bodyAr: `تم رفض طلب إجازة ${leaveRequest.type} (${leaveRequest.daysCount} أيام): ${dto.comments || 'بدون ملاحظات'}.`,
+          dataJson: {
+            requestId,
+            leaveType: leaveRequest.type,
+            comments: dto.comments,
+            route: 'approvals',
+          },
+        });
+      }
+
       return {
         message: 'Leave request has been rejected.',
         request: updated,
@@ -590,6 +633,24 @@ export class LeavesService {
           },
         },
       });
+
+      if (this.notifications) {
+        await this.notifications.createNotification({
+          userId: leaveRequest.userId,
+          actorId: decisionUserId,
+          type: NotificationType.LEAVE_STAGE_1_APPROVED,
+          title: 'Stage 1 Approved by Manager',
+          titleAr: 'موافقة المرحلة 1 من المدير المباشر',
+          body: `Your ${leaveRequest.type} leave (${leaveRequest.daysCount} days) was approved by your line manager and forwarded to HR for final authorization.`,
+          bodyAr: `تمت موافقة مديرك المباشر على طلب إجازة ${leaveRequest.type} (${leaveRequest.daysCount} أيام) وتم إحالته للموارد البشرية للاعتماد النهائي.`,
+          dataJson: {
+            requestId,
+            leaveType: leaveRequest.type,
+            stage: 'STAGE_2_HR',
+            route: 'approvals',
+          },
+        });
+      }
 
       return {
         message:
@@ -690,6 +751,24 @@ export class LeavesService {
       return approvedRequest;
     });
 
+    if (this.notifications) {
+      await this.notifications.createNotification({
+        userId: leaveRequest.userId,
+        actorId: decisionUserId,
+        type: NotificationType.LEAVE_APPROVAL,
+        title: 'Leave Request Approved',
+        titleAr: 'تم اعتماد طلب الإجازة نهائياً',
+        body: `Your ${leaveRequest.type} leave request (${leaveRequest.daysCount} days) has been fully approved by HR.`,
+        bodyAr: `تم اعتماد طلب إجازة ${leaveRequest.type} (${leaveRequest.daysCount} أيام) رسمياً من الموارد البشرية.`,
+        dataJson: {
+          requestId,
+          leaveType: leaveRequest.type,
+          status: 'APPROVED',
+          route: 'approvals',
+        },
+      });
+    }
+
     return {
       message: 'Leave request fully approved by HR.',
       request: finalResult,
@@ -707,6 +786,9 @@ export class LeavesService {
   ) {
     const leaveRequest = await this.prisma.leaveRequest.findUnique({
       where: { id: requestId },
+      include: {
+        user: { select: { firstName: true, lastName: true, managerId: true } },
+      },
     });
 
     if (!leaveRequest) {
@@ -804,6 +886,24 @@ export class LeavesService {
 
       return updated;
     });
+
+    if (this.notifications && leaveRequest.user?.managerId) {
+      await this.notifications.createNotification({
+        userId: leaveRequest.user.managerId,
+        actorId: userId,
+        type: NotificationType.LEAVE_CANCELLED,
+        title: `Leave Cancelled: ${leaveRequest.user.firstName} ${leaveRequest.user.lastName}`,
+        titleAr: `إلغاء إجازة: ${leaveRequest.user.firstName} ${leaveRequest.user.lastName}`,
+        body: `${leaveRequest.user.firstName} cancelled their ${leaveRequest.type} leave (${leaveRequest.daysCount} days).`,
+        bodyAr: `قام ${leaveRequest.user.firstName} بإلغاء إجازة ${leaveRequest.type} (${leaveRequest.daysCount} أيام).`,
+        dataJson: {
+          requestId,
+          leaveType: leaveRequest.type,
+          status: 'CANCELLED',
+          route: 'approvals',
+        },
+      });
+    }
 
     return {
       message: wasApproved

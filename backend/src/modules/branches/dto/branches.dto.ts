@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBranchDto {
@@ -27,18 +36,22 @@ export class CreateBranchDto {
   @IsOptional()
   cityAr?: string;
 
-  @ApiProperty({ example: 24.7136 })
+  @ApiProperty({ example: 24.7136, description: 'Latitude between -90 and 90' })
   @IsNumber()
-  @IsNotEmpty()
+  @Min(-90)
+  @Max(90)
   latitude: number;
 
-  @ApiProperty({ example: 46.6753 })
+  @ApiProperty({ example: 46.6753, description: 'Longitude between -180 and 180' })
   @IsNumber()
-  @IsNotEmpty()
+  @Min(-180)
+  @Max(180)
   longitude: number;
 
-  @ApiPropertyOptional({ example: 150, default: 150 })
+  @ApiPropertyOptional({ example: 150, default: 150, description: 'Geofence radius between 10m and 10000m' })
   @IsNumber()
+  @Min(10)
+  @Max(10000)
   @IsOptional()
   geofenceRadiusMeters?: number;
 
@@ -46,6 +59,23 @@ export class CreateBranchDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @ApiPropertyOptional({ example: ['00:11:22:33:44:55'] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  wifiBssids?: string[];
+
+  @ApiPropertyOptional({ example: ['beacon-uuid-1'] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  bleBeacons?: string[];
+
+  @ApiPropertyOptional({ default: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class UpdateBranchDto {
@@ -54,18 +84,61 @@ export class UpdateBranchDto {
   @IsOptional()
   name?: string;
 
+  @ApiPropertyOptional({ example: 'المقر الرئيسي' })
+  @IsString()
+  @IsOptional()
+  nameAr?: string;
+
+  @ApiPropertyOptional({ example: 'Riyadh' })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'الرياض' })
+  @IsString()
+  @IsOptional()
+  cityAr?: string;
+
   @ApiPropertyOptional({ example: 24.7136 })
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   @IsOptional()
   latitude?: number;
 
   @ApiPropertyOptional({ example: 46.6753 })
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   @IsOptional()
   longitude?: number;
 
   @ApiPropertyOptional({ example: 150 })
   @IsNumber()
+  @Min(10)
+  @Max(10000)
   @IsOptional()
   geofenceRadiusMeters?: number;
+
+  @ApiPropertyOptional({ example: 'Digital City, Riyadh' })
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @ApiPropertyOptional({ example: ['00:11:22:33:44:55'] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  wifiBssids?: string[];
+
+  @ApiPropertyOptional({ example: ['beacon-uuid-1'] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  bleBeacons?: string[];
+
+  @ApiPropertyOptional({ default: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

@@ -54,6 +54,7 @@ import {
 import {
   decideLeaveToBackend,
   loadMobileApiData,
+  markAllNotificationsAsRead,
   submitLeaveToBackend,
   submitPunchToBackend,
 } from './src/services/backendApi';
@@ -202,6 +203,9 @@ function MacqHRApp() {
     setWhosOff(data.whosOff);
     setDirectory(data.directory);
     setSalarySlips(data.salarySlips);
+    if (data.notifications && data.notifications.length > 0) {
+      setNotifications(data.notifications);
+    }
   }, []);
 
   const refreshMobileApiData = useCallback(async (token: string, role: UserRole) => {
@@ -675,6 +679,9 @@ function MacqHRApp() {
 
   const handleMarkAllNotificationsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (authToken) {
+      void markAllNotificationsAsRead(authToken).catch(() => {});
+    }
   };
 
   const handleSecurityAuditEvent = (message: string, blocked: boolean) => {

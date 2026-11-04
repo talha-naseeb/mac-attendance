@@ -11,6 +11,7 @@ import {
   DirectoryEmployee,
   LeaveBalance,
   LeaveType,
+  NotificationItem,
   SalarySlip,
   WhosOffEntry,
 } from '../types/zenhr';
@@ -233,6 +234,31 @@ export interface MobileApiData {
   whosOff: WhosOffEntry[];
   directory: DirectoryEmployee[];
   salarySlips: SalarySlip[];
+  notifications?: NotificationItem[];
+  unreadNotificationsCount?: number;
+}
+
+interface RawNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: unknown;
+  read: boolean;
+  createdAt: string;
+}
+
+function formatRelativeTime(value: string | Date): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recently';
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }
 
 function mapBalances(balances: RawLeaveBalance[]): LeaveBalance[] {
@@ -501,7 +527,7 @@ export async function loadMobileApiData(
   role: UserRole,
 ): Promise<MobileApiData> {
   const canViewTeam = role === 'MANAGER' || role === 'HR_ADMIN' || role === 'ADMIN';
-  const [balances, myRequests, history, directory, whosOff, payslip, pending, team] = await Promise.all([
+  const [balances, myRequests, history, directory, whosOff, payslip, pending, team, notifRes] = await Promise.all([
     request<RawLeaveBalance[]>('/leaves/balances', {}, token),
     request<RawLeaveRequest[]>('/leaves/my-requests', {}, token),
     request<RawAttendanceRecord[]>('/attendance/my-history?limit=100', {}, token),
@@ -510,7 +536,19 @@ export async function loadMobileApiData(
     request<RawPayslip>('/payroll/my-payslip', {}, token),
     canViewTeam ? request<RawLeaveRequest[]>('/leaves/pending', {}, token) : Promise.resolve([]),
     canViewTeam ? request<RawTeamAttendance[]>('/attendance/team', {}, token) : Promise.resolve([]),
+    request<{ notifications: RawNotification[]; unreadCount: number }>('/notifications', {}, token).catch(() => ({
+      notifications: [],
+      unreadCount: 0,
+    })),
   ]);
+
+  const notifications: NotificationItem[] = notifRes.notifications.map((n) => ({
+    id: n.id,
+    title: n.title,
+    body: n.body,
+    timeAgo: formatRelativeTime(n.createdAt),
+    read: n.read,
+  }));
 
   return {
     leaveBalances: mapBalances(balances),
@@ -520,7 +558,54 @@ export async function loadMobileApiData(
     whosOff: mapWhosOff(whosOff),
     directory: mapDirectory(directory),
     salarySlips: [mapPayslip(payslip)],
+    notifications,
+    unreadNotificationsCount: notifRes.unreadCount,
   };
+}
+
+export async function fetchBackendNotifications(token: string): Promise<{
+  notifications: NotificationItem[];
+  unreadCount: number;
+}> {
+  const res = await request<{
+    notifications: RawNotification[];
+    unreadCount: number;
+  }>('/notifications', {}, token);
+
+  return {
+    notifications: res.notifications.map((n) => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      timeAgo: formatRelativeTime(n.createdAt),
+      read: n.read,
+    })),
+    unreadCount: res.unreadCount,
+  };
+}
+
+export async function markNotificationAsRead(
+  token: string,
+  id: string,
+): Promise<{ id: string; read: boolean }> {
+  return request(`/notifications/${id}/read`, { method: 'PATCH' }, token);
+}
+
+export async function markAllNotificationsAsRead(
+  token: string,
+): Promise<{ count: number }> {
+  return request('/notifications/read-all', { method: 'PATCH' }, token);
+}
+
+export async function registerPushDeviceToken(
+  token: string,
+  pushToken: string,
+  platform: 'IOS' | 'ANDROID' | 'WEB' = 'IOS',
+): Promise<void> {
+  return request('/notifications/device-token', {
+    method: 'POST',
+    body: JSON.stringify({ token: pushToken, platform }),
+  }, token);
 }
 
 export async function submitPunchToBackend(

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Sun,
   FileCheck2,
+  AlertTriangle,
 } from 'lucide-react';
 import { ApiError, loginAdmin, UserSession } from '../api/client';
 
@@ -19,6 +20,7 @@ interface AdminLoginScreenProps {
   onToggleTheme?: () => void;
   isArabic?: boolean;
   onToggleLanguage?: () => void;
+  sessionExpiredNotice?: string | null;
 }
 
 export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
@@ -27,6 +29,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
   onToggleTheme,
   isArabic = false,
   onToggleLanguage,
+  sessionExpiredNotice,
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -177,6 +180,21 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
             </div>
 
             <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit}>
+              {sessionExpiredNotice && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-950/40 p-3 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2.5"
+                >
+                  <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold block">
+                      {isArabic ? 'انتهت صلاحية الجلسة' : 'Session Expired'}
+                    </span>
+                    <span>{sessionExpiredNotice}</span>
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <p
                   role="alert"

@@ -201,6 +201,8 @@ model User {
   employeeChanges    EmploymentChange[]     @relation("EmployeeChanges")
   changesMade        EmploymentChange[]     @relation("EmploymentChangeActor")
   salaryRecords      EmployeeSalaryRecord[]
+  notifications      Notification[]         @relation("UserNotifications")
+  deviceTokens       DeviceToken[]          @relation("UserDeviceTokens")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -603,3 +605,51 @@ model EmployeeSalaryRecord {
 
   @@index([userId, effectiveFrom])
 }
+
+enum NotificationType {
+  LEAVE_REQUEST
+  LEAVE_STAGE_1_APPROVED
+  LEAVE_APPROVAL
+  LEAVE_REJECTION
+  LEAVE_CANCELLED
+  ATTENDANCE_ALERT
+  SYSTEM
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  actorId   String?
+  type      NotificationType @default(SYSTEM)
+  title     String
+  titleAr   String?
+  body      String
+  bodyAr    String?
+  read      Boolean          @default(false)
+  readAt    DateTime?
+  dataJson  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+model DeviceToken {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation("UserDeviceTokens", fields: [userId], references: [id], onDelete: Cascade)
+  token     String         @unique
+  platform  DevicePlatform @default(IOS)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId])
+}
+

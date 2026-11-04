@@ -12,6 +12,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { DirectoryModule } from './modules/directory/directory.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { CommonModule } from './common/common.module';
@@ -36,6 +37,7 @@ import { CommonModule } from './common/common.module';
     PayrollModule,
     DirectoryModule,
     AuditLogsModule,
+    NotificationsModule,
   ],
   providers: [
     {

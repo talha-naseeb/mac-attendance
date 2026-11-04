@@ -38,6 +38,7 @@ export const BranchesView: React.FC<BranchesViewProps> = ({
   const [deletingBranch, setDeletingBranch] = useState<AdminBranch | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const [formName, setFormName] = useState('');
   const [formNameAr, setFormNameAr] = useState('');
@@ -49,6 +50,7 @@ export const BranchesView: React.FC<BranchesViewProps> = ({
 
   const handleOpenAdd = () => {
     setEditingBranch(null);
+    setValidationError(null);
     setFormName('');
     setFormNameAr('');
     setFormCode('RUH-NEW');
@@ -61,6 +63,7 @@ export const BranchesView: React.FC<BranchesViewProps> = ({
 
   const handleOpenEdit = (branch: AdminBranch) => {
     setEditingBranch(branch);
+    setValidationError(null);
     setFormName(branch.name);
     setFormNameAr(branch.nameAr);
     setFormCode(branch.code);
@@ -73,20 +76,59 @@ export const BranchesView: React.FC<BranchesViewProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave(
-      {
-        name: formName,
-        nameAr: formNameAr,
-        code: formCode,
-        city: formCity,
-        address: editingBranch?.address || `${formCity}, Kingdom of Saudi Arabia`,
-        latitude: parseFloat(formLat),
-        longitude: parseFloat(formLng),
-        geofenceRadiusMeters: formRadius,
-      },
-      editingBranch?.id,
-    );
-    setIsModalOpen(false);
+    setValidationError(null);
+
+    const lat = parseFloat(formLat);
+    const lng = parseFloat(formLng);
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      setValidationError(
+        isArabic
+          ? 'خط العرض غير صحيح. يجب أن يكون بين -90 و 90 درجة.'
+          : 'Invalid latitude. Must be between -90 and 90 degrees.',
+      );
+      return;
+    }
+
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      setValidationError(
+        isArabic
+          ? 'خط الطول غير صحيح. يجب أن يكون بين -180 و 180 درجة.'
+          : 'Invalid longitude. Must be between -180 and 180 degrees.',
+      );
+      return;
+    }
+
+    if (isNaN(formRadius) || formRadius < 10 || formRadius > 10000) {
+      setValidationError(
+        isArabic
+          ? 'نطاق السياج الجغرافي يجب أن يكون بين 10 و 10,000 متر.'
+          : 'Geofence radius must be between 10 and 10,000 meters.',
+      );
+      return;
+    }
+
+    try {
+      await onSave(
+        {
+          name: formName.trim(),
+          nameAr: formNameAr.trim(),
+          code: formCode.trim().toUpperCase(),
+          city: formCity.trim(),
+          address: editingBranch?.address || `${formCity}, Kingdom of Saudi Arabia`,
+          latitude: lat,
+          longitude: lng,
+          geofenceRadiusMeters: formRadius,
+        },
+        editingBranch?.id,
+      );
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setValidationError(
+        err?.message ||
+          (isArabic ? 'تعذر حفظ بيانات الفرع.' : 'Unable to save branch.'),
+      );
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -309,6 +351,16 @@ export const BranchesView: React.FC<BranchesViewProps> = ({
             </p>
 
             <form onSubmit={(event) => void handleSave(event)} className="space-y-4">
+              {validationError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 p-3 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2"
+                >
+                  <AlertTriangle size={15} className="flex-shrink-0 text-rose-600" />
+                  <span>{validationError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   {isArabic ? 'اسم الفرع (بالإنجليزية)' : 'Branch Name (English)'}
