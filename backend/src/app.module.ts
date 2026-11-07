@@ -13,6 +13,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { DirectoryModule } from './modules/directory/directory.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { CommonModule } from './common/common.module';
@@ -40,6 +41,7 @@ import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware
     DirectoryModule,
     AuditLogsModule,
     NotificationsModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [

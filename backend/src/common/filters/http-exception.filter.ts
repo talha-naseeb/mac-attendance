@@ -28,6 +28,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message: string | string[] = 'Internal server error';
     let error = 'Internal Server Error';
     let code: string | undefined;
+    let errors: unknown[] | undefined;
 
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
@@ -37,6 +38,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error = resp.error || error;
       if (typeof resp.code === 'string') {
         code = resp.code;
+      }
+      if (Array.isArray(resp.errors)) {
+        errors = resp.errors;
       }
     } else if (exception instanceof Error) {
       message = exception.message;
@@ -60,6 +64,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error,
       message,
       ...(code ? { code } : {}),
+      ...(errors ? { errors } : {}),
     });
   }
 }

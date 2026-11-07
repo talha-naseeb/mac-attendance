@@ -562,3 +562,116 @@ export async function decideRemoteRequest(
     throw new ApiError(getApiMessage(error));
   }
 }
+
+export interface PayrollRunRecord {
+  id: string;
+  period: string;
+  status: 'PREPARED' | 'REVIEWED' | 'LOCKED';
+  totalEmployees: number;
+  totals: PayrollSummary['totals'] & {
+    totalUnpaidLeaveSar?: number;
+    totalOvertimeSar?: number;
+  };
+  preparedAt?: string;
+  reviewedAt?: string | null;
+  lockedAt?: string | null;
+}
+
+export interface IntegrationConfigItem {
+  id: string;
+  provider: 'TEAMS' | 'OUTLOOK' | 'ENTRA_SSO';
+  enabled: boolean;
+  webhookUrl?: string | null;
+  tenantId?: string | null;
+  simulateFailure: boolean;
+  lastSuccessAt?: string | null;
+  lastFailureAt?: string | null;
+  lastErrorMessage?: string | null;
+}
+
+export async function fetchPayrollRuns(): Promise<PayrollRunRecord[]> {
+  try {
+    const { data } = await apiClient.get<PayrollRunRecord[]>('/payroll/runs');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function preparePayrollRunApi(period: string): Promise<PayrollRunRecord> {
+  try {
+    const { data } = await apiClient.post<PayrollRunRecord>('/payroll/runs', { period });
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function reviewPayrollRunApi(runId: string): Promise<PayrollRunRecord> {
+  try {
+    const { data } = await apiClient.post<PayrollRunRecord>(`/payroll/runs/${runId}/review`);
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function lockPayrollRunApi(runId: string): Promise<PayrollRunRecord> {
+  try {
+    const { data } = await apiClient.post<PayrollRunRecord>(`/payroll/runs/${runId}/lock`);
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchIntegrationConfigs(): Promise<{
+  configs: IntegrationConfigItem[];
+  outboxSummary: Array<{ provider: string; status: string; count: number }>;
+}> {
+  try {
+    const { data } = await apiClient.get('/integrations/admin/configs');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function toggleIntegrationProvider(
+  provider: 'TEAMS' | 'OUTLOOK' | 'ENTRA_SSO',
+  enabled: boolean,
+): Promise<IntegrationConfigItem> {
+  try {
+    const { data } = await apiClient.patch<IntegrationConfigItem>(
+      `/integrations/admin/configs/${provider}`,
+      { enabled },
+    );
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function testIntegrationConnection(
+  provider: 'TEAMS' | 'OUTLOOK' | 'ENTRA_SSO',
+): Promise<{ ok: boolean; status: string; message: string }> {
+  try {
+    const { data } = await apiClient.post(`/integrations/admin/configs/${provider}/test`);
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function retryFailedIntegrations(): Promise<{
+  retriedCount: number;
+  deliveredCount: number;
+}> {
+  try {
+    const { data } = await apiClient.post('/integrations/admin/retry-all');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+

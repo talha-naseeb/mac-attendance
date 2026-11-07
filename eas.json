@@ -1,0 +1,47 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "APP_ENV": "development",
+        "EXPO_PUBLIC_API_URL": "http://localhost:4000/api",
+        "EXPO_PUBLIC_DEMO_CONTROLS": "false"
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_ENV": "staging",
+        "EXPO_PUBLIC_API_URL": "https://staging-api.shiftly.sa/api",
+        "EXPO_PUBLIC_ENFORCE_TLS": "true",
+        "EXPO_PUBLIC_CERT_PIN_SHA256": "sha256/ShiftlyStagingRootPin2026==",
+        "EXPO_PUBLIC_DEMO_CONTROLS": "false"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "env": {
+        "APP_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://api.shiftly.sa/api",
+        "EXPO_PUBLIC_ENFORCE_TLS": "true",
+        "EXPO_PUBLIC_CERT_PIN_SHA256": "sha256/ShiftlyProdPrimaryPin2026==",
+        "EXPO_PUBLIC_DEMO_CONTROLS": "false"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

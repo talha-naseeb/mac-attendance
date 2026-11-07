@@ -1,12 +1,12 @@
 # MacqHR Delivery Tracker
 
-> **Status**: Product Phases 1–5 implemented (mobile + API + admin prototype). Phase 6 foundation work is approved at G1 (`578b65d`). Phase 7 (M2 identity and sessions + M3 employee lifecycle + Web Admin Console UI polish) is approved at G2 (`baa3be8`). Starting Phase 8 (M4 Attendance integrity & breaks).
+> **Status**: Product Phases 1–10 implemented and approved through Gate G5 (`7083588`). Phase 11 (M7.3–M7.7 Microsoft 365 integrations & outbox, M8 period payroll runs, payslips & WPS validation, M10 release readiness, observability & tenancy runbook) implemented and verified.
 > **Product strategy**: Single-company v1 for Macquires first (Mobile App for Employees & Managers; Web Admin Console for HR Admin & Super Admin), followed by Phase 12 (M11 Allowances, Claims & Document Vault) and Phase 13+ (Multi-Tenant B2B SaaS Workspaces).
-> **Verification**: 47 mobile tests; 103 backend unit tests in 13 suites plus `nest build`; 43 isolated-database API tests in 5 suites; 15 admin Vitest tests in 4 suites; admin production build passing (`npm run verify:all` green on 2026-11-04).
-> **Release status**: G2 gate signed. Preparing Phase 8 kickoff.
+> **Verification**: 60 mobile tests; 132 backend unit tests in 16 suites plus `nest build`; 83 isolated-database API tests in 9 suites; 26 admin Vitest tests in 6 suites; admin production build passing (`npm run verify:all` green on 2026-11-07).
+> **Release status**: G5 gate signed (`7083588`). Phase 11 implemented and ready for G6 sign-off.
 > **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
 > **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
-> **Last updated**: 2026-11-04
+> **Last updated**: 2026-11-07
 
 ## Legend
 
@@ -54,11 +54,11 @@ The detailed modules, rules, risks, and decisions are in the [PRD](docs/prd/READ
 | Phase | Name | Scope | Exit criteria | Gate | Status |
 |---|---|---|---|---|---|
 | **6** | Foundation & trust | M1, M2 stopgaps, M9 demo-control removal | Code fully tracked; `verify:all` in CI; migrations committed; secrets/CORS hardened; role switcher and prefilled credentials removed; employee PII guarded; SHA-bound push hook | G1 | `[x]` Approved at G1 (`578b65d`) |
-| **7** | Identity & employee lifecycle | M2, M3 | Refresh/revocation; forced password change; rate limiting; admin employee CRUD; role/manager/branch/remote changes; SSO decision executed | G2 | `[x]` Approved at G2 (`baa3be8`) |
-| **8** | Attendance integrity & breaks | M4 | Verifiable evidence; local-day boundary; two remote modes (permanent `isRemoteAllowed` vs. per-day office remote approval); `BREAK_START` / `BREAK_END` persistence; offline decision; corrections; admin attendance view/export | G3 | `[ ]` |
-| **9** | Leave & approvals v2 | M5, M9 leave UX | Two-stage pipeline; balance ledger; holidays; overlap/half-day; cancellation; attachments; full calendar and types | G4 | `[ ]` |
-| **10** | Admin console & notifications | M6, M7.1–M7.2 | Employee/attendance/leave admin complete; reports; audit viewer; persisted notifications and push | G5 | `[ ]` |
-| **11** | Payroll, integrations & release | M7.3–M7.7, M8, M10 | Payroll run + WPS validation; Teams/Outlook dispatch; EAS builds; pinning; monitoring/backup; store/MDM | G6 | `[ ]` |
+| **7** | Identity & employee lifecycle | M2, M3 | Refresh/revocation; forced password change; rate limiting; admin employee CRUD; role/manager/branch/remote changes; SSO decision executed | G2 | `[x]` Approved at G2 (`47057c1`) |
+| **8** | Attendance integrity & breaks | M4 | Verifiable evidence; local-day boundary; two remote modes (permanent `isRemoteAllowed` vs. per-day office remote approval); `BREAK_START` / `BREAK_END` persistence; offline decision; corrections; admin attendance view/export | G3 | `[x]` Approved at G3 (`e894bce`) |
+| **9** | Leave & approvals v2 | M5, M9 leave UX | Two-stage pipeline; balance ledger; holidays; overlap/half-day; cancellation; attachments; full calendar and types | G4 | `[x]` Approved at G4 (`060f7d3`) |
+| **10** | Admin console & notifications | M6, M7.1–M7.2 | Employee/attendance/leave admin complete; reports; audit viewer; persisted notifications and push | G5 | `[x]` Approved at G5 (`646a6c6`) |
+| **11** | Payroll, integrations & release | M7.3–M7.7, M8, M10 | Payroll run + WPS validation; Teams/Outlook dispatch; EAS builds; pinning; monitoring/backup; store/MDM | G6 | `[x]` Implemented & verified (`verify:all` green) |
 | **12** | Allowances, claims & document vault | M11 | Receipt-backed reimbursement claims (Medical, Insurance, Petrol, Wi-Fi) with policy limits & payroll integration; two-stage approval (with direct-to-HR privacy option for Medical/Insurance); employee profile Document Vault (ID/Iqama/CNIC, Passport, Insurance Card, Contracts with expiry alerts) | G7 | `[ ]` |
 | **13+** | Multi-tenant SaaS workspaces | Account model D1–D5 | Upgrade single-company MacqHR into multi-tenant B2B SaaS (`Workspace`, `Membership`, per-tenant SSO, Platform Super Admin & seat billing) | — | `[ ]` Later |
 

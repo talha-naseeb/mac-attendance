@@ -15,6 +15,7 @@ import {
 } from './dto/leaves.dto';
 import { calculateWorkingDays } from '../../common/utils/leave-calculator.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 import { NotificationType } from '@prisma/client';
 
 @Injectable()
@@ -24,6 +25,7 @@ export class LeavesService {
   constructor(
     private prisma: PrismaService,
     private notifications?: NotificationsService,
+    private integrations?: IntegrationsService,
   ) {}
 
   /**
@@ -363,12 +365,31 @@ export class LeavesService {
       }
     }
 
+    let teamsDispatchResult: any = null;
+    if (this.integrations) {
+      teamsDispatchResult = await this.integrations.dispatchTeamsAdaptiveCard(
+        leaveRequest.id,
+        teamsCardPayload,
+      );
+      if (teamsDispatchResult?.externalMessageId) {
+        leaveRequest.teamsAdaptiveCardMessageId =
+          teamsDispatchResult.externalMessageId;
+      }
+    }
+
     return {
       message: `Leave request submitted successfully. Awaiting approval from ${nextApprover}.`,
       request: leaveRequest,
       calculation: calc,
       nextApprover,
       teamsNotificationPayload: teamsCardPayload,
+      integrationDispatch: teamsDispatchResult
+        ? {
+            provider: 'TEAMS',
+            status: teamsDispatchResult.status,
+            externalMessageId: teamsDispatchResult.externalMessageId,
+          }
+        : undefined,
     };
   }
 
@@ -769,9 +790,27 @@ export class LeavesService {
       });
     }
 
+    let outlookSyncResult: any = null;
+    if (this.integrations) {
+      outlookSyncResult = await this.integrations.syncOutlookCalendarEvent(
+        finalResult,
+        'UPSERT',
+      );
+      if (outlookSyncResult?.externalMessageId) {
+        finalResult.outlookCalendarEventId =
+          outlookSyncResult.externalMessageId;
+      }
+    }
+
     return {
       message: 'Leave request fully approved by HR.',
       request: finalResult,
+      outlookSync: outlookSyncResult
+        ? {
+            status: outlookSyncResult.status,
+            externalMessageId: outlookSyncResult.externalMessageId,
+          }
+        : undefined,
     };
   }
 
@@ -905,11 +944,94 @@ export class LeavesService {
       });
     }
 
+    let outlookCancelResult: any = null;
+    if (wasApproved && this.integrations) {
+      outlookCancelResult = await this.integrations.syncOutlookCalendarEvent(
+        leaveRequest,
+        'DELETE',
+      );
+      cancelledResult.outlookCalendarEventId = null;
+    }
+
     return {
       message: wasApproved
         ? 'Approved leave request cancelled and balance successfully restored.'
         : 'Pending leave request cancelled.',
       request: cancelledResult,
+      outlookSync: outlookCancelResult
+        ? {
+            status: outlookCancelResult.status,
+            externalMessageId: outlookCancelResult.externalMessageId,
+          }
+        : undefined,
+    };
+  }
+
+  /**
+   * Reschedules leave dates and updates the existing Outlook OOO event if already approved (INT-03)
+   */
+  async rescheduleRequest(
+    requestId: string,
+    userId: string,
+    userRole: string,
+    dto: { startDate: string; endDate: string },
+  ) {
+    const leaveRequest = await this.prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!leaveRequest) {
+      throw new NotFoundException(`Leave request ${requestId} not found.`);
+    }
+
+    const isHrOrAdmin = userRole === 'HR_ADMIN' || userRole === 'SUPER_ADMIN';
+    if (leaveRequest.userId !== userId && !isHrOrAdmin) {
+      throw new ForbiddenException(
+        'You do not have authorization to modify this leave request.',
+      );
+    }
+
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    if (end < start) {
+      throw new BadRequestException('End date cannot precede start date.');
+    }
+
+    const calc = calculateWorkingDays({
+      startDate: start,
+      endDate: end,
+      country: 'SA',
+      isHalfDay: leaveRequest.isHalfDay,
+    });
+
+    const updated = await this.prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: {
+        startDate: start,
+        endDate: end,
+        daysCount: calc.daysCount || 1,
+      },
+    });
+
+    let outlookSync: any = null;
+    if (updated.status === 'APPROVED' && this.integrations) {
+      outlookSync = await this.integrations.syncOutlookCalendarEvent(
+        updated,
+        'UPSERT',
+      );
+      if (outlookSync?.externalMessageId) {
+        updated.outlookCalendarEventId = outlookSync.externalMessageId;
+      }
+    }
+
+    return {
+      message: 'Leave request dates updated.',
+      request: updated,
+      outlookSync: outlookSync
+        ? {
+            status: outlookSync.status,
+            externalMessageId: outlookSync.externalMessageId,
+          }
+        : undefined,
     };
   }
 

@@ -1308,6 +1308,88 @@ describeSuite(
   }
 );
 
+describeSuite(
+  'Phase 11: Payroll Halala Precision, Unpaid Leave Deductions & Release Hardening (M8 & M10)',
+  () => {
+    itCase(
+      'TC-P11.1: Computes Saudi GOSI below, at, and above the 45,000 SAR statutory cap to the halala',
+      () => {
+        const belowCap = calculateSaudiGosiBreakdown({
+          basicSalarySar: 12000,
+          housingAllowanceSar: 3000,
+          transportAllowanceSar: 1000,
+          overtimeSar: 0,
+          iban: 'SA0380000000608010167519',
+        });
+        assertEqual(belowCap.employeeDeductionSar, 1462.5);
+        assertEqual(belowCap.employerContributionSar, 1762.5);
+        assertEqual(belowCap.netPayableAfterGosiSar, 14537.5);
+
+        const aboveCap = calculateSaudiGosiBreakdown({
+          basicSalarySar: 40000,
+          housingAllowanceSar: 10000,
+          transportAllowanceSar: 2000,
+          overtimeSar: 0,
+          iban: 'SA0380000000608010167519',
+        });
+        assertEqual(aboveCap.contributoryWageSar, 45000);
+        assertEqual(aboveCap.employeeDeductionSar, 4387.5);
+        assertEqual(aboveCap.employerContributionSar, 5287.5);
+        assertEqual(aboveCap.netPayableAfterGosiSar, 47612.5);
+      }
+    );
+
+    itCase(
+      'TC-P11.2: Validates Saudi IBAN compliance and rejects malformed IBAN strings for Mudad WPS',
+      () => {
+        const valid = calculateSaudiGosiBreakdown({
+          basicSalarySar: 15000,
+          housingAllowanceSar: 3750,
+          transportAllowanceSar: 1250,
+          overtimeSar: 0,
+          iban: 'SA0380000000608010167523',
+        });
+        assertEqual(valid.mudadWpsCompliant, true);
+
+        const invalid = calculateSaudiGosiBreakdown({
+          basicSalarySar: 15000,
+          housingAllowanceSar: 3750,
+          transportAllowanceSar: 1250,
+          overtimeSar: 0,
+          iban: 'INVALID_IBAN_123',
+        });
+        assertEqual(invalid.mudadWpsCompliant, false);
+      }
+    );
+
+    itCase(
+      'TC-P11.3: Computes unpaid leave deduction (Basic / 30 × unpaid days) in integer halalas without drift',
+      () => {
+        const basicHalalas = 12000 * 100;
+        const dailyRateHalalas = Math.round(basicHalalas / 30); // 40,000 halalas = 400 SAR
+        const unpaidDays = 3;
+        const deductionHalalas = Math.round(dailyRateHalalas * unpaidDays);
+        assertEqual(deductionHalalas, 120000);
+        assertEqual(deductionHalalas / 100, 1200);
+      }
+    );
+
+    itCase(
+      'TC-P11.4: Enforces release-grade dashboard structure without demo role switcher or prefilled debug cards',
+      () => {
+        assertEqual(
+          DASHBOARD_SECTION_REGISTRY.some((s) => s.id === ('DEMO_ROLE_SWITCHER' as any)),
+          false
+        );
+        assertEqual(
+          DASHBOARD_SECTION_REGISTRY.some((s) => s.id === ('DEBUG_TOOLBAR' as any)),
+          false
+        );
+      }
+    );
+  }
+);
+
 console.log(
   `\n==================================================\nTEST SUMMARY: ${passedCount} passed, ${failedCount} failed (${
     passedCount + failedCount

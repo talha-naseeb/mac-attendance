@@ -29,9 +29,17 @@ export async function createUser(
     isRemoteAllowed: boolean;
     branchId: string | null;
     managerId: string | null;
+    isSaudi: boolean;
+    nationalId: string | null;
+    iqamaNumber: string | null;
+    iban: string | null;
+    basicSalarySar: number;
+    housingAllowanceSar: number;
+    transportAllowanceSar: number;
   }> = {},
 ) {
   const branch = overrides.branchId === undefined ? await createBranch(prisma) : null;
+  const isSaudi = overrides.isSaudi ?? true;
   return prisma.user.create({
     data: {
       employeeId: overrides.employeeId ?? `EMP-T${Math.floor(Math.random() * 900000 + 100000)}`,
@@ -44,8 +52,26 @@ export async function createUser(
       fullNameAr: 'موظف اختبار',
       jobTitle: 'Engineer',
       department: 'Engineering',
-      isSaudi: true,
-      basicSalarySar: 10000,
+      isSaudi,
+      nationalId:
+        overrides.nationalId !== undefined
+          ? overrides.nationalId
+          : isSaudi
+            ? '1098765432'
+            : null,
+      iqamaNumber:
+        overrides.iqamaNumber !== undefined
+          ? overrides.iqamaNumber
+          : !isSaudi
+            ? '2098765432'
+            : null,
+      iban:
+        overrides.iban !== undefined
+          ? overrides.iban
+          : 'SA0380000000608010167519',
+      basicSalarySar: overrides.basicSalarySar ?? 10000,
+      housingAllowanceSar: overrides.housingAllowanceSar ?? 2500,
+      transportAllowanceSar: overrides.transportAllowanceSar ?? 1000,
       branchId: overrides.branchId === undefined ? branch!.id : overrides.branchId,
       managerId: overrides.managerId ?? null,
       isActive: overrides.isActive ?? true,

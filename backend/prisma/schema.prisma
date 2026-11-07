@@ -145,6 +145,7 @@ model User {
   isSaudi               Boolean @default(true)
   nationalId            String?
   iqamaNumber           String?
+  iban                  String? @default("SA0380000000608010167519")
   basicSalarySar        Float   @default(10000.0)
   housingAllowanceSar   Float   @default(2500.0)
   transportAllowanceSar Float   @default(1000.0)
@@ -200,9 +201,14 @@ model User {
   sessions           AuthSession[]
   employeeChanges    EmploymentChange[]     @relation("EmployeeChanges")
   changesMade        EmploymentChange[]     @relation("EmploymentChangeActor")
-  salaryRecords      EmployeeSalaryRecord[]
-  notifications      Notification[]         @relation("UserNotifications")
-  deviceTokens       DeviceToken[]          @relation("UserDeviceTokens")
+  salaryRecords       EmployeeSalaryRecord[]
+  notifications       Notification[]         @relation("UserNotifications")
+  deviceTokens        DeviceToken[]          @relation("UserDeviceTokens")
+  payslips            Payslip[]
+  preparedPayrollRuns PayrollRun[]           @relation("PayrollPreparedBy")
+  reviewedPayrollRuns PayrollRun[]           @relation("PayrollReviewedBy")
+  lockedPayrollRuns   PayrollRun[]           @relation("PayrollLockedBy")
+  payrollAdjustments  PayrollAdjustment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -651,5 +657,170 @@ model DeviceToken {
   updatedAt DateTime       @updatedAt
 
   @@index([userId])
+}
+
+enum PayrollRunStatus {
+  PREPARED
+  REVIEWED
+  LOCKED
+}
+
+model PayrollRun {
+  id     String           @id @default(uuid())
+  period String           @unique // YYYY-MM
+  status PayrollRunStatus @default(PREPARED)
+
+  currency                String @default("SAR")
+  totalEmployees          Int    @default(0)
+  totalBasicHalalas       Int    @default(0)
+  totalHousingHalalas     Int    @default(0)
+  totalTransportHalalas   Int    @default(0)
+  totalOvertimeHalalas    Int    @default(0)
+  totalAdjustmentsHalalas Int    @default(0)
+  totalGrossHalalas       Int    @default(0)
+  totalUnpaidLeaveHalalas Int    @default(0)
+  totalGosiEmployeeHalalas Int   @default(0)
+  totalGosiEmployerHalalas Int   @default(0)
+  totalNetHalalas         Int    @default(0)
+
+  gosiPolicyJson Json?
+  notes          String?
+
+  preparedById String?
+  preparedBy   User?     @relation("PayrollPreparedBy", fields: [preparedById], references: [id], onDelete: SetNull)
+  preparedAt   DateTime  @default(now())
+
+  reviewedById String?
+  reviewedBy   User?     @relation("PayrollReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+
+  lockedById String?
+  lockedBy   User?     @relation("PayrollLockedBy", fields: [lockedById], references: [id], onDelete: SetNull)
+  lockedAt   DateTime?
+
+  payslips    Payslip[]
+  adjustments PayrollAdjustment[]
+  wpsExports  PayrollWpsExport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model Payslip {
+  id     String     @id @default(uuid())
+  runId  String
+  run    PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  userId String
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period String // YYYY-MM
+
+  employeeIdSnapshot        String
+  employeeNameSnapshot      String
+  departmentSnapshot        String
+  jobTitleSnapshot          String
+  isSaudiSnapshot           Boolean
+  nationalOrIqamaIdSnapshot String?
+  ibanSnapshot              String?
+
+  basicSalaryHalalas        Int
+  housingAllowanceHalalas   Int
+  transportAllowanceHalalas Int
+  overtimeHalalas           Int   @default(0)
+  adjustmentsHalalas        Int   @default(0)
+  grossSalaryHalalas        Int
+  unpaidLeaveDays           Float @default(0)
+  unpaidLeaveDeductionHalalas Int @default(0)
+  gosiContributoryHalalas   Int
+  gosiEmployeeHalalas       Int
+  gosiEmployerHalalas       Int
+  totalDeductionsHalalas    Int
+  netSalaryHalalas          Int
+
+  breakdownJson Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([runId, userId])
+  @@index([userId, period])
+}
+
+model PayrollAdjustment {
+  id     String      @id @default(uuid())
+  runId  String?
+  run    PayrollRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
+  userId String
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period String // YYYY-MM
+
+  amountHalalas Int
+  overtimeHours Float   @default(0)
+  reason        String
+  createdById   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, period])
+}
+
+model PayrollWpsExport {
+  id              String     @id @default(uuid())
+  runId           String
+  run             PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  period          String
+  rowCount        Int
+  totalNetHalalas Int
+  csvSha256       String
+  exportedById    String?
+  createdAt       DateTime   @default(now())
+
+  @@index([runId])
+}
+
+enum IntegrationProvider {
+  TEAMS
+  OUTLOOK
+  ENTRA_SSO
+}
+
+enum IntegrationEventStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+model IntegrationConfig {
+  id                String              @id @default(uuid())
+  provider          IntegrationProvider @unique
+  enabled           Boolean             @default(true)
+  webhookUrl        String?
+  tenantId          String?
+  simulateFailure   Boolean             @default(false)
+  lastSuccessAt     DateTime?
+  lastFailureAt     DateTime?
+  lastErrorMessage  String?
+  updatedAt         DateTime            @updatedAt
+}
+
+model IntegrationOutboxEvent {
+  id                String                 @id @default(uuid())
+  idempotencyKey    String                 @unique
+  provider          IntegrationProvider
+  eventType         String
+  resourceId        String
+  payloadJson       Json
+  status            IntegrationEventStatus @default(PENDING)
+  attempts          Int                    @default(0)
+  externalMessageId String?
+  lastError         String?
+  deliveredAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([provider, status])
+  @@index([resourceId])
 }
 

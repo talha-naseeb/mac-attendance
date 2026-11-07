@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  CheckCircle2,
   Download,
   FileSpreadsheet,
+  Lock,
+  PlugZap,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 import { AdminEmployee } from '../data/mockAdminData';
-import { PayrollSummary } from '../api/client';
+import {
+  fetchIntegrationConfigs,
+  fetchPayrollRuns,
+  IntegrationConfigItem,
+  lockPayrollRunApi,
+  PayrollRunRecord,
+  PayrollSummary,
+  preparePayrollRunApi,
+  retryFailedIntegrations,
+  reviewPayrollRunApi,
+  testIntegrationConnection,
+  toggleIntegrationProvider,
+} from '../api/client';
 
 interface PayrollViewProps {
   onExportWps: () => void;
@@ -20,6 +37,125 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
   payroll,
 }) => {
   const { totals } = payroll;
+  const defaultPeriod = `${new Date().getFullYear()}-${String(
+    new Date().getMonth() + 1,
+  ).padStart(2, '0')}`;
+  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
+  const [runs, setRuns] = useState<PayrollRunRecord[]>([]);
+  const [integrations, setIntegrations] = useState<IntegrationConfigItem[]>([]);
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
+
+  const loadPhase11Data = async () => {
+    try {
+      const [runList, intData] = await Promise.all([
+        fetchPayrollRuns(),
+        fetchIntegrationConfigs(),
+      ]);
+      setRuns(runList);
+      setIntegrations(intData.configs || []);
+    } catch {
+      // Non-fatal in offline/unit-test environments
+    }
+  };
+
+  useEffect(() => {
+    void loadPhase11Data();
+  }, []);
+
+  const activeRun = runs.find((r) => r.period === selectedPeriod) || null;
+
+  const handlePrepare = async () => {
+    setBusyAction(true);
+    setStatusBanner(null);
+    try {
+      await preparePayrollRunApi(selectedPeriod);
+      await loadPhase11Data();
+      setStatusBanner(
+        isArabic
+          ? `تم إعداد مسير الرواتب للفترة ${selectedPeriod} بنجاح.`
+          : `Payroll run for ${selectedPeriod} prepared with GOSI & unpaid leave snapshots.`,
+      );
+    } catch (err: any) {
+      setStatusBanner(err?.message || 'Failed to prepare payroll run.');
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const handleReview = async () => {
+    if (!activeRun) return;
+    setBusyAction(true);
+    setStatusBanner(null);
+    try {
+      await reviewPayrollRunApi(activeRun.id);
+      await loadPhase11Data();
+      setStatusBanner(
+        isArabic
+          ? `تمت مراجعة مسير الرواتب للفترة ${selectedPeriod}.`
+          : `Payroll run for ${selectedPeriod} marked as REVIEWED.`,
+      );
+    } catch (err: any) {
+      setStatusBanner(err?.message || 'Failed to review payroll run.');
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const handleLock = async () => {
+    if (!activeRun) return;
+    setBusyAction(true);
+    setStatusBanner(null);
+    try {
+      await lockPayrollRunApi(activeRun.id);
+      await loadPhase11Data();
+      setStatusBanner(
+        isArabic
+          ? `تم قفل واعتماد مسير الرواتب للفترة ${selectedPeriod} نهائياً.`
+          : `Payroll run for ${selectedPeriod} is now LOCKED and immutable.`,
+      );
+    } catch (err: any) {
+      setStatusBanner(err?.message || 'Failed to lock payroll run.');
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const handleToggleProvider = async (
+    provider: 'TEAMS' | 'OUTLOOK' | 'ENTRA_SSO',
+    enabled: boolean,
+  ) => {
+    try {
+      await toggleIntegrationProvider(provider, enabled);
+      await loadPhase11Data();
+    } catch (err: any) {
+      setStatusBanner(err?.message || 'Failed to update integration config.');
+    }
+  };
+
+  const handleTestProvider = async (
+    provider: 'TEAMS' | 'OUTLOOK' | 'ENTRA_SSO',
+  ) => {
+    try {
+      const res = await testIntegrationConnection(provider);
+      setStatusBanner(res.message);
+      await loadPhase11Data();
+    } catch (err: any) {
+      setStatusBanner(err?.message || 'Connection test failed.');
+    }
+  };
+
+  const handleRetryOutbox = async () => {
+    try {
+      const res = await retryFailedIntegrations();
+      setStatusBanner(
+        `Retried ${res.retriedCount} queued event(s); ${res.deliveredCount} delivered.`,
+      );
+      await loadPhase11Data();
+    } catch (err: any) {
+      setStatusBanner(err?.message || 'Retry failed.');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -51,6 +187,91 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             {isArabic ? 'تحميل ملف مدد (WPS CSV)' : 'Download Mudad WPS File'}
           </span>
         </button>
+      </div>
+
+      {statusBanner && (
+        <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs font-semibold text-blue-900 dark:text-blue-200 flex items-center justify-between">
+          <span>{statusBanner}</span>
+          <button
+            type="button"
+            onClick={() => setStatusBanner(null)}
+            className="text-blue-500 hover:underline ml-4"
+          >
+            {isArabic ? 'إغلاق' : 'Dismiss'}
+          </button>
+        </div>
+      )}
+
+      {/* Phase 11 (M8): Period Payroll Run Approval & Lock Pipeline */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={18} className="text-emerald-500" />
+            <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+              {isArabic
+                ? 'دورة اعتماد وقفل مسير الرواتب الشهري (M8)'
+                : 'Period Payroll Run Approval & Lock Pipeline'}
+            </h3>
+            {activeRun && (
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                  activeRun.status === 'LOCKED'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : activeRun.status === 'REVIEWED'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                }`}
+              >
+                {activeRun.status}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {isArabic
+              ? 'إعداد اللقطة الشهرية (الأساسي، البدلات، التأمينات، الإجازات غير المدفوعة) ثم المراجعة والقفل النهائي غير القابل للتعديل.'
+              : 'Snapshots salaries, GOSI caps, and approved unpaid leaves. Locked periods are immutable.'}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <input
+            type="month"
+            aria-label="Payroll Period"
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900 text-xs font-mono text-slate-900 dark:text-white"
+          />
+          <button
+            type="button"
+            disabled={busyAction || activeRun?.status === 'LOCKED'}
+            onClick={handlePrepare}
+            className="px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold disabled:opacity-40"
+          >
+            {isArabic ? '1. إعداد المسير' : '1. Prepare Run'}
+          </button>
+          <button
+            type="button"
+            disabled={
+              busyAction || !activeRun || activeRun.status === 'LOCKED'
+            }
+            onClick={handleReview}
+            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-40"
+          >
+            <CheckCircle2 size={14} />
+            <span>{isArabic ? '2. مراجعة' : '2. Review'}</span>
+          </button>
+          <button
+            type="button"
+            disabled={
+              busyAction || !activeRun || activeRun.status !== 'REVIEWED'
+            }
+            onClick={handleLock}
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-40"
+          >
+            <Lock size={14} />
+            <span>{isArabic ? '3. قفل نهائي' : '3. Lock Period'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary KPI Cards */}
@@ -202,6 +423,83 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Phase 11 (M7.7): Microsoft 365 & Enterprise Integrations Panel */}
+      {integrations.length > 0 && (
+        <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <PlugZap size={18} className="text-macq-orange" />
+              <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                {isArabic
+                  ? 'تكاملات مايكروسوفت 365 والمؤسسة (M7.3–M7.7)'
+                  : 'Microsoft 365 & Enterprise Integrations (Teams, Outlook, Entra ID)'}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetryOutbox}
+              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} />
+              <span>
+                {isArabic
+                  ? 'إعادة محاولة المهام الفاشلة'
+                  : 'Retry Queued Outbox'}
+              </span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {integrations.map((cfg) => (
+              <div
+                key={cfg.provider}
+                className="p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                    {cfg.provider}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      cfg.enabled
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-slate-200 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400'
+                    }`}
+                  >
+                    {cfg.enabled ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                  {cfg.lastErrorMessage
+                    ? `Last error: ${cfg.lastErrorMessage}`
+                    : cfg.lastSuccessAt
+                      ? `Last OK: ${new Date(cfg.lastSuccessAt).toLocaleTimeString()}`
+                      : 'Ready for dispatch'}
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleToggleProvider(cfg.provider, !cfg.enabled)
+                    }
+                    className="px-2.5 py-1 rounded-md border border-slate-300 dark:border-zinc-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                  >
+                    {cfg.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTestProvider(cfg.provider)}
+                    className="px-2.5 py-1 rounded-md bg-macq-navy text-white text-[11px] font-bold"
+                  >
+                    Test Connection
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

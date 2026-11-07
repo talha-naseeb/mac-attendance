@@ -94,4 +94,14 @@ export class LeavesController {
   ) {
     return this.leavesService.cancelRequest(id, user.id, user.role, dto);
   }
+
+  @Patch(':id/dates')
+  @ApiOperation({ summary: 'Update leave request dates and synchronize Outlook calendar event if approved' })
+  async updateDates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: { startDate: string; endDate: string },
+  ) {
+    return this.leavesService.rescheduleRequest(id, user.id, user.role, dto);
+  }
 }
