@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -16,6 +16,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { CommonModule } from './common/common.module';
+import { AppController } from './app.controller';
+import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
 
 @Module({
   imports: [
@@ -39,6 +41,7 @@ import { CommonModule } from './common/common.module';
     AuditLogsModule,
     NotificationsModule,
   ],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_GUARD,
@@ -54,4 +57,8 @@ import { CommonModule } from './common/common.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HttpLoggerMiddleware).exclude('api/docs(.*)').forRoutes('*');
+  }
+}

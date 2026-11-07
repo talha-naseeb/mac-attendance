@@ -16,6 +16,12 @@ describe('HTTP transport limits (e2e)', () => {
     await testPrisma.$disconnect();
   });
 
+  it('returns 200 and operational status on GET /api', async () => {
+    const response = await request(app.getHttpServer()).get('/api');
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('ok');
+  });
+
   it('rejects a JSON body larger than 100 kB with 413', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/auth/login')

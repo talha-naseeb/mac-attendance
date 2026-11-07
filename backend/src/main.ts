@@ -53,8 +53,8 @@ async function bootstrap() {
   });
 
   const port = configService.get<number>('port') || 4000;
-  await app.listen(port);
-  logger.log(`🚀 Mac-HR Backend running at http://localhost:${port}/api`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`🚀 Mac-HR Backend running at http://0.0.0.0:${port}/api (and http://localhost:${port}/api)`);
   logger.log(`📖 Swagger OpenAPI docs available at http://localhost:${port}/api/docs`);
 }
 
