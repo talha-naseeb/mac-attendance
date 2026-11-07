@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { IntegrationProvider } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
@@ -19,6 +24,11 @@ export class IntegrationsService {
   ) {}
 
   async ensureProviderConfig(provider: IntegrationProvider) {
+    if (!DEFAULT_PROVIDERS.includes(provider)) {
+      throw new BadRequestException(
+        `Unsupported integration provider "${provider}". Expected one of: ${DEFAULT_PROVIDERS.join(', ')}`,
+      );
+    }
     return this.prisma.integrationConfig.upsert({
       where: { provider },
       create: {
@@ -53,7 +63,7 @@ export class IntegrationsService {
   }
 
   async getPublicStatus() {
-    const { configs } = await this.getAllConfigs();
+    const configs = await this.prisma.integrationConfig.findMany();
     return {
       teamsEnabled:
         configs.find((c) => c.provider === 'TEAMS')?.enabled ?? true,

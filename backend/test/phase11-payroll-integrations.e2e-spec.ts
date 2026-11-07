@@ -392,10 +392,17 @@ describe('Phase 11: Payroll, Integrations & Release Readiness (e2e) — PAY-01..
     expect(retry2.body.status).toBe('DELIVERED');
     expect(retry2.body.idempotent).toBe(true);
     expect(retry2.body.event.attempts).toBe(2);
+
+    // Unknown provider returns 400 Bad Request instead of 500
+    await request(app.getHttpServer())
+      .patch('/api/integrations/admin/configs/UNKNOWN_PROVIDER')
+      .set('Authorization', `Bearer ${hrToken}`)
+      .send({ enabled: true })
+      .expect(400);
   });
 
   // ─── INT-03: Outlook OOO Event Create -> Date Change Update -> Cancel Remove ─
-  it('INT-03: Approving leave creates one Outlook OOO event; changing dates updates the same event; cancelling removes it', async () => {
+  it('INT-03: Approving leave creates one Outlook OOO event; changing dates updates the same event and reconciles balance; cancelling removes it', async () => {
     const subRes = await request(app.getHttpServer())
       .post('/api/leaves/request')
       .set('Authorization', `Bearer ${saudiEmpToken}`)
@@ -425,7 +432,7 @@ describe('Phase 11: Payroll, Integrations & Release Readiness (e2e) — PAY-01..
     const expectedEventId = `outlook-ooo-${leaveId}`;
     expect(hrApprove.body.request.outlookCalendarEventId).toBe(expectedEventId);
 
-    // Change dates on the approved leave -> updates the same Outlook event ID
+    // Change dates on the approved leave (3 days -> 4 days) -> updates the same Outlook event ID & adjusts balance
     const dateUpdate = await request(app.getHttpServer())
       .patch(`/api/leaves/${leaveId}/dates`)
       .set('Authorization', `Bearer ${saudiEmpToken}`)
@@ -436,6 +443,17 @@ describe('Phase 11: Payroll, Integrations & Release Readiness (e2e) — PAY-01..
       .expect(200);
 
     expect(dateUpdate.body.request.outlookCalendarEventId).toBe(expectedEventId);
+    expect(dateUpdate.body.request.daysCount).toBe(4);
+
+    const balAfterExtend = await request(app.getHttpServer())
+      .get('/api/leaves/balances')
+      .set('Authorization', `Bearer ${saudiEmpToken}`)
+      .expect(200);
+    const annualAfterExtend = balAfterExtend.body.find(
+      (b: any) => b.leaveType === 'ANNUAL',
+    );
+    expect(annualAfterExtend.usedDays).toBe(4);
+    expect(annualAfterExtend.remainingDays).toBe(26);
 
     // Verify only 1 OUTLOOK outbox record exists for this leave and its payload has the new endDate
     const outlookOutbox = await request(app.getHttpServer())

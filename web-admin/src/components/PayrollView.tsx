@@ -64,6 +64,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
   }, []);
 
   const activeRun = runs.find((r) => r.period === selectedPeriod) || null;
+  const displayTotals = activeRun?.totals ?? totals;
 
   const handlePrepare = async () => {
     setBusyAction(true);
@@ -281,7 +282,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             {isArabic ? 'إجمالي الراتب الأساسي' : 'Total Basic Salaries'}
           </span>
           <span className="text-xl font-black text-slate-900 dark:text-white">
-            {totals.totalBasicSar.toLocaleString()}{' '}
+            {displayTotals.totalBasicSar.toLocaleString()}{' '}
             <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
@@ -291,7 +292,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             {isArabic ? 'بدلات السكن والنقل' : 'Housing & Transport'}
           </span>
           <span className="text-xl font-black text-slate-900 dark:text-white">
-            {(totals.totalHousingSar + totals.totalTransportSar).toLocaleString()}{' '}
+            {(
+              displayTotals.totalHousingSar + displayTotals.totalTransportSar
+            ).toLocaleString()}{' '}
             <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
@@ -303,7 +306,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
               : 'GOSI Employee Share (9.75%)'}
           </span>
           <span className="text-xl font-black text-rose-600 dark:text-rose-400">
-            {totals.totalGosiEmployeeSar.toLocaleString()}{' '}
+            {displayTotals.totalGosiEmployeeSar.toLocaleString()}{' '}
             <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>
@@ -313,7 +316,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             {isArabic ? 'صافي مسير الرواتب المودع' : 'Net Disbursed via Bank'}
           </span>
           <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-            {totals.totalNetDisbursedSar.toLocaleString()}{' '}
+            {displayTotals.totalNetDisbursedSar.toLocaleString()}{' '}
             <span className="text-xs font-semibold text-slate-400">SAR</span>
           </span>
         </div>

@@ -59,25 +59,20 @@ export class PayrollService {
 
   /**
    * Computes approved unpaid leave days falling within the given YYYY-MM period
-   * without double-counting overlapping or re-prepared requests.
+   * from pre-fetched leave requests without double-counting overlapping or re-prepared requests.
    */
-  private async computeApprovedUnpaidLeaveForPeriod(
-    userId: string,
-    period: string,
+  private summarizeUnpaidLeaveRequests(
+    requests: Array<{
+      id: string;
+      startDate: Date;
+      endDate: Date;
+      isHalfDay: boolean;
+    }>,
+    startIso: string,
+    endIso: string,
+    country: 'SA' | 'PK',
     holidayIsos: string[],
-  ): Promise<{ unpaidDays: number; requestIds: string[] }> {
-    const { startDate, endDate, startIso, endIso } = this.getPeriodBounds(period);
-    const requests = await this.prisma.leaveRequest.findMany({
-      where: {
-        userId,
-        type: { in: ['UNPAID', 'UNPAID_LEAVE'] },
-        status: 'APPROVED',
-        startDate: { lte: endDate },
-        endDate: { gte: startDate },
-      },
-      orderBy: { startDate: 'asc' },
-    });
-
+  ): { unpaidDays: number; requestIds: string[] } {
     const seenIds = new Set<string>();
     let unpaidDays = 0;
 
@@ -98,7 +93,7 @@ export class PayrollService {
         const calc = calculateWorkingDays({
           startDate: new Date(`${clippedStart}T00:00:00.000Z`),
           endDate: new Date(`${clippedEnd}T00:00:00.000Z`),
-          country: 'SA',
+          country,
           isHalfDay: false,
           extraHolidays: holidayIsos,
         });
@@ -110,6 +105,33 @@ export class PayrollService {
       unpaidDays,
       requestIds: Array.from(seenIds),
     };
+  }
+
+  private async computeApprovedUnpaidLeaveForPeriod(
+    userId: string,
+    period: string,
+    holidayIsos: string[],
+    country: 'SA' | 'PK' = 'SA',
+  ): Promise<{ unpaidDays: number; requestIds: string[] }> {
+    const { startDate, endDate, startIso, endIso } = this.getPeriodBounds(period);
+    const requests = await this.prisma.leaveRequest.findMany({
+      where: {
+        userId,
+        type: { in: ['UNPAID', 'UNPAID_LEAVE'] },
+        status: 'APPROVED',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    return this.summarizeUnpaidLeaveRequests(
+      requests,
+      startIso,
+      endIso,
+      country,
+      holidayIsos,
+    );
   }
 
   private formatPayslipModel(payslip: any, runStatus?: string) {
@@ -204,6 +226,24 @@ export class PayrollService {
       where: { period },
     });
 
+    const { startDate, endDate, startIso, endIso } = this.getPeriodBounds(period);
+    const allUnpaidRequests = await this.prisma.leaveRequest.findMany({
+      where: {
+        type: { in: ['UNPAID', 'UNPAID_LEAVE'] },
+        status: 'APPROVED',
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    const unpaidByUser = new Map<string, typeof allUnpaidRequests>();
+    for (const req of allUnpaidRequests) {
+      const list = unpaidByUser.get(req.userId) ?? [];
+      list.push(req);
+      unpaidByUser.set(req.userId, list);
+    }
+
     let totalBasicHalalas = 0;
     let totalHousingHalalas = 0;
     let totalTransportHalalas = 0;
@@ -228,12 +268,16 @@ export class PayrollService {
         emp.isSaudi,
       );
 
-      const { unpaidDays, requestIds } =
-        await this.computeApprovedUnpaidLeaveForPeriod(
-          emp.id,
-          period,
-          holidayIsos,
-        );
+      const empCountry: 'SA' | 'PK' = emp.remoteLocation?.includes('Pakistan')
+        ? 'PK'
+        : 'SA';
+      const { unpaidDays, requestIds } = this.summarizeUnpaidLeaveRequests(
+        unpaidByUser.get(emp.id) ?? [],
+        startIso,
+        endIso,
+        empCountry,
+        holidayIsos,
+      );
 
       // Daily rate configured as Basic Salary / 30 days (exact halala precision)
       const dailyRateHalalas = Math.round(basicHalalas / 30);
@@ -388,12 +432,12 @@ export class PayrollService {
 
       await tx.payslip.deleteMany({ where: { runId: upsertedRun.id } });
 
-      for (const slip of payslipPayloads) {
-        await tx.payslip.create({
-          data: {
+      if (payslipPayloads.length > 0) {
+        await tx.payslip.createMany({
+          data: payslipPayloads.map((slip) => ({
             ...slip,
             runId: upsertedRun.id,
-          },
+          })),
         });
       }
 
@@ -651,11 +695,15 @@ export class PayrollService {
     const holidays = await this.prisma.companyHoliday.findMany({
       where: { isOffDay: true },
     });
+    const empCountry: 'SA' | 'PK' = user.remoteLocation?.includes('Pakistan')
+      ? 'PK'
+      : 'SA';
     const { unpaidDays, requestIds } =
       await this.computeApprovedUnpaidLeaveForPeriod(
         user.id,
         period,
         holidays.map((h) => h.dateIso),
+        empCountry,
       );
 
     const basicHalalas = sarToHalalas(user.basicSalarySar);

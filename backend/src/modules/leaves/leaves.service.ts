@@ -968,7 +968,8 @@ export class LeavesService {
   }
 
   /**
-   * Reschedules leave dates and updates the existing Outlook OOO event if already approved (INT-03)
+   * Reschedules leave dates, reconciles balance & ledger deltas if already approved,
+   * and updates the existing Outlook OOO event (INT-03).
    */
   async rescheduleRequest(
     requestId: string,
@@ -976,8 +977,24 @@ export class LeavesService {
     userRole: string,
     dto: { startDate: string; endDate: string },
   ) {
+    if (!dto?.startDate || !dto?.endDate) {
+      throw new BadRequestException('Both startDate and endDate are required.');
+    }
+
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid startDate or endDate format.');
+    }
+    if (end < start) {
+      throw new BadRequestException('End date cannot precede start date.');
+    }
+
     const leaveRequest = await this.prisma.leaveRequest.findUnique({
       where: { id: requestId },
+      include: {
+        user: { select: { id: true, remoteLocation: true } },
+      },
     });
     if (!leaveRequest) {
       throw new NotFoundException(`Leave request ${requestId} not found.`);
@@ -990,26 +1007,118 @@ export class LeavesService {
       );
     }
 
-    const start = new Date(dto.startDate);
-    const end = new Date(dto.endDate);
-    if (end < start) {
-      throw new BadRequestException('End date cannot precede start date.');
+    if (
+      leaveRequest.status === 'CANCELLED' ||
+      leaveRequest.status === 'REJECTED'
+    ) {
+      throw new BadRequestException(
+        `Cannot reschedule a ${leaveRequest.status.toLowerCase()} leave request.`,
+      );
     }
+
+    const country = leaveRequest.user?.remoteLocation?.includes('Pakistan')
+      ? 'PK'
+      : 'SA';
+    const dbHolidays = await this.prisma.companyHoliday.findMany({
+      where: { isOffDay: true },
+      select: { dateIso: true },
+    });
+    const extraHolidays = dbHolidays.map((h) => h.dateIso);
 
     const calc = calculateWorkingDays({
       startDate: start,
       endDate: end,
-      country: 'SA',
+      country,
       isHalfDay: leaveRequest.isHalfDay,
+      extraHolidays,
     });
 
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id: requestId },
-      data: {
-        startDate: start,
-        endDate: end,
-        daysCount: calc.daysCount || 1,
+    if (calc.daysCount <= 0) {
+      throw new BadRequestException(
+        'Selected date range contains no billable working days.',
+      );
+    }
+
+    const overlapping = await this.prisma.leaveRequest.findFirst({
+      where: {
+        id: { not: requestId },
+        userId: leaveRequest.userId,
+        status: {
+          in: ['PENDING', 'PENDING_MANAGER', 'PENDING_HR', 'APPROVED'],
+        },
+        startDate: { lte: end },
+        endDate: { gte: start },
       },
+    });
+    if (overlapping) {
+      throw new BadRequestException(
+        'Rescheduled dates overlap with another active leave request.',
+      );
+    }
+
+    const newDaysCount = calc.daysCount;
+    const deltaDays = newDaysCount - leaveRequest.daysCount;
+    const shouldAdjustBalance =
+      leaveRequest.status === 'APPROVED' &&
+      deltaDays !== 0 &&
+      leaveRequest.type !== LeaveType.UNPAID &&
+      leaveRequest.type !== LeaveType.REMOTE_WORK;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (shouldAdjustBalance) {
+        const year = start.getFullYear();
+        const balance = await tx.leaveBalance.findUnique({
+          where: {
+            userId_leaveType_year: {
+              userId: leaveRequest.userId,
+              leaveType: leaveRequest.type,
+              year,
+            },
+          },
+        });
+
+        if (balance) {
+          const balanceBefore = balance.totalDays - balance.usedDays;
+          if (deltaDays > 0 && balanceBefore < deltaDays) {
+            throw new BadRequestException(
+              `Insufficient leave balance for date extension. Need ${deltaDays} additional day(s), but only ${balanceBefore} available.`,
+            );
+          }
+          const balanceAfter = balanceBefore - deltaDays;
+
+          await tx.leaveBalance.update({
+            where: { id: balance.id },
+            data: {
+              usedDays: { increment: deltaDays },
+              remainingDays: balanceAfter,
+            },
+          });
+
+          await tx.leaveBalanceLedger.create({
+            data: {
+              balanceId: balance.id,
+              userId: leaveRequest.userId,
+              leaveType: leaveRequest.type,
+              entryType: 'ADJUSTMENT',
+              amount: -deltaDays,
+              balanceBefore,
+              balanceAfter,
+              requestId: leaveRequest.id,
+              reason: `Leave dates rescheduled (${leaveRequest.daysCount}d -> ${newDaysCount}d)`,
+              createdById: userId,
+            },
+          });
+        }
+      }
+
+      return tx.leaveRequest.update({
+        where: { id: requestId },
+        data: {
+          startDate: start,
+          endDate: end,
+          daysCount: newDaysCount,
+        },
+      });
     });
 
     let outlookSync: any = null;
