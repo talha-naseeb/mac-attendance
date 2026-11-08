@@ -3,7 +3,7 @@
 - **Approver**: Talha
 - **Date/time**: 2026-11-07T22:07:30+05:00
 - **Phase**: 11 (G6 — Payroll, Enterprise Integrations & Release Readiness: M7.3–M7.7, M8, M10)
-- **Commit**: f86aac2ba78a8541938941e8a923adc600f889db
+- **Commit**: 901c3e099d46b1ce0f7e9548b5fa9a744d2227f9
 - **Build**: Local staging / main branch
 - **Environment**: staging
 - **Device**: iOS Simulator + Physical Device / Chrome & Safari Web Admin
