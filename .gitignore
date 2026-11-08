@@ -42,3 +42,4 @@ data.db-*
 # Personal tooling (not part of the project)
 .gravitas/
 opencode.jsonc
+.neon

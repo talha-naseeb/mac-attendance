@@ -24,6 +24,7 @@ import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env.local', '../.env.local', '../.env', '.env'],
       load: [configuration],
     }),
     ThrottlerModule.forRoot({

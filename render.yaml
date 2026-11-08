@@ -18,3 +18,5 @@ services:
         value: https://shiftly-web-admin.vercel.app,http://localhost:5173,http://localhost:8081
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false

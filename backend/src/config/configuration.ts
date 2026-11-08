@@ -42,6 +42,11 @@ export interface AppConfig {
   port: number;
   environment: string;
   databaseUrl: string;
+  databaseUrlUnpooled: string;
+  neon: {
+    branch: string | null;
+    branchId: string | null;
+  };
   jwt: {
     secret: string;
   };
@@ -86,15 +91,24 @@ export default (): AppConfig => {
     throw new Error('JWT_SECRET must be at least 32 characters in production.');
   }
 
+  const databaseUrl = resolveRequiredValue(
+    'DATABASE_URL',
+    process.env.DATABASE_URL,
+    DEV_DATABASE_URL,
+    environment,
+  );
+  const databaseUrlUnpooled =
+    process.env.DATABASE_URL_UNPOOLED?.trim() || databaseUrl;
+
   return {
     port: parseInt(process.env.PORT || '4000', 10),
     environment,
-    databaseUrl: resolveRequiredValue(
-      'DATABASE_URL',
-      process.env.DATABASE_URL,
-      DEV_DATABASE_URL,
-      environment,
-    ),
+    databaseUrl,
+    databaseUrlUnpooled,
+    neon: {
+      branch: process.env.NEON_BRANCH?.trim() || null,
+      branchId: process.env.NEON_BRANCH_ID?.trim() || null,
+    },
     jwt: {
       secret: jwtSecret,
     },
