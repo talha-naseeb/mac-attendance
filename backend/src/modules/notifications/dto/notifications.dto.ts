@@ -87,3 +87,32 @@ export class NotificationQueryDto {
   @Transform(({ value }) => (value !== undefined ? parseInt(value, 10) : 0))
   offset?: number = 0;
 }
+
+export class MissingAttendanceReminderDto {
+  @ApiPropertyOptional({ description: 'Target date in YYYY-MM-DD (defaults to today in Asia/Riyadh)' })
+  @IsString()
+  @IsOptional()
+  dateIso?: string;
+}
+
+export class HrDocumentRequestDto {
+  @ApiProperty({ description: 'Target employee user ID' })
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @ApiProperty({ description: 'Requested document type (e.g., IQAMA, PASSPORT, MEDICAL_CERTIFICATE, CONTRACT)' })
+  @IsString()
+  @IsNotEmpty()
+  documentType: string;
+
+  @ApiProperty({ description: 'Instructions or reason from HR' })
+  @IsString()
+  @IsNotEmpty()
+  message: string;
+
+  @ApiPropertyOptional({ description: 'Optional due date (YYYY-MM-DD)' })
+  @IsString()
+  @IsOptional()
+  dueDateIso?: string;
+}
