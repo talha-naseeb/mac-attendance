@@ -10,7 +10,11 @@ import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto, SsoLoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/change-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { PasswordChangePending } from '../../common/decorators/password-change-pending.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -94,6 +98,30 @@ export class AuthController {
     @Req() req: Request,
   ) {
     return this.authService.changePassword(user.id, user.sessionId!, dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Request a password reset email notification token' })
+  @ApiResponse({ status: 200, description: 'Password reset instructions dispatched if account exists' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Public()
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Reset password using a signed reset token and revoke active sessions' })
+  @ApiResponse({ status: 200, description: 'Password reset completed' })
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.authService.resetPasswordWithToken(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
