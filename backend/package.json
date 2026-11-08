@@ -1,7 +1,7 @@
 {
-  "name": "macqhr-backend",
+  "name": "shiftly-backend",
   "version": "1.0.0",
-  "description": "MacqHR Enterprise HRMS & Attendance Backend API Service",
+  "description": "Shiftly Enterprise HRMS & Attendance Backend API Service",
   "author": "Macquires HR Team",
   "private": true,
   "license": "UNLICENSED",

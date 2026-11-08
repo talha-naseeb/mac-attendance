@@ -477,15 +477,17 @@ export async function deleteBranch(id: string) {
   }
 }
 
-export async function downloadWps() {
+export async function downloadWps(month?: string) {
   try {
     const response = await apiClient.get('/payroll/wps-export', {
+      params: month ? { month } : undefined,
       responseType: 'blob',
     });
     const url = URL.createObjectURL(response.data as Blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `macqhr_mudad_wps_${new Date().toISOString().slice(0, 10)}.csv`;
+    const suffix = month || new Date().toISOString().slice(0, 10);
+    link.download = `shiftly_mudad_wps_${suffix}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -563,6 +565,33 @@ export async function decideRemoteRequest(
   }
 }
 
+export interface PayrollRunPayslipItem {
+  id: string;
+  period: string;
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    nationalOrIqamaId?: string | null;
+  };
+  earnings: {
+    basicSalarySar: number;
+    housingAllowanceSar: number;
+    transportAllowanceSar: number;
+    overtimeSar: number;
+    adjustmentsSar: number;
+    grossSalarySar: number;
+  };
+  deductions: {
+    gosiEmployeeShareSar: number;
+    unpaidLeaveDays: number;
+    unpaidLeaveDeductionSar: number;
+    otherDeductionsSar: number;
+    totalDeductionsSar: number;
+  };
+  netSalarySar: number;
+}
+
 export interface PayrollRunRecord {
   id: string;
   period: string;
@@ -572,6 +601,7 @@ export interface PayrollRunRecord {
     totalUnpaidLeaveSar?: number;
     totalOvertimeSar?: number;
   };
+  payslips?: PayrollRunPayslipItem[];
   preparedAt?: string;
   reviewedAt?: string | null;
   lockedAt?: string | null;

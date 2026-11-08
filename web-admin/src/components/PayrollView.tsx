@@ -24,7 +24,7 @@ import {
 } from '../api/client';
 
 interface PayrollViewProps {
-  onExportWps: () => void;
+  onExportWps: (month?: string) => void;
   isArabic: boolean;
   employees: AdminEmployee[];
   payroll: PayrollSummary;
@@ -65,6 +65,28 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
 
   const activeRun = runs.find((r) => r.period === selectedPeriod) || null;
   const displayTotals = activeRun?.totals ?? totals;
+  const ledgerRows =
+    activeRun?.payslips && activeRun.payslips.length > 0
+      ? activeRun.payslips.map((slip) => ({
+          id: slip.id,
+          employeeId: slip.employee.employeeId,
+          nationalOrIqamaId: slip.employee.nationalOrIqamaId || '—',
+          name: slip.employee.name,
+          basicSalarySar: slip.earnings.basicSalarySar,
+          housingAllowanceSar: slip.earnings.housingAllowanceSar,
+          gosiEmployeeDeductionSar: slip.deductions.gosiEmployeeShareSar,
+          netSalarySar: slip.netSalarySar,
+        }))
+      : employees.map((emp) => ({
+          id: emp.id,
+          employeeId: emp.employeeId,
+          nationalOrIqamaId: emp.nationalOrIqamaId,
+          name: emp.name,
+          basicSalarySar: emp.basicSalarySar,
+          housingAllowanceSar: emp.housingAllowanceSar,
+          gosiEmployeeDeductionSar: emp.gosiEmployeeDeductionSar,
+          netSalarySar: emp.netSalarySar,
+        }));
 
   const handlePrepare = async () => {
     setBusyAction(true);
@@ -180,7 +202,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
 
         <button
           type="button"
-          onClick={onExportWps}
+          onClick={() => onExportWps(selectedPeriod)}
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-macq-orange hover:bg-macq-orange/90 text-white font-bold text-xs shadow-lg shadow-macq-orange/25 transition-all flex-shrink-0"
         >
           <Download size={16} />
@@ -340,7 +362,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
 
         {/* Mobile Responsive Payroll Cards (< md) */}
         <div className="md:hidden space-y-3">
-          {employees.map((emp) => (
+          {ledgerRows.map((emp) => (
             <div
               key={`mobile-pay-${emp.id}`}
               className="p-4 rounded-xl bg-slate-50 dark:bg-macq-surfaceDark/60 border border-slate-200/70 dark:border-slate-800 space-y-2"
@@ -404,7 +426,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 font-mono text-[11px] text-slate-800 dark:text-zinc-300">
-              {employees.map((emp) => (
+              {ledgerRows.map((emp) => (
                 <tr key={emp.id} className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/40">
                   <td className="py-3 px-3 font-bold text-macq-orange">WPS</td>
                   <td className="py-3 px-3 font-semibold">{emp.employeeId}</td>

@@ -229,9 +229,9 @@ export const App: React.FC = () => {
     setSelectedPunch(null);
   };
 
-  const handleExportWps = async () => {
+  const handleExportWps = async (month?: string) => {
     try {
-      await downloadWps();
+      await downloadWps(month);
     } catch (error) {
       setLoadError(
         error instanceof ApiError ? error.message : 'Unable to download the WPS file.',

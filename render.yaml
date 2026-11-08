@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: shiftly-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start:prod
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://shiftly-web-admin.vercel.app,http://localhost:5173,http://localhost:8081
+      - key: DATABASE_URL
+        sync: false

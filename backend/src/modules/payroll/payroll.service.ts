@@ -527,6 +527,10 @@ export class PayrollService {
       },
     });
 
+    if (existingRun) {
+      await this.preparePayrollRun(period, actorUserId, existingRun.notes ?? undefined);
+    }
+
     return {
       ...adjustment,
       amountSar: halalasToSar(adjustment.amountHalalas),
@@ -718,9 +722,36 @@ export class PayrollService {
       user.isSaudi,
     );
 
-    const grossHalalas = basicHalalas + housingHalalas + transportHalalas;
+    const empAdjustments =
+      (await this.prisma.payrollAdjustment?.findMany({
+        where: { userId: user.id, period },
+      })) ?? [];
+
+    let overtimeHalalas = 0;
+    let manualAdjustmentsHalalas = 0;
+
+    for (const adj of empAdjustments) {
+      if (adj.overtimeHours > 0) {
+        const otCalc = Math.round((basicHalalas / 240) * 1.5 * adj.overtimeHours);
+        overtimeHalalas += adj.amountHalalas > 0 ? adj.amountHalalas : otCalc;
+      } else {
+        manualAdjustmentsHalalas += adj.amountHalalas;
+      }
+    }
+
+    const positiveAdjustmentsHalalas = Math.max(0, manualAdjustmentsHalalas);
+    const negativeAdjustmentsHalalas = Math.max(0, -manualAdjustmentsHalalas);
+
+    const grossHalalas =
+      basicHalalas +
+      housingHalalas +
+      transportHalalas +
+      overtimeHalalas +
+      positiveAdjustmentsHalalas;
     const totalDeductionsHalalas =
-      gosi.employeeShareHalalas + unpaidLeaveDeductionHalalas;
+      gosi.employeeShareHalalas +
+      unpaidLeaveDeductionHalalas +
+      negativeAdjustmentsHalalas;
     const netHalalas = Math.max(0, grossHalalas - totalDeductionsHalalas);
 
     return {
@@ -746,10 +777,10 @@ export class PayrollService {
         housingAllowanceHalalas: housingHalalas,
         transportAllowanceSar: halalasToSar(transportHalalas),
         transportAllowanceHalalas: transportHalalas,
-        overtimeSar: 0,
-        overtimeHalalas: 0,
-        adjustmentsSar: 0,
-        adjustmentsHalalas: 0,
+        overtimeSar: halalasToSar(overtimeHalalas),
+        overtimeHalalas,
+        adjustmentsSar: halalasToSar(manualAdjustmentsHalalas),
+        adjustmentsHalalas: manualAdjustmentsHalalas,
         grossSalarySar: halalasToSar(grossHalalas),
         grossSalaryHalalas: grossHalalas,
       },
@@ -759,7 +790,7 @@ export class PayrollService {
         unpaidLeaveDays: unpaidDays,
         unpaidLeaveDeductionSar: halalasToSar(unpaidLeaveDeductionHalalas),
         unpaidLeaveDeductionHalalas,
-        otherDeductionsSar: 0,
+        otherDeductionsSar: halalasToSar(negativeAdjustmentsHalalas),
         totalDeductionsSar: halalasToSar(totalDeductionsHalalas),
         totalDeductionsHalalas,
       },
