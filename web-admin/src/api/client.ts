@@ -386,6 +386,27 @@ export async function fetchAdminPayrollSummary(): Promise<PayrollSummary> {
   }
 }
 
+export interface HttpRequestLogItem {
+  requestId: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  durationMs: number;
+  clientIp: string;
+  timestamp: string;
+}
+
+export async function fetchHttpRequestLogs(limit = 50): Promise<HttpRequestLogItem[]> {
+  try {
+    const { data } = await apiClient.get<{ items: HttpRequestLogItem[] }>('/audit-logs/http', {
+      params: { limit },
+    });
+    return data.items || [];
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
 export async function fetchAuditLogs(
   query: AuditLogsQuery = {},
 ): Promise<PaginatedAuditLogs> {

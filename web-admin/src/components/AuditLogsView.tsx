@@ -14,6 +14,8 @@ import {
   ApiError,
   AuditLogItem,
   fetchAuditLogs,
+  fetchHttpRequestLogs,
+  HttpRequestLogItem,
   PaginatedAuditLogs,
 } from '../api/client';
 
@@ -73,6 +75,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ isArabic }) => {
   const [resource, setResource] = useState('ALL');
   const [action, setAction] = useState('ALL');
   const [data, setData] = useState<PaginatedAuditLogs | null>(null);
+  const [httpLogs, setHttpLogs] = useState<HttpRequestLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
@@ -81,14 +84,18 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ isArabic }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchAuditLogs({
-        page,
-        pageSize: 50,
-        search,
-        resource,
-        action,
-      });
+      const [response, httpItems] = await Promise.all([
+        fetchAuditLogs({
+          page,
+          pageSize: 50,
+          search,
+          resource,
+          action,
+        }),
+        fetchHttpRequestLogs(50).catch(() => []),
+      ]);
       setData(response);
+      setHttpLogs(httpItems);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -470,6 +477,66 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ isArabic }) => {
           </div>
         </div>
       </div>
+
+      {/* Live HTTP API Request Logs Section */}
+      {httpLogs.length > 0 && (
+        <div className="bg-white dark:bg-macq-cardDark rounded-2xl border border-slate-200/80 dark:border-macq-borderDark/60 p-4 sm:p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+              {isArabic
+                ? 'سجل طلبات واجهة البرمجة الحية (HTTP API Logs)'
+                : 'Live HTTP API Request Stream (/api/audit-logs/http)'}
+            </h3>
+            <span className="text-[11px] font-mono text-slate-400">
+              {httpLogs.length} {isArabic ? 'طلب' : 'recent requests'}
+            </span>
+          </div>
+          <div className="overflow-x-auto max-h-64">
+            <table className="w-full text-left rtl:text-right text-[11px] font-mono border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase">
+                  <th className="py-2 px-2">TIME</th>
+                  <th className="py-2 px-2">METHOD</th>
+                  <th className="py-2 px-2">PATH</th>
+                  <th className="py-2 px-2">STATUS</th>
+                  <th className="py-2 px-2">LATENCY</th>
+                  <th className="py-2 px-2">REQ_ID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {httpLogs.slice(0, 25).map((item) => (
+                  <tr key={`${item.requestId}-${item.timestamp}`}>
+                    <td className="py-1.5 px-2 text-slate-500">
+                      {new Date(item.timestamp).toLocaleTimeString()}
+                    </td>
+                    <td className="py-1.5 px-2 font-bold text-macq-orange">
+                      {item.method}
+                    </td>
+                    <td className="py-1.5 px-2 text-slate-800 dark:text-slate-200">
+                      {item.path}
+                    </td>
+                    <td
+                      className={`py-1.5 px-2 font-bold ${
+                        item.statusCode >= 400
+                          ? 'text-rose-500'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    >
+                      {item.statusCode}
+                    </td>
+                    <td className="py-1.5 px-2 text-slate-500">
+                      {item.durationMs}ms
+                    </td>
+                    <td className="py-1.5 px-2 text-slate-400">
+                      {item.requestId.slice(0, 8)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* JSON Payload Modal */}
       {selectedLog && (
