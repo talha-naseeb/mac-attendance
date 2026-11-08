@@ -10,6 +10,11 @@ import {
 } from 'lucide-react';
 import { AdminEmployee } from '../data/mockAdminData';
 import {
+  AdminClaimRecord,
+  AdminDocumentRecord,
+  decideAdminClaim,
+  fetchAdminClaims,
+  fetchAdminDocuments,
   fetchIntegrationConfigs,
   fetchPayrollRuns,
   IntegrationConfigItem,
@@ -19,8 +24,10 @@ import {
   preparePayrollRunApi,
   retryFailedIntegrations,
   reviewPayrollRunApi,
+  sendDocumentExpiryReminders,
   testIntegrationConnection,
   toggleIntegrationProvider,
+  verifyAdminDocument,
 } from '../api/client';
 
 interface PayrollViewProps {
@@ -43,17 +50,23 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
   const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
   const [runs, setRuns] = useState<PayrollRunRecord[]>([]);
   const [integrations, setIntegrations] = useState<IntegrationConfigItem[]>([]);
+  const [claims, setClaims] = useState<AdminClaimRecord[]>([]);
+  const [documents, setDocuments] = useState<AdminDocumentRecord[]>([]);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
   const loadPhase11Data = async () => {
     try {
-      const [runList, intData] = await Promise.all([
+      const [runList, intData, claimList, docList] = await Promise.all([
         fetchPayrollRuns(),
         fetchIntegrationConfigs(),
+        fetchAdminClaims().catch(() => []),
+        fetchAdminDocuments().catch(() => []),
       ]);
       setRuns(runList);
       setIntegrations(intData.configs || []);
+      setClaims(claimList);
+      setDocuments(docList);
     } catch {
       // Non-fatal in offline/unit-test environments
     }
@@ -525,6 +538,237 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Phase 12 (M11.1–M11.4): Reimbursement Claims & Allowances Approval Queue */}
+      <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+              {isArabic
+                ? 'مطالبات التعويضات والبدلات (المرحلة 12 — M11)'
+                : 'Reimbursement Claims & Allowances (Medical, Insurance, Petrol, Wi-Fi)'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {isArabic
+                ? 'تتم إضافة المطالبات المعتمدة تلقائياً إلى مسير الرواتب الشهري كبدلات غير خاضعة للضريبة.'
+                : 'Approved claims are automatically added to the employee’s period payroll run and payslip.'}
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-xs font-extrabold">
+            {claims.length} {isArabic ? 'مطالبة' : 'Claims'}
+          </span>
+        </div>
+
+        {claims.length === 0 ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400 py-2">
+            {isArabic
+              ? 'لا توجد مطالبات تعويض مسجلة حالياً.'
+              : 'No reimbursement claims submitted yet.'}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left rtl:text-right border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-zinc-800 text-[11px] font-extrabold text-slate-400 uppercase">
+                  <th className="py-2.5 px-3">Employee</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3">Period</th>
+                  <th className="py-2.5 px-3">Amount</th>
+                  <th className="py-2.5 px-3">Privacy / Receipt</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right rtl:text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 text-xs">
+                {claims.map((claim) => (
+                  <tr key={claim.id} className="hover:bg-slate-50/70 dark:hover:bg-zinc-800/40">
+                    <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">
+                      {claim.employee?.fullName || claim.userId}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-macq-orange">
+                      {claim.category}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono">{claim.period}</td>
+                    <td className="py-2.5 px-3 font-mono font-bold">
+                      {claim.amountSar.toFixed(2)} SAR
+                    </td>
+                    <td className="py-2.5 px-3 space-x-1.5">
+                      {claim.isPrivateMedical && (
+                        <span className="px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                          DIRECT-TO-HR PRIVATE
+                        </span>
+                      )}
+                      <a
+                        href={claim.receiptUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 dark:text-blue-400 underline font-semibold"
+                      >
+                        {claim.receiptFileName || 'View Receipt'}
+                      </a>
+                    </td>
+                    <td className="py-2.5 px-3 font-bold">{claim.status}</td>
+                    <td className="py-2.5 px-3 text-right rtl:text-left space-x-1.5">
+                      {(claim.status === 'PENDING_MANAGER' ||
+                        claim.status === 'PENDING_HR') && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await decideAdminClaim(
+                                claim.id,
+                                'APPROVED',
+                                'Approved in HR Admin Console',
+                              );
+                              await loadPhase11Data();
+                            }}
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await decideAdminClaim(
+                                claim.id,
+                                'REJECTED',
+                                'Rejected in HR Admin Console',
+                              );
+                              await loadPhase11Data();
+                            }}
+                            className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Phase 12 (M11.5): Personal Document Vault & Expiry Verification */}
+      <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-macq-cardDark border border-slate-200 dark:border-macq-borderDark/60 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+              {isArabic
+                ? 'خزنة المستندات الشخصية وتتبع انتهاء الصلاحية (M11.5)'
+                : 'Personal Document Vault & Expiry Compliance (Iqama, Passport, Insurance)'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {isArabic
+                ? 'تحقق من مستندات الهوية والتأمين الطبي وأرسل تذكيرات انتهاء الصلاحية.'
+                : 'Verify employee compliance documents and dispatch automated expiry alerts.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await sendDocumentExpiryReminders(60);
+              setStatusBanner(
+                `Dispatched ${res.remindersSent} document expiry reminder(s) for documents expiring within 60 days.`,
+              );
+            }}
+            className="px-3 py-1.5 rounded-lg bg-macq-navy hover:bg-slate-800 text-white text-xs font-bold"
+          >
+            {isArabic ? 'إرسال تذكيرات الانتهاء' : 'Send Expiry Reminders (60d)'}
+          </button>
+        </div>
+
+        {documents.length === 0 ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400 py-2">
+            {isArabic
+              ? 'لا توجد مستندات مرفوعة في الخزنة بعد.'
+              : 'No personal compliance documents uploaded yet.'}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left rtl:text-right border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-zinc-800 text-[11px] font-extrabold text-slate-400 uppercase">
+                  <th className="py-2.5 px-3">Employee</th>
+                  <th className="py-2.5 px-3">Document Type</th>
+                  <th className="py-2.5 px-3">Title / Number</th>
+                  <th className="py-2.5 px-3">Expiry Date</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right rtl:text-left">Verify</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 text-xs">
+                {documents.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-slate-50/70 dark:hover:bg-zinc-800/40">
+                    <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">
+                      {doc.employee?.fullName || doc.userId}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                      {doc.documentType}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-blue-600 dark:text-blue-400 underline"
+                      >
+                        {doc.title}
+                      </a>
+                      {doc.documentNumber ? ` (${doc.documentNumber})` : ''}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono">
+                      {doc.expiryDateIso || '—'}
+                      {doc.isExpiringSoon && (
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                          {doc.daysUntilExpiry}d left
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold">{doc.status}</td>
+                    <td className="py-2.5 px-3 text-right rtl:text-left space-x-1.5">
+                      {doc.status === 'PENDING_VERIFICATION' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await verifyAdminDocument(
+                                doc.id,
+                                'VERIFIED',
+                                'Verified by HR Admin',
+                              );
+                              await loadPhase11Data();
+                            }}
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold"
+                          >
+                            Verify
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await verifyAdminDocument(
+                                doc.id,
+                                'REJECTED',
+                                'Please upload a clearer scan',
+                              );
+                              await loadPhase11Data();
+                            }}
+                            className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

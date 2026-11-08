@@ -164,6 +164,8 @@ export class PayrollService {
         overtimeHalalas: payslip.overtimeHalalas,
         adjustmentsSar: halalasToSar(payslip.adjustmentsHalalas),
         adjustmentsHalalas: payslip.adjustmentsHalalas,
+        reimbursementsSar: halalasToSar(breakdown.reimbursementsHalalas ?? 0),
+        reimbursementsHalalas: breakdown.reimbursementsHalalas ?? 0,
         grossSalarySar: halalasToSar(payslip.grossSalaryHalalas),
         grossSalaryHalalas: payslip.grossSalaryHalalas,
       },
@@ -226,6 +228,11 @@ export class PayrollService {
       where: { period },
     });
 
+    const approvedClaims =
+      (await this.prisma.reimbursementClaim?.findMany({
+        where: { period, status: 'APPROVED' },
+      })) ?? [];
+
     const { startDate, endDate, startIso, endIso } = this.getPeriodBounds(period);
     const allUnpaidRequests = await this.prisma.leaveRequest.findMany({
       where: {
@@ -286,8 +293,10 @@ export class PayrollService {
       );
 
       const empAdjustments = adjustments.filter((a) => a.userId === emp.id);
+      const empClaims = approvedClaims.filter((c) => c.userId === emp.id);
       let overtimeHalalas = 0;
       let manualAdjustmentsHalalas = 0;
+      let reimbursementsHalalas = 0;
 
       for (const adj of empAdjustments) {
         if (adj.overtimeHours > 0) {
@@ -297,6 +306,11 @@ export class PayrollService {
         } else {
           manualAdjustmentsHalalas += adj.amountHalalas;
         }
+      }
+
+      for (const claim of empClaims) {
+        reimbursementsHalalas += claim.amountHalalas;
+        manualAdjustmentsHalalas += claim.amountHalalas;
       }
 
       const positiveAdjustmentsHalalas = Math.max(0, manualAdjustmentsHalalas);
@@ -361,6 +375,15 @@ export class PayrollService {
             amountSar: halalasToSar(a.amountHalalas),
             overtimeHours: a.overtimeHours,
             reason: a.reason,
+          })),
+          reimbursementsHalalas,
+          reimbursementsSar: halalasToSar(reimbursementsHalalas),
+          reimbursementClaims: empClaims.map((c) => ({
+            id: c.id,
+            category: c.category,
+            amountSar: halalasToSar(c.amountHalalas),
+            amountHalalas: c.amountHalalas,
+            description: c.description,
           })),
         },
       });
@@ -444,6 +467,11 @@ export class PayrollService {
       await tx.payrollAdjustment.updateMany({
         where: { period },
         data: { runId: upsertedRun.id },
+      });
+
+      await tx.reimbursementClaim?.updateMany({
+        where: { period, status: 'APPROVED' },
+        data: { payrollRunId: upsertedRun.id },
       });
 
       return tx.payrollRun.findUniqueOrThrow({
@@ -727,8 +755,14 @@ export class PayrollService {
         where: { userId: user.id, period },
       })) ?? [];
 
+    const empClaims =
+      (await this.prisma.reimbursementClaim?.findMany({
+        where: { userId: user.id, period, status: 'APPROVED' },
+      })) ?? [];
+
     let overtimeHalalas = 0;
     let manualAdjustmentsHalalas = 0;
+    let reimbursementsHalalas = 0;
 
     for (const adj of empAdjustments) {
       if (adj.overtimeHours > 0) {
@@ -737,6 +771,11 @@ export class PayrollService {
       } else {
         manualAdjustmentsHalalas += adj.amountHalalas;
       }
+    }
+
+    for (const claim of empClaims) {
+      reimbursementsHalalas += claim.amountHalalas;
+      manualAdjustmentsHalalas += claim.amountHalalas;
     }
 
     const positiveAdjustmentsHalalas = Math.max(0, manualAdjustmentsHalalas);
@@ -781,6 +820,8 @@ export class PayrollService {
         overtimeHalalas,
         adjustmentsSar: halalasToSar(manualAdjustmentsHalalas),
         adjustmentsHalalas: manualAdjustmentsHalalas,
+        reimbursementsSar: halalasToSar(reimbursementsHalalas),
+        reimbursementsHalalas,
         grossSalarySar: halalasToSar(grossHalalas),
         grossSalaryHalalas: grossHalalas,
       },
@@ -810,6 +851,15 @@ export class PayrollService {
         dailyRateSar: halalasToSar(dailyRateHalalas),
         unpaidLeaveDays: unpaidDays,
         unpaidLeaveRequestIds: requestIds,
+        reimbursementsHalalas,
+        reimbursementsSar: halalasToSar(reimbursementsHalalas),
+        reimbursementClaims: empClaims.map((c) => ({
+          id: c.id,
+          category: c.category,
+          amountSar: halalasToSar(c.amountHalalas),
+          amountHalalas: c.amountHalalas,
+          description: c.description,
+        })),
       },
     };
   }

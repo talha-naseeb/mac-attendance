@@ -210,6 +210,12 @@ model User {
   reviewedPayrollRuns PayrollRun[]           @relation("PayrollReviewedBy")
   lockedPayrollRuns   PayrollRun[]           @relation("PayrollLockedBy")
   payrollAdjustments  PayrollAdjustment[]
+  reimbursementClaims ReimbursementClaim[]   @relation("EmployeeClaims")
+  reviewedClaimsMgr   ReimbursementClaim[]   @relation("ClaimManagerReviewer")
+  reviewedClaimsHr    ReimbursementClaim[]   @relation("ClaimHrReviewer")
+  documents           EmployeeDocument[]     @relation("EmployeeDocuments")
+  verifiedDocuments   EmployeeDocument[]     @relation("DocumentVerifier")
+  uploadedDocuments   EmployeeDocument[]     @relation("DocumentUploader")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -699,9 +705,10 @@ model PayrollRun {
   lockedBy   User?     @relation("PayrollLockedBy", fields: [lockedById], references: [id], onDelete: SetNull)
   lockedAt   DateTime?
 
-  payslips    Payslip[]
-  adjustments PayrollAdjustment[]
-  wpsExports  PayrollWpsExport[]
+  payslips            Payslip[]
+  adjustments         PayrollAdjustment[]
+  reimbursementClaims ReimbursementClaim[]
+  wpsExports          PayrollWpsExport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -824,4 +831,124 @@ model IntegrationOutboxEvent {
   @@index([provider, status])
   @@index([resourceId])
 }
+
+enum ClaimCategory {
+  MEDICAL
+  INSURANCE
+  PETROL
+  WIFI
+}
+
+enum ClaimStatus {
+  PENDING_MANAGER
+  PENDING_HR
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ClaimStage {
+  STAGE_1_MANAGER
+  STAGE_2_HR
+  COMPLETED
+}
+
+model ReimbursementPolicy {
+  id                String        @id @default(uuid())
+  category          ClaimCategory @unique
+  monthlyCapHalalas Int
+  annualCapHalalas  Int
+  requiresReceipt   Boolean       @default(true)
+  allowDirectToHr   Boolean       @default(false)
+  isActive          Boolean       @default(true)
+  updatedAt         DateTime      @updatedAt
+}
+
+model ReimbursementClaim {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("EmployeeClaims", fields: [userId], references: [id], onDelete: Cascade)
+
+  category         ClaimCategory
+  period           String // YYYY-MM payroll period
+  amountHalalas    Int
+  currency         String        @default("SAR")
+  description      String
+  receiptUrl       String
+  receiptFileName  String?
+  exceedsCap       Boolean       @default(false)
+  isPrivateMedical Boolean       @default(false)
+
+  status             ClaimStatus @default(PENDING_MANAGER)
+  stage              ClaimStage  @default(STAGE_1_MANAGER)
+  routedDirectlyToHr Boolean     @default(false)
+
+  // Stage 1: Line Manager Review
+  managerReviewedById String?
+  managerReviewedBy   User?     @relation("ClaimManagerReviewer", fields: [managerReviewedById], references: [id], onDelete: SetNull)
+  managerReviewedAt   DateTime?
+  managerComments     String?
+
+  // Stage 2: HR Admin Review
+  hrReviewedById String?
+  hrReviewedBy   User?     @relation("ClaimHrReviewer", fields: [hrReviewedById], references: [id], onDelete: SetNull)
+  hrReviewedAt   DateTime?
+  hrComments     String?
+
+  // Payroll Run link (once linked to a LOCKED run, claim is immutable)
+  payrollRunId String?
+  payrollRun   PayrollRun? @relation(fields: [payrollRunId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, period])
+  @@index([status, stage])
+  @@index([payrollRunId])
+}
+
+enum DocumentType {
+  NATIONAL_ID_IQAMA
+  PASSPORT
+  MEDICAL_INSURANCE
+  EMPLOYMENT_CONTRACT
+}
+
+enum DocumentVerificationStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+model EmployeeDocument {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("EmployeeDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  documentType   DocumentType
+  title          String
+  documentNumber String?
+  fileUrl        String
+  fileName       String?
+  issuedDateIso  String? // YYYY-MM-DD
+  expiryDateIso  String? // YYYY-MM-DD
+  status         DocumentVerificationStatus @default(PENDING_VERIFICATION)
+
+  verifiedById     String?
+  verifiedBy       User?     @relation("DocumentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedAt       DateTime?
+  verificationNote String?
+
+  uploadedById String?
+  uploadedBy   User?   @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, documentType])
+  @@index([status])
+  @@index([expiryDateIso])
+}
+
 

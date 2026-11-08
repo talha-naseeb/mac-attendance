@@ -636,3 +636,138 @@ export async function submitPunchToBackend(
 export async function fetchTodayAttendance(token: string) {
   return request('/attendance/today', { method: 'GET' }, token);
 }
+
+export type MobileClaimCategory = 'MEDICAL' | 'INSURANCE' | 'PETROL' | 'WIFI';
+export type MobileDocumentType =
+  | 'NATIONAL_ID_IQAMA'
+  | 'PASSPORT'
+  | 'MEDICAL_INSURANCE'
+  | 'EMPLOYMENT_CONTRACT';
+
+export interface MobileClaimSubmissionInput {
+  category: MobileClaimCategory;
+  period?: string;
+  amountSar: number;
+  description: string;
+  receiptUrl: string;
+  receiptFileName?: string;
+  isPrivateMedical?: boolean;
+  requestCapException?: boolean;
+}
+
+export function validateMobileClaimSubmission(
+  input: MobileClaimSubmissionInput,
+  monthlyRemainingSar: number,
+): {
+  valid: boolean;
+  error?: string;
+  routesDirectlyToHr: boolean;
+  exceedsCap: boolean;
+} {
+  if (!input.receiptUrl || !input.receiptUrl.trim()) {
+    return {
+      valid: false,
+      error: 'A supporting receipt or medical bill attachment is required.',
+      routesDirectlyToHr: false,
+      exceedsCap: false,
+    };
+  }
+  if (!input.amountSar || input.amountSar <= 0) {
+    return {
+      valid: false,
+      error: 'Claim amount must be greater than zero.',
+      routesDirectlyToHr: false,
+      exceedsCap: false,
+    };
+  }
+  const exceedsCap = input.amountSar > monthlyRemainingSar;
+  if (exceedsCap && !input.requestCapException) {
+    return {
+      valid: false,
+      error: `Claim amount (${input.amountSar} SAR) exceeds remaining monthly policy cap (${monthlyRemainingSar} SAR).`,
+      routesDirectlyToHr: false,
+      exceedsCap: true,
+    };
+  }
+
+  const isMedicalOrInsurance =
+    input.category === 'MEDICAL' || input.category === 'INSURANCE';
+  const routesDirectlyToHr = Boolean(
+    isMedicalOrInsurance && input.isPrivateMedical,
+  );
+
+  return {
+    valid: true,
+    routesDirectlyToHr,
+    exceedsCap,
+  };
+}
+
+export async function fetchClaimPoliciesFromBackend(
+  token: string,
+  period?: string,
+) {
+  const qs = period ? `?period=${encodeURIComponent(period)}` : '';
+  return request(`/claims/policies${qs}`, { method: 'GET' }, token);
+}
+
+export async function submitClaimToBackend(
+  token: string,
+  payload: MobileClaimSubmissionInput,
+) {
+  return request(
+    '/claims',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function fetchMyClaimsFromBackend(token: string) {
+  return request('/claims/my', { method: 'GET' }, token);
+}
+
+export async function decideClaimToBackend(
+  token: string,
+  claimId: string,
+  decision: 'APPROVED' | 'REJECTED',
+  comments?: string,
+) {
+  return request(
+    `/claims/${claimId}/decision`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ decision, comments }),
+    },
+    token,
+  );
+}
+
+export async function uploadDocumentToVault(
+  token: string,
+  payload: {
+    documentType: MobileDocumentType;
+    title: string;
+    documentNumber?: string;
+    fileUrl: string;
+    fileName?: string;
+    issuedDateIso?: string;
+    expiryDateIso?: string;
+  },
+) {
+  return request(
+    '/documents',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function fetchMyDocumentsFromVault(token: string) {
+  return request('/documents/my', { method: 'GET' }, token);
+}
+

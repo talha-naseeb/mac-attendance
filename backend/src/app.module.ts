@@ -14,6 +14,8 @@ import { DirectoryModule } from './modules/directory/directory.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { ClaimsModule } from './modules/claims/claims.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { CommonModule } from './common/common.module';
@@ -44,6 +46,8 @@ import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware
     AuditLogsModule,
     NotificationsModule,
     IntegrationsModule,
+    ClaimsModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [

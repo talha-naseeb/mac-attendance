@@ -69,6 +69,7 @@ import {
   isSaudiWeekend,
   LEAVE_TYPES,
 } from '../utils/leaveCalculator';
+import { validateMobileClaimSubmission } from '../services/backendApi';
 
 // Lightweight zero-dependency test harness compatible with strict TypeScript & Node
 let passedCount = 0;
@@ -1385,6 +1386,83 @@ describeSuite(
           DASHBOARD_SECTION_REGISTRY.some((s) => s.id === ('DEBUG_TOOLBAR' as any)),
           false
         );
+      }
+    );
+  }
+);
+
+describeSuite(
+  'Phase 12: Allowances, Reimbursement Claims & Personal Document Vault (M11)',
+  () => {
+    itCase(
+      'TC-P12.1: Rejects reimbursement claims missing receipt attachments or exceeding policy cap without exception flag',
+      () => {
+        const missingReceipt = validateMobileClaimSubmission(
+          {
+            category: 'WIFI',
+            amountSar: 300,
+            description: 'Home fiber bill',
+            receiptUrl: '   ',
+          },
+          500,
+        );
+        assertEqual(missingReceipt.valid, false);
+
+        const overCap = validateMobileClaimSubmission(
+          {
+            category: 'WIFI',
+            amountSar: 650,
+            description: 'Fiber installation + bill',
+            receiptUrl: 'https://storage.shiftly.app/receipts/wifi.pdf',
+          },
+          500,
+        );
+        assertEqual(overCap.valid, false);
+        assertEqual(overCap.exceedsCap, true);
+
+        const flaggedException = validateMobileClaimSubmission(
+          {
+            category: 'WIFI',
+            amountSar: 650,
+            description: 'Fiber installation + bill',
+            receiptUrl: 'https://storage.shiftly.app/receipts/wifi.pdf',
+            requestCapException: true,
+          },
+          500,
+        );
+        assertEqual(flaggedException.valid, true);
+        assertEqual(flaggedException.exceedsCap, true);
+      }
+    );
+
+    itCase(
+      'TC-P12.2: Routes private Medical/Insurance claims directly to HR while standard Petrol/Wi-Fi claims route via Manager',
+      () => {
+        const privateMedical = validateMobileClaimSubmission(
+          {
+            category: 'MEDICAL',
+            amountSar: 1200,
+            description: 'Specialist dental care',
+            receiptUrl: 'https://storage.shiftly.app/receipts/dental.pdf',
+            isPrivateMedical: true,
+          },
+          5000,
+        );
+        assertEqual(privateMedical.valid, true);
+        assertEqual(privateMedical.routesDirectlyToHr, true);
+
+        const petrolClaim = validateMobileClaimSubmission(
+          {
+            category: 'PETROL',
+            amountSar: 400,
+            description: 'Client visits fuel',
+            receiptUrl: 'https://storage.shiftly.app/receipts/petrol.pdf',
+            isPrivateMedical: true, // Ignored for non-medical categories
+          },
+          1500,
+        );
+        assertEqual(petrolClaim.valid, true);
+        assertEqual(petrolClaim.routesDirectlyToHr, false);
       }
     );
   }

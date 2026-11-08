@@ -726,3 +726,123 @@ export async function retryFailedIntegrations(): Promise<{
   }
 }
 
+export interface AdminClaimRecord {
+  id: string;
+  userId: string;
+  employee?: {
+    id: string;
+    employeeId: string;
+    fullName: string;
+    department: string;
+    jobTitle: string;
+  };
+  category: 'MEDICAL' | 'INSURANCE' | 'PETROL' | 'WIFI';
+  period: string;
+  amountSar: number;
+  amountHalalas: number;
+  currency: string;
+  description: string;
+  receiptUrl: string;
+  receiptFileName?: string | null;
+  exceedsCap: boolean;
+  isPrivateMedical: boolean;
+  status: 'PENDING_MANAGER' | 'PENDING_HR' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  stage: 'STAGE_1_MANAGER' | 'STAGE_2_HR' | 'COMPLETED';
+  routedDirectlyToHr: boolean;
+  managerComments?: string | null;
+  hrComments?: string | null;
+  payrollRunId?: string | null;
+  createdAt: string;
+}
+
+export interface AdminDocumentRecord {
+  id: string;
+  userId: string;
+  employee?: {
+    id: string;
+    employeeId: string;
+    fullName: string;
+    department: string;
+    jobTitle: string;
+  };
+  documentType: 'NATIONAL_ID_IQAMA' | 'PASSPORT' | 'MEDICAL_INSURANCE' | 'EMPLOYMENT_CONTRACT';
+  title: string;
+  documentNumber?: string | null;
+  fileUrl: string;
+  fileName?: string | null;
+  issuedDateIso?: string | null;
+  expiryDateIso?: string | null;
+  status: 'PENDING_VERIFICATION' | 'VERIFIED' | 'REJECTED' | 'EXPIRED';
+  daysUntilExpiry?: number | null;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+  verificationNote?: string | null;
+  createdAt: string;
+}
+
+export async function fetchAdminClaims(period?: string): Promise<AdminClaimRecord[]> {
+  try {
+    const { data } = await apiClient.get<AdminClaimRecord[]>('/claims/admin', {
+      params: period ? { period } : undefined,
+    });
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function decideAdminClaim(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED',
+  comments?: string,
+): Promise<AdminClaimRecord> {
+  try {
+    const { data } = await apiClient.patch<AdminClaimRecord>(`/claims/${id}/decision`, {
+      decision,
+      comments,
+    });
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function fetchAdminDocuments(): Promise<AdminDocumentRecord[]> {
+  try {
+    const { data } = await apiClient.get<AdminDocumentRecord[]>('/documents/admin');
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function verifyAdminDocument(
+  id: string,
+  status: 'VERIFIED' | 'REJECTED',
+  verificationNote?: string,
+): Promise<AdminDocumentRecord> {
+  try {
+    const { data } = await apiClient.patch<AdminDocumentRecord>(`/documents/${id}/verify`, {
+      status,
+      verificationNote,
+    });
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+export async function sendDocumentExpiryReminders(
+  withinDays = 60,
+): Promise<{ remindersSent: number }> {
+  try {
+    const { data } = await apiClient.post('/documents/reminders/expiring', {
+      withinDays,
+    });
+    return data;
+  } catch (error) {
+    throw new ApiError(getApiMessage(error));
+  }
+}
+
+
