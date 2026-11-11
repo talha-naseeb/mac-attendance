@@ -7,6 +7,7 @@ import {
   Users,
   Coins,
   ShieldAlert,
+  Layers,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -22,6 +23,7 @@ export type AdminTab =
   | 'leaves'
   | 'employees'
   | 'payroll'
+  | 'workspaces'
   | 'logs';
 
 interface SidebarProps {
@@ -103,6 +105,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       labelEn: 'Payroll & Mudad WPS',
       labelAr: 'الرواتب وحماية الأجور',
       icon: Coins,
+    },
+    {
+      id: 'workspaces',
+      labelEn: 'Workspaces & SSO',
+      labelAr: 'مساحات العمل و SSO',
+      icon: Layers,
     },
     {
       id: 'logs',
@@ -216,6 +224,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : 'HR ADMIN (Operations)'}
           </span>
         </div>
+        {session.workspace && (
+          <p className="mt-1 text-[11px] text-slate-300 truncate">
+            {session.workspace.name} · {session.workspace.planCode}
+          </p>
+        )}
       </div>
 
       {/* Navigation Items */}

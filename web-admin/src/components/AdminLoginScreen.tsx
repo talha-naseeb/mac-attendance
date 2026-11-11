@@ -13,6 +13,11 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { ApiError, loginAdmin, UserSession } from '../api/client';
+import {
+  AuthDiscoveryResult,
+  discoverAdminAuth,
+  registerAdminWorkspace,
+} from '../api/workspacesApi';
 
 interface AdminLoginScreenProps {
   onAuthenticated: (session: UserSession) => void;
@@ -36,13 +41,44 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [discovery, setDiscovery] = useState<AuthDiscoveryResult | null>(null);
+
+  const handleEmailBlur = async () => {
+    if (mode !== 'login') return;
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed.includes('@') || !trimmed.includes('.')) {
+      setDiscovery(null);
+      return;
+    }
+    try {
+      setDiscovery(await discoverAdminAuth(trimmed));
+    } catch {
+      // Discovery is advisory; keep login available.
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      onAuthenticated(await loginAdmin(email.trim(), password));
+      if (mode === 'register') {
+        onAuthenticated(
+          await registerAdminWorkspace({
+            email: email.trim(),
+            password,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            workspaceName: workspaceName.trim(),
+          }),
+        );
+      } else {
+        onAuthenticated(await loginAdmin(email.trim(), password));
+      }
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
@@ -168,15 +204,44 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
 
           {/* Right / Bottom Sign-In Form */}
           <div className="lg:col-span-6 p-6 sm:p-8 lg:p-10 flex flex-col justify-center">
-            <div className="mb-6">
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
-                {isArabic ? 'تسجيل دخول المسؤولين' : 'Administrator Sign In'}
-              </h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {isArabic
-                  ? 'أدخل بريد العمل وكلمة المرور للوصول إلى لوحة التحكم.'
-                  : 'Enter your corporate credentials to establish an audited session.'}
-              </p>
+            <div className="mb-6 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
+                  {mode === 'register'
+                    ? isArabic
+                      ? 'إنشاء مساحة عمل للأعمال'
+                      : 'Register Business Workspace'
+                    : isArabic
+                      ? 'تسجيل دخول المسؤولين'
+                      : 'Administrator Sign In'}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {mode === 'register'
+                    ? isArabic
+                      ? 'أنشئ حساب المالك ومساحة عمل مستقلة لشركتك.'
+                      : 'Create an Owner account and isolated multi-tenant workspace.'
+                    : isArabic
+                      ? 'أدخل بريد العمل وكلمة المرور للوصول إلى لوحة التحكم.'
+                      : 'Enter your corporate credentials to establish an audited session.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setDiscovery(null);
+                  setMode((m) => (m === 'login' ? 'register' : 'login'));
+                }}
+                className="text-[11px] font-bold text-macq-orange hover:underline whitespace-nowrap"
+              >
+                {mode === 'login'
+                  ? isArabic
+                    ? 'إنشاء مساحة عمل؟'
+                    : 'New workspace?'
+                  : isArabic
+                    ? 'تسجيل الدخول'
+                    : 'Back to Sign In'}
+              </button>
             </div>
 
             <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit}>
@@ -204,6 +269,49 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                 </p>
               )}
 
+              {mode === 'register' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-200">
+                      {isArabic ? 'الاسم الأول' : 'First name'}
+                    </span>
+                    <input
+                      required
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-macq-surfaceDark dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-200">
+                      {isArabic ? 'اسم العائلة' : 'Last name'}
+                    </span>
+                    <input
+                      required
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-macq-surfaceDark dark:text-white"
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-200">
+                      {isArabic ? 'اسم الشركة / مساحة العمل' : 'Company / Workspace name'}
+                    </span>
+                    <input
+                      required
+                      minLength={2}
+                      type="text"
+                      value={workspaceName}
+                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      placeholder="Acme Logistics KSA"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-macq-surfaceDark dark:text-white"
+                    />
+                  </label>
+                </div>
+              )}
+
               <label className="block">
                 <span className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-200">
                   {isArabic ? 'البريد الإلكتروني للمسؤول' : 'Administrator email'}
@@ -214,13 +322,25 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                     required
                     type="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      if (discovery) setDiscovery(null);
+                    }}
+                    onBlur={() => void handleEmailBlur()}
                     placeholder="admin@email.com"
                     className="w-full bg-transparent py-3 text-sm text-slate-900 placeholder-slate-400 outline-none dark:text-white"
                     autoComplete="email"
                   />
                 </span>
               </label>
+
+              {discovery && !discovery.passwordAllowed && mode === 'login' && (
+                <p className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                  {isArabic
+                    ? `تم تفعيل الدخول الموحد الإلزامي (${discovery.workspaces[0]?.provider ?? 'SSO'}) لهذا البريد.`
+                    : `${discovery.workspaces[0]?.provider ?? 'SSO'} SSO is enforced for this workspace; password sign-in is disabled.`}
+                </p>
+              )}
 
               <label className="block">
                 <span className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -263,11 +383,19 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
               >
                 {submitting
                   ? isArabic
-                    ? 'جاري تسجيل الدخول…'
-                    : 'Signing in…'
+                    ? mode === 'register'
+                      ? 'جاري إنشاء مساحة العمل…'
+                      : 'جاري تسجيل الدخول…'
+                    : mode === 'register'
+                      ? 'Creating workspace…'
+                      : 'Signing in…'
                   : isArabic
-                    ? 'تسجيل الدخول بأمان'
-                    : 'Sign in securely'}
+                    ? mode === 'register'
+                      ? 'إنشاء مساحة العمل والدخول'
+                      : 'تسجيل الدخول بأمان'
+                    : mode === 'register'
+                      ? 'Create Business Workspace'
+                      : 'Sign in securely'}
               </button>
             </form>
           </div>

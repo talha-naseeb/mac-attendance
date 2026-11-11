@@ -16,6 +16,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ClaimsModule } from './modules/claims/claims.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { CommonModule } from './common/common.module';
@@ -48,6 +49,7 @@ import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware
     IntegrationsModule,
     ClaimsModule,
     DocumentsModule,
+    WorkspacesModule,
   ],
   controllers: [AppController],
   providers: [

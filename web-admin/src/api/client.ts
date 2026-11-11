@@ -50,6 +50,9 @@ apiClient.interceptors.response.use(
 interface BackendLoginResponse {
   accessToken: string;
   user: Omit<UserSession['user'], 'role'> & { role: string };
+  workspace?: UserSession['workspace'];
+  membership?: UserSession['membership'];
+  entitlements?: UserSession['entitlements'];
 }
 
 export interface PayrollSummary {
@@ -151,7 +154,13 @@ export async function loginAdmin(
       { email, password },
     );
     assertAdminUser(data.user);
-    const session: UserSession = { token: data.accessToken, user: data.user };
+    const session: UserSession = {
+      token: data.accessToken,
+      user: data.user,
+      workspace: data.workspace,
+      membership: data.membership,
+      entitlements: data.entitlements,
+    };
     storeAdminSession(session);
     return session;
   } catch (error) {

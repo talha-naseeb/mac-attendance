@@ -53,6 +53,9 @@ const PayrollView = lazy(() =>
 const AuditLogsView = lazy(() =>
   import('./components/AuditLogsView').then((m) => ({ default: m.AuditLogsView })),
 );
+const WorkspacesView = lazy(() =>
+  import('./components/WorkspacesView').then((m) => ({ default: m.WorkspacesView })),
+);
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<AdminTab>(() =>
@@ -149,8 +152,8 @@ export const App: React.FC = () => {
   const loadRouteData = useCallback(
     async (tab: AdminTab, force = false) => {
       if (!session) return;
-      // /logs manages its own paginated requests inside AuditLogsView
-      if (tab === 'logs') return;
+      // /logs and /workspaces manage their own requests inside their views
+      if (tab === 'logs' || tab === 'workspaces') return;
 
       setLoadError(null);
       const tasks: Promise<void>[] = [];
@@ -447,6 +450,22 @@ export const App: React.FC = () => {
               ) : (
                 routeFallback
               ))}
+
+            {currentTab === 'workspaces' && (
+              <WorkspacesView
+                isArabic={isArabic}
+                session={session}
+                onSessionChanged={(nextSession) => {
+                  setSession(nextSession);
+                  setEmployees(null);
+                  setBranches(null);
+                  setLeaves(null);
+                  setAttendance(null);
+                  setPayroll(null);
+                  setSelectedPunch(null);
+                }}
+              />
+            )}
 
             {currentTab === 'logs' && <AuditLogsView isArabic={isArabic} />}
           </Suspense>

@@ -11,6 +11,7 @@ describe('admin router helpers', () => {
     expect(tabFromPath('/branches')).toBe('branches');
     expect(tabFromPath('/leaves')).toBe('leaves');
     expect(tabFromPath('/payroll')).toBe('payroll');
+    expect(tabFromPath('/workspaces')).toBe('workspaces');
     expect(tabFromPath('/logs')).toBe('logs');
     expect(tabFromPath('/audit-logs')).toBe('logs');
   });
@@ -24,6 +25,7 @@ describe('admin router helpers', () => {
   it('formats canonical paths for each tab', () => {
     expect(pathForTab('overview')).toBe('/dashboard');
     expect(pathForTab('employees')).toBe('/employees');
+    expect(pathForTab('workspaces')).toBe('/workspaces');
     expect(pathForTab('logs')).toBe('/logs');
   });
 });

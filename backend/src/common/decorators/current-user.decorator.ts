@@ -11,6 +11,9 @@ export interface AuthenticatedUser {
   canAccessWebAdmin?: boolean;
   sessionId?: string;
   mustChangePassword?: boolean;
+  workspaceId?: string | null;
+  membershipId?: string | null;
+  workspaceRole?: string | null;
 }
 
 export const CurrentUser = createParamDecorator(

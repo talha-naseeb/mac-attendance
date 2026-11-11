@@ -17,7 +17,8 @@ import {
   AuthSession,
   authenticateWithPasswordApi,
 } from '../services/authService';
-import { BackendApiError } from '../services/backendApi';
+import { BackendApiError, discoverWorkspaceAuth } from '../services/backendApi';
+import type { AuthDiscoveryResult } from '../services/workspaceService';
 import { MACQUIRES_PALETTE, ThemeColors } from '../theme/colors';
 import { AppLanguage, rtlRow, rtlText, TYPOGRAPHY } from '../theme/typography';
 
@@ -41,8 +42,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [discovery, setDiscovery] = useState<AuthDiscoveryResult | null>(null);
 
   const isRTL = lang === 'ar';
+
+  const handleEmailBlur = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed.includes('@') || !trimmed.includes('.')) {
+      setDiscovery(null);
+      return;
+    }
+    try {
+      const result = await discoverWorkspaceAuth(trimmed);
+      setDiscovery(result);
+    } catch {
+      // Discovery is advisory; do not block sign-in if offline.
+    }
+  };
 
   const handleSignIn = async () => {
     setIsSubmitting(true);
@@ -191,7 +207,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 rtlText(isRTL),
               ]}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                if (discovery) setDiscovery(null);
+              }}
+              onBlur={handleEmailBlur}
               placeholder="name@email.com"
               placeholderTextColor={colors.textMuted}
               keyboardType="email-address"
@@ -199,6 +219,48 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               autoCorrect={false}
             />
           </View>
+
+          {discovery && (discovery.workspaces.length > 0 || !discovery.passwordAllowed) && (
+            <View
+              style={[
+                styles.errorBanner,
+                rtlRow(isRTL),
+                {
+                  backgroundColor: discovery.passwordAllowed
+                    ? colors.background
+                    : colors.warningBg,
+                  borderColor: discovery.passwordAllowed
+                    ? colors.border
+                    : colors.warningText,
+                },
+              ]}
+            >
+              <Feather
+                name={discovery.passwordAllowed ? 'layers' : 'shield'}
+                size={14}
+                color={discovery.passwordAllowed ? colors.primaryBright : colors.warningText}
+              />
+              <Text
+                style={[
+                  styles.errorBannerText,
+                  {
+                    color: discovery.passwordAllowed
+                      ? colors.textSecondary
+                      : colors.warningText,
+                  },
+                  rtlText(isRTL),
+                ]}
+              >
+                {!discovery.passwordAllowed
+                  ? isRTL
+                    ? `تسجيل الدخول بكلمة المرور معطّل لأن الدخول الموحد (${discovery.workspaces[0]?.provider ?? 'SSO'}) مفروض لمساحة العمل.`
+                    : `Password sign-in is disabled — ${discovery.workspaces[0]?.provider ?? 'SSO'} SSO is enforced for this workspace.`
+                  : isRTL
+                    ? `تم العثور على ${discovery.workspaces.length} مساحة عمل مرتبطة بهذا البريد.`
+                    : `${discovery.workspaces.length} workspace(s) linked to this email.`}
+              </Text>
+            </View>
+          )}
 
           {/* Password Field */}
           <View style={[styles.labelRow, rtlRow(isRTL)]}>

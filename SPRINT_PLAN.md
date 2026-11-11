@@ -1,12 +1,12 @@
 # MacqHR Delivery Tracker
 
-> **Status**: Product Phases 1–10 implemented and approved through Gate G5 (`7083588`). Phase 11 (M7.3–M7.7 Microsoft 365 integrations & outbox, M8 period payroll runs, payslips & WPS validation, M10 release readiness, observability & tenancy runbook) implemented and verified.
-> **Product strategy**: Single-company v1 for Macquires first (Mobile App for Employees & Managers; Web Admin Console for HR Admin & Super Admin), followed by Phase 12 (M11 Allowances, Claims & Document Vault) and Phase 13+ (Multi-Tenant B2B SaaS Workspaces).
-> **Verification**: 60 mobile tests; 132 backend unit tests in 16 suites plus `nest build`; 83 isolated-database API tests in 9 suites; 26 admin Vitest tests in 6 suites; admin production build passing (`npm run verify:all` green on 2026-11-07).
-> **Release status**: G5 gate signed (`7083588`). Phase 11 implemented and ready for G6 sign-off.
+> **Status**: Product Phases 1–12 implemented and approved through Gate G7 (`8867161` on `main`). Phase 13 (Multi-Tenant B2B SaaS Workspaces — Schema, Scoping, Auth/Register/Switching, Invites, SSO, Entitlements, Mobile & Web Admin Workspace UI) implemented on `development` branch; Gate G8 manual sign-off pending.
+> **Product strategy**: Single-company v1 on `main` (Phases 6–12); Phase 13 on `development` enables opt-in Multi-Tenant B2B SaaS Workspaces (`Workspace`, `Membership`, self-service registration, per-tenant SSO, seat billing).
+> **Verification**: 65 mobile tests; 148 backend unit tests in 19 suites plus `nest build`; 91 isolated-database API tests in 11 suites; 29 admin Vitest tests in 7 suites; admin production build passing (`npm run verify:all` green on 2026-11-11).
+> **Release status**: `main` at `8867161` (G7 signed). Phase 13 complete on `development`, awaiting Gate G8 sign-off before merge to `main`.
 > **Approver**: Talha. Every delivery phase requires a SHA-bound manual gate.
 > **Forward plan**: [docs/prd/README.md](docs/prd/README.md) · **Tests**: [docs/prd/test-plan.md](docs/prd/test-plan.md) · **Review**: [docs/prd/document-review.md](docs/prd/document-review.md)
-> **Last updated**: 2026-11-07
+> **Last updated**: 2026-11-11
 
 ## Legend
 
@@ -58,9 +58,9 @@ The detailed modules, rules, risks, and decisions are in the [PRD](docs/prd/READ
 | **8** | Attendance integrity & breaks | M4 | Verifiable evidence; local-day boundary; two remote modes (permanent `isRemoteAllowed` vs. per-day office remote approval); `BREAK_START` / `BREAK_END` persistence; offline decision; corrections; admin attendance view/export | G3 | `[x]` Approved at G3 (`e894bce`) |
 | **9** | Leave & approvals v2 | M5, M9 leave UX | Two-stage pipeline; balance ledger; holidays; overlap/half-day; cancellation; attachments; full calendar and types | G4 | `[x]` Approved at G4 (`060f7d3`) |
 | **10** | Admin console & notifications | M6, M7.1–M7.2 | Employee/attendance/leave admin complete; reports; audit viewer; persisted notifications and push | G5 | `[x]` Approved at G5 (`646a6c6`) |
-| **11** | Payroll, integrations & release | M7.3–M7.7, M8, M10 | Payroll run + WPS validation; Teams/Outlook dispatch; EAS builds; pinning; monitoring/backup; store/MDM | G6 | `[x]` Implemented & verified (`verify:all` green) |
-| **12** | Allowances, claims & document vault | M11 | Receipt-backed reimbursement claims (Medical, Insurance, Petrol, Wi-Fi) with policy limits & payroll integration; two-stage approval (with direct-to-HR privacy option for Medical/Insurance); employee profile Document Vault (ID/Iqama/CNIC, Passport, Insurance Card, Contracts with expiry alerts) | G7 | `[ ]` |
-| **13+** | Multi-tenant SaaS workspaces | Account model D1–D5 | Upgrade single-company MacqHR into multi-tenant B2B SaaS (`Workspace`, `Membership`, per-tenant SSO, Platform Super Admin & seat billing) | — | `[ ]` Later |
+| **11** | Payroll, integrations & release | M7.3–M7.7, M8, M10 | Payroll run + WPS validation; Teams/Outlook dispatch; EAS builds; pinning; monitoring/backup; store/MDM | G6 | `[x]` Approved at G6 (`c6ab9d7`) |
+| **12** | Allowances, claims & document vault | M11 | Receipt-backed reimbursement claims (Medical, Insurance, Petrol, Wi-Fi) with policy limits & payroll integration; two-stage approval (with direct-to-HR privacy option for Medical/Insurance); employee profile Document Vault (ID/Iqama/CNIC, Passport, Insurance Card, Contracts with expiry alerts) | G7 | `[x]` Approved at G7 (`58b5ec5`) |
+| **13+** | Multi-tenant SaaS workspaces | Account model D1–D5 | Upgrade single-company MacqHR into multi-tenant B2B SaaS (`Workspace`, `Membership`, per-tenant SSO, Platform Super Admin & seat billing) | G8 | `[/]` Backend, Registration, Mobile & Web Admin Workspace UI verified on `development`; Gate G8 manual sign-off pending |
 
 ---
 
