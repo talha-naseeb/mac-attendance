@@ -34,6 +34,9 @@ export interface ExecutiveSidebarDrawerProps {
   onToggleBiometricLock: () => void;
   onOpenQuickRequest: () => void;
   onOpenAdminPanel?: () => void;
+  workspaceName?: string;
+  workspaceRoleLabel?: string;
+  onOpenWorkspaces?: () => void;
   onLogout?: () => void;
 }
 
@@ -52,6 +55,9 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
   onToggleBiometricLock,
   onOpenQuickRequest,
   onOpenAdminPanel,
+  workspaceName,
+  workspaceRoleLabel,
+  onOpenWorkspaces,
   onLogout,
 }) => {
   const isRTL = lang === 'ar';
@@ -234,6 +240,31 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
                 >
                   {profile.email} • {profile.phone}
                 </Text>
+
+                {workspaceName && (
+                  <View
+                    style={[
+                      styles.rightAccentPill,
+                      {
+                        marginTop: 8,
+                        backgroundColor: colors.background,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.rightAccentPillText,
+                        { color: colors.textPrimary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {workspaceName}
+                      {workspaceRoleLabel ? ` · ${workspaceRoleLabel}` : ''}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               {/* Thin Horizontal Divider Line */}
@@ -415,7 +446,32 @@ export const ExecutiveSidebarDrawer: React.FC<ExecutiveSidebarDrawerProps> = ({
                   </Text>
                 </TouchableOpacity>
 
-                {/* 7. Admin & Organization Hub */}
+                {/* 7. Workspaces & Tenants */}
+                {onOpenWorkspaces && (
+                  <TouchableOpacity
+                    style={[styles.cleanMenuItem, rtlRow(isRTL)]}
+                    onPress={() =>
+                      handleAnimatedClose(() => onOpenWorkspaces())
+                    }
+                  >
+                    <Feather
+                      name="layers"
+                      size={20}
+                      color={colors.primaryBright}
+                    />
+                    <Text
+                      style={[
+                        styles.cleanMenuLabel,
+                        { color: colors.textPrimary },
+                        rtlText(isRTL),
+                      ]}
+                    >
+                      {isRTL ? 'مساحات العمل' : 'Workspaces'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* 8. Admin & Organization Hub */}
                 {onOpenAdminPanel && (
                   <TouchableOpacity
                     style={[styles.cleanMenuItem, rtlRow(isRTL)]}

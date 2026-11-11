@@ -8,7 +8,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, SsoLoginDto } from './dto/login.dto';
+import { DiscoverAuthDto, LoginDto, RegisterDto, SsoLoginDto, SwitchWorkspaceDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh.dto';
 import {
   ChangePasswordDto,
@@ -23,6 +23,40 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('discover')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Discover available workspaces and whether SSO is enforced for an email' })
+  async discover(@Body() dto: DiscoverAuthDto) {
+    return this.authService.discover(dto.email);
+  }
+
+  @Post('switch-workspace')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Switch active workspace and issue fresh workspace-scoped JWTs' })
+  async switchWorkspace(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SwitchWorkspaceDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.switchWorkspace(user.id, user.sessionId!, dto.workspaceId, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Public()
+  @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Self-service account and initial workspace registration' })
+  @ApiResponse({ status: 201, description: 'Account and workspace created with scoped JWTs' })
+  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    return this.authService.register(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
 
   @Public()
   @Post('login')

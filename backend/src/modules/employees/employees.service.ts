@@ -326,6 +326,7 @@ export class EmployeesService {
       });
       await tx.leaveBalance.createMany({
         data: balances.map((balance) => ({
+          ...(actor.workspaceId ? { workspaceId: actor.workspaceId } : {}),
           userId: created.id,
           leaveType: balance.leaveType,
           totalDays: balance.totalDays,
@@ -333,8 +334,41 @@ export class EmployeesService {
           year,
         })),
       });
+      if (actor.workspaceId) {
+        const membershipRole =
+          dto.role === 'SUPER_ADMIN'
+            ? 'OWNER'
+            : dto.role === 'HR_ADMIN'
+              ? 'HR_ADMIN'
+              : dto.role === 'MANAGER'
+                ? 'MANAGER'
+                : 'EMPLOYEE';
+        await tx.membership.upsert({
+          where: {
+            workspaceId_userId: { workspaceId: actor.workspaceId, userId: created.id },
+          },
+          update: {},
+          create: {
+            workspaceId: actor.workspaceId,
+            userId: created.id,
+            role: membershipRole,
+            status: 'ACTIVE',
+            employeeId: created.employeeId,
+            jobTitle: created.jobTitle,
+            titleAr: created.titleAr,
+            department: created.department,
+            departmentAr: created.departmentAr,
+            branchId: created.branchId,
+            basicSalarySar: created.basicSalarySar,
+            housingAllowanceSar: created.housingAllowanceSar,
+            transportAllowanceSar: created.transportAllowanceSar,
+            isRemoteAllowed: created.isRemoteAllowed,
+          },
+        });
+      }
       await this.audit.record(
         {
+          ...(actor.workspaceId ? { workspaceId: actor.workspaceId } : {}),
           actorUserId: actor.id,
           action: 'EMPLOYEE_CREATED',
           resource: 'User',

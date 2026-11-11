@@ -216,6 +216,8 @@ model User {
   documents           EmployeeDocument[]     @relation("EmployeeDocuments")
   verifiedDocuments   EmployeeDocument[]     @relation("DocumentVerifier")
   uploadedDocuments   EmployeeDocument[]     @relation("DocumentUploader")
+  memberships         Membership[]           @relation("UserMemberships")
+  authIdentities      AuthIdentity[]         @relation("UserAuthIdentities")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -226,32 +228,38 @@ model User {
 }
 
 model Branch {
-  id                   String   @id @default(uuid())
-  name                 String   @unique
+  id                   String     @id @default(uuid())
+  workspaceId          String?
+  workspace            Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  name                 String     @unique
   nameAr               String
-  code                 String?  @unique
+  code                 String?    @unique
   city                 String
   cityAr               String
   address              String?
   latitude             Float
   longitude            Float
-  geofenceRadiusMeters Float    @default(150.0)
-  radiusMeters         Float    @default(150.0)
-  wifiBssids           String[] @default([])
-  bleBeacons           String[] @default([])
-  isActive             Boolean  @default(true)
+  geofenceRadiusMeters Float      @default(150.0)
+  radiusMeters         Float      @default(150.0)
+  wifiBssids           String[]   @default([])
+  bleBeacons           String[]   @default([])
+  isActive             Boolean    @default(true)
 
   users      User[]
   attendance AttendanceRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 
 model AttendanceRecord {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   dayId String?
   day   AttendanceDay? @relation(fields: [dayId], references: [id], onDelete: Cascade)
@@ -304,15 +312,18 @@ model AttendanceRecord {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([workspaceId])
   @@index([userId])
   @@index([status])
   @@index([dayId])
 }
 
 model AttendanceDay {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   dateIso         String // YYYY-MM-DD in local timezone
   mode            WorkMode           @default(OFFICE)
@@ -340,6 +351,7 @@ model AttendanceDay {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, dateIso])
+  @@index([workspaceId, dateIso])
   @@index([dateIso])
   @@index([status])
 }
@@ -409,9 +421,11 @@ model AttendanceException {
 }
 
 model LeaveBalance {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   leaveType     String
   totalDays     Float
@@ -426,13 +440,16 @@ model LeaveBalance {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, leaveType, year])
+  @@index([workspaceId, userId])
   @@index([userId, year])
 }
 
 model LeaveRequest {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation("EmployeeRequests", fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation("EmployeeRequests", fields: [userId], references: [id], onDelete: Cascade)
 
   type          String   @default("ANNUAL")
   startDate     DateTime
@@ -480,6 +497,7 @@ model LeaveRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([workspaceId])
   @@index([userId])
   @@index([status])
   @@index([stage])
@@ -540,9 +558,11 @@ model OfflinePunchQueue {
 }
 
 model AuditLog {
-  id          String  @id @default(uuid())
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   actorUserId String?
-  actorUser   User?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUser   User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   action      String // e.g. "GEOFENCE_BREACH_DETECTED", "MOCK_LOCATION_BLOCKED"
   resource    String // e.g. "AttendanceRecord", "LeaveRequest"
@@ -551,14 +571,19 @@ model AuditLog {
 
   createdAt DateTime @default(now())
 
+  @@index([workspaceId])
   @@index([actorUserId])
   @@index([action])
 }
 
 model AuthSession {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String      @id @default(uuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId  String?
+  workspace    Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  membershipId String?
+  membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
 
   familyId         String
   refreshTokenHash String       @unique
@@ -577,6 +602,7 @@ model AuthSession {
   createdAt DateTime @default(now())
 
   @@index([userId, revokedAt])
+  @@index([workspaceId, userId])
   @@index([familyId])
 }
 
@@ -673,9 +699,11 @@ enum PayrollRunStatus {
 }
 
 model PayrollRun {
-  id     String           @id @default(uuid())
-  period String           @unique // YYYY-MM
-  status PayrollRunStatus @default(PREPARED)
+  id          String           @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  period      String           @unique // YYYY-MM
+  status      PayrollRunStatus @default(PREPARED)
 
   currency                String @default("SAR")
   totalEmployees          Int    @default(0)
@@ -713,6 +741,7 @@ model PayrollRun {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([workspaceId])
   @@index([status])
 }
 
@@ -865,9 +894,11 @@ model ReimbursementPolicy {
 }
 
 model ReimbursementClaim {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation("EmployeeClaims", fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation("EmployeeClaims", fields: [userId], references: [id], onDelete: Cascade)
 
   category         ClaimCategory
   period           String // YYYY-MM payroll period
@@ -902,6 +933,7 @@ model ReimbursementClaim {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([workspaceId])
   @@index([userId, period])
   @@index([status, stage])
   @@index([payrollRunId])
@@ -922,9 +954,11 @@ enum DocumentVerificationStatus {
 }
 
 model EmployeeDocument {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation("EmployeeDocuments", fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User       @relation("EmployeeDocuments", fields: [userId], references: [id], onDelete: Cascade)
 
   documentType   DocumentType
   title          String
@@ -946,9 +980,232 @@ model EmployeeDocument {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([workspaceId])
   @@index([userId, documentType])
   @@index([status])
   @@index([expiryDateIso])
 }
+
+// ============================================================================
+// Phase 13: Multi-Tenant B2B SaaS Workspaces, Memberships, SSO & Subscriptions
+// (Account Model D1-D5)
+// ============================================================================
+
+enum WorkspaceType {
+  PERSONAL
+  BUSINESS
+}
+
+enum WorkspacePlanCode {
+  INDIVIDUAL_FREE
+  INDIVIDUAL_PRO
+  BUSINESS_STARTER
+  BUSINESS_GROWTH
+  ENTERPRISE
+}
+
+enum WorkspaceStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum MembershipRole {
+  OWNER
+  HR_ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuthProviderType {
+  LOCAL
+  GOOGLE
+  MICROSOFT
+  APPLE
+}
+
+enum SsoProviderType {
+  GOOGLE
+  MICROSOFT
+}
+
+enum SsoConnectionStatus {
+  NOT_CONFIGURED
+  DRAFT
+  VERIFIED
+  ERROR
+}
+
+enum LeaveApprovalPolicy {
+  MANAGER_ONLY
+  MANAGER_THEN_HR
+}
+
+model Workspace {
+  id                  String              @id @default(uuid())
+  type                WorkspaceType       @default(BUSINESS)
+  name                String
+  nameAr              String?
+  slug                String              @unique
+  country             String              @default("SA")
+  timezone            String              @default("Asia/Riyadh")
+  currency            String              @default("SAR")
+  logoUrl             String?
+  planCode            WorkspacePlanCode   @default(BUSINESS_GROWTH)
+  status              WorkspaceStatus     @default(ACTIVE)
+  leaveApprovalPolicy LeaveApprovalPolicy @default(MANAGER_THEN_HR)
+  ownerMembershipId   String?
+
+  memberships         Membership[]
+  ssoConnection       SsoConnection?
+  groupMappings       SsoGroupMapping[]
+  invites             Invite[]
+  subscription        Subscription?
+  branches            Branch[]
+  attendanceRecords   AttendanceRecord[]
+  attendanceDays      AttendanceDay[]
+  leaveBalances       LeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  auditLogs           AuditLog[]
+  authSessions        AuthSession[]
+  payrollRuns         PayrollRun[]
+  reimbursementClaims ReimbursementClaim[]
+  employeeDocuments   EmployeeDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type, status])
+  @@index([planCode])
+}
+
+model Membership {
+  id          String           @id @default(uuid())
+  workspaceId String
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User             @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  role        MembershipRole   @default(EMPLOYEE)
+  status      MembershipStatus @default(ACTIVE)
+
+  employeeId          String?
+  jobTitle            String?
+  titleAr             String?
+  department          String?
+  departmentAr        String?
+  branchId            String?
+  basicSalarySar      Float   @default(10000.0)
+  housingAllowanceSar Float   @default(2500.0)
+  transportAllowanceSar Float @default(1000.0)
+  isRemoteAllowed     Boolean @default(false)
+  sessionVersion      Int     @default(1)
+  managedBySsoGroup   String? // null if manual or overridden
+
+  reportsToMembershipId String?
+  reportsTo             Membership?  @relation("MembershipHierarchy", fields: [reportsToMembershipId], references: [id], onDelete: SetNull)
+  directReports         Membership[] @relation("MembershipHierarchy")
+
+  sentInvites  Invite[]      @relation("InviteSender")
+  authSessions AuthSession[]
+
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@unique([workspaceId, employeeId])
+  @@index([workspaceId, role])
+  @@index([workspaceId, status])
+  @@index([userId])
+}
+
+model AuthIdentity {
+  id                String           @id @default(uuid())
+  userId            String
+  user              User             @relation("UserAuthIdentities", fields: [userId], references: [id], onDelete: Cascade)
+  provider          AuthProviderType @default(LOCAL)
+  providerAccountId String
+  emailAtProvider   String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model SsoConnection {
+  id                String              @id @default(uuid())
+  workspaceId       String              @unique
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider          SsoProviderType     @default(MICROSOFT)
+  domain            String?
+  tenantId          String?
+  clientId          String?
+  clientSecretMasked String?
+  enforced          Boolean             @default(false)
+  autoProvision     Boolean             @default(false)
+  allowHrGroupMapping Boolean           @default(false)
+  defaultRole       MembershipRole      @default(EMPLOYEE)
+  status            SsoConnectionStatus @default(DRAFT)
+  lastSyncedAt      DateTime?
+  lastError         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model SsoGroupMapping {
+  id                String         @id @default(uuid())
+  workspaceId       String
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  providerGroupId   String
+  providerGroupName String
+  role              MembershipRole @default(EMPLOYEE)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([workspaceId, providerGroupId])
+  @@index([workspaceId])
+}
+
+model Invite {
+  id                    String         @id @default(uuid())
+  workspaceId           String
+  workspace             Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email                 String
+  role                  MembershipRole @default(EMPLOYEE)
+  jobTitle              String?
+  department            String?
+  reportsToMembershipId String?
+  tokenHash             String         @unique
+  expiresAt             DateTime
+  invitedByMembershipId String?
+  invitedBy             Membership?    @relation("InviteSender", fields: [invitedByMembershipId], references: [id], onDelete: SetNull)
+  acceptedAt            DateTime?
+  revokedAt             DateTime?
+  createdAt             DateTime       @default(now())
+
+  @@index([workspaceId, email])
+  @@index([workspaceId, acceptedAt, revokedAt])
+}
+
+model Subscription {
+  id                 String    @id @default(uuid())
+  workspaceId        String    @unique
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider           String    @default("STRIPE")
+  externalCustomerId String?
+  seatsPurchased     Int       @default(50)
+  status             String    @default("ACTIVE")
+  currentPeriodEnd   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
 
 

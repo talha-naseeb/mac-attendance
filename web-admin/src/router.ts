@@ -7,6 +7,7 @@ const VALID_TABS: readonly AdminTab[] = [
   'leaves',
   'employees',
   'payroll',
+  'workspaces',
   'logs',
 ];
 

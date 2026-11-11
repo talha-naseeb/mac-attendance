@@ -75,6 +75,9 @@ interface DashboardScreenProps {
   onLogout?: () => void;
   userRole?: UserRole;
   onOpenAdminPanel?: () => void;
+  workspaceName?: string;
+  workspaceRoleLabel?: string;
+  onOpenWorkspaces?: () => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -105,6 +108,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onLogout,
   userRole,
   onOpenAdminPanel,
+  workspaceName,
+  workspaceRoleLabel,
+  onOpenWorkspaces,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [arrangeModalVisible, setArrangeModalVisible] = useState(false);
@@ -1219,6 +1225,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         onToggleBiometricLock={onToggleBiometricLock}
         onOpenQuickRequest={onOpenQuickRequest}
         onOpenAdminPanel={onOpenAdminPanel}
+        workspaceName={workspaceName}
+        workspaceRoleLabel={workspaceRoleLabel}
+        onOpenWorkspaces={onOpenWorkspaces}
         onLogout={() => {
           setSidebarOpen(false);
           onLogout?.();

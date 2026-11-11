@@ -43,6 +43,14 @@ import {
   resolveDisplayedActions,
   toggleActionSelection,
 } from '../services/arrangeActionsService';
+import {
+  canInviteInWorkspace,
+  formatSeatMeterSummary,
+  mapMembershipRoleToAppRole,
+  resolveWorkspaceDisplayRole,
+  validateInviteTokenInput,
+  validateWorkspaceCreationInput,
+} from '../services/workspaceService';
 import { MACQUIRES_PALETTE, darkColors, lightColors } from '../theme/colors';
 import { rtlRow, rtlText } from '../theme/typography';
 import { TRANSLATIONS } from '../i18n/translations';
@@ -1467,6 +1475,56 @@ describeSuite(
     );
   }
 );
+
+describeSuite('Phase 13: Multi-Tenant Workspaces, Seat Metering & Invite Validation', () => {
+  itCase('TC-P13.1: Displays "You" for PERSONAL workspaces and maps membership roles accurately', () => {
+    assertEqual(resolveWorkspaceDisplayRole('OWNER', 'PERSONAL', 'en'), 'You');
+    assertEqual(resolveWorkspaceDisplayRole('OWNER', 'PERSONAL', 'ar'), 'أنت');
+    assertEqual(resolveWorkspaceDisplayRole('OWNER', 'BUSINESS', 'en'), 'Owner');
+    assertEqual(mapMembershipRoleToAppRole('OWNER'), 'ADMIN');
+    assertEqual(mapMembershipRoleToAppRole('HR_ADMIN'), 'HR_ADMIN');
+    assertEqual(mapMembershipRoleToAppRole('MANAGER'), 'MANAGER');
+    assertEqual(mapMembershipRoleToAppRole('EMPLOYEE'), 'EMPLOYEE');
+  });
+
+  itCase('TC-P13.2: Enforces invite eligibility by workspace type, role, and seat limit', () => {
+    const personalSeats = {
+      usedSeats: 1,
+      activeMembers: 1,
+      pendingInvites: 0,
+      seatsPurchased: 1,
+      remainingSeats: 0,
+      isAtLimit: true,
+    };
+    const personalCheck = canInviteInWorkspace('PERSONAL', 'OWNER', personalSeats);
+    assertEqual(personalCheck.allowed, false);
+    assertEqual(personalCheck.reason, 'PERSONAL_WORKSPACE');
+
+    const fullSeats = { ...personalSeats, seatsPurchased: 10 };
+    const fullCheck = canInviteInWorkspace('BUSINESS', 'OWNER', fullSeats);
+    assertEqual(fullCheck.allowed, false);
+    assertEqual(fullCheck.reason, 'SEAT_LIMIT_REACHED');
+
+    const openSeats = {
+      usedSeats: 4,
+      activeMembers: 3,
+      pendingInvites: 1,
+      seatsPurchased: 10,
+      remainingSeats: 6,
+      isAtLimit: false,
+    };
+    assertEqual(canInviteInWorkspace('BUSINESS', 'HR_ADMIN', openSeats).allowed, true);
+    assertEqual(canInviteInWorkspace('BUSINESS', 'MANAGER', openSeats).reason, 'INSUFFICIENT_ROLE');
+    assertEqual(formatSeatMeterSummary(openSeats, 'en'), '4 / 10 seats used (6 left)');
+  });
+
+  itCase('TC-P13.3: Validates workspace creation names and invitation token format', () => {
+    assertEqual(validateWorkspaceCreationInput({ type: 'BUSINESS', name: 'A' }).valid, false);
+    assertEqual(validateWorkspaceCreationInput({ type: 'BUSINESS', name: 'Nova Labs' }).valid, true);
+    assertEqual(validateInviteTokenInput('short').valid, false);
+    assertEqual(validateInviteTokenInput('1234567890abcdef').valid, true);
+  });
+});
 
 console.log(
   `\n==================================================\nTEST SUMMARY: ${passedCount} passed, ${failedCount} failed (${

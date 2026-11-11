@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 
 export interface AuditEntry {
+  workspaceId?: string | null;
   actorUserId?: string | null;
   action: string;
   resource: string;
@@ -18,6 +19,7 @@ export class AuditService {
     const client = tx ?? this.prisma;
     await client.auditLog.create({
       data: {
+        workspaceId: entry.workspaceId ?? null,
         actorUserId: entry.actorUserId ?? null,
         action: entry.action,
         resource: entry.resource,

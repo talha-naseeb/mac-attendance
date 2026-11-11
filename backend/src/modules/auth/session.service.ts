@@ -47,11 +47,18 @@ export class SessionService {
   }
 
   async createSession(
-    input: { userId: string; role: UserRole } & SessionMeta,
+    input: {
+      userId: string;
+      role: UserRole;
+      workspaceId?: string | null;
+      membershipId?: string | null;
+    } & SessionMeta,
   ): Promise<IssuedSession> {
     return this.issue(
       {
         userId: input.userId,
+        workspaceId: input.workspaceId ?? null,
+        membershipId: input.membershipId ?? null,
         familyId: randomUUID(),
         absoluteExpiresAt: this.absoluteExpiryFor(input.role),
         ipAddress: input.ipAddress,
@@ -64,6 +71,8 @@ export class SessionService {
   private async issue(
     input: {
       userId: string;
+      workspaceId?: string | null;
+      membershipId?: string | null;
       familyId: string;
       absoluteExpiresAt: Date;
       ipAddress?: string;
@@ -76,6 +85,8 @@ export class SessionService {
     const session = await client.authSession.create({
       data: {
         userId: input.userId,
+        workspaceId: input.workspaceId ?? null,
+        membershipId: input.membershipId ?? null,
         familyId: input.familyId,
         refreshTokenHash: hashRefreshSecret(secret),
         absoluteExpiresAt: input.absoluteExpiresAt,
@@ -95,7 +106,7 @@ export class SessionService {
   async rotate(
     refreshToken: string,
     meta: SessionMeta,
-  ): Promise<IssuedSession & { userId: string }> {
+  ): Promise<IssuedSession & { userId: string; workspaceId: string | null; membershipId: string | null }> {
     const parsed = parseRefreshToken(refreshToken);
     if (!parsed) {
       throw new UnauthorizedException(SESSION_ENDED);
@@ -152,6 +163,8 @@ export class SessionService {
         const issued = await this.issue(
           {
             userId: current.userId,
+            workspaceId: current.workspaceId ?? null,
+            membershipId: current.membershipId ?? null,
             familyId: current.familyId,
             absoluteExpiresAt: current.absoluteExpiresAt,
             ipAddress: meta.ipAddress,
@@ -185,7 +198,12 @@ export class SessionService {
       details: { sessionId: next.sessionId, familyId: current.familyId },
       ipAddress: meta.ipAddress,
     });
-    return { ...next, userId: current.userId };
+    return {
+      ...next,
+      userId: current.userId,
+      workspaceId: current.workspaceId ?? null,
+      membershipId: current.membershipId ?? null,
+    };
   }
 
   async revoke(sessionId: string, reason: SessionRevokeReason): Promise<void> {

@@ -14,6 +14,10 @@ export interface JwtPayload {
   name: string;
   canAccessWebAdmin?: boolean;
   sid?: string;
+  workspaceId?: string | null;
+  membershipId?: string | null;
+  workspaceRole?: string | null;
+  sv?: number;
 }
 
 @Injectable()
@@ -61,6 +65,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Your account is inactive or no longer exists.');
     }
 
+    let workspaceId: string | null = payload.workspaceId ?? null;
+    let membershipId: string | null = payload.membershipId ?? null;
+    let workspaceRole: string | null = payload.workspaceRole ?? null;
+
+    if (membershipId) {
+      const membership = await this.prisma.membership.findUnique({
+        where: { id: membershipId },
+        select: {
+          id: true,
+          workspaceId: true,
+          userId: true,
+          role: true,
+          status: true,
+          sessionVersion: true,
+        },
+      });
+      if (
+        !membership ||
+        membership.userId !== user.id ||
+        (workspaceId && membership.workspaceId !== workspaceId) ||
+        membership.status !== 'ACTIVE' ||
+        (typeof payload.sv === 'number' && membership.sessionVersion !== payload.sv)
+      ) {
+        throw new UnauthorizedException('Your workspace membership session is no longer valid. Sign in again.');
+      }
+      workspaceId = membership.workspaceId;
+      workspaceRole = membership.role;
+    }
+
     return {
       id: user.id,
       employeeId: user.employeeId,
@@ -71,6 +104,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       canAccessWebAdmin: user.canAccessWebAdmin,
       sessionId: session.id,
       mustChangePassword: user.mustChangePassword,
+      workspaceId,
+      membershipId,
+      workspaceRole,
     };
   }
 }

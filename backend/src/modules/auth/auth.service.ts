@@ -1,19 +1,32 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   UnauthorizedException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, SessionRevokeReason, UserRole } from '@prisma/client';
-import { createPublicKey, verify as verifySignature } from 'crypto';
+import {
+  LeaveApprovalPolicy,
+  MembershipRole,
+  MembershipStatus,
+  Prisma,
+  SessionRevokeReason,
+  UserRole,
+  WorkspacePlanCode,
+  WorkspaceStatus,
+  WorkspaceType,
+} from '@prisma/client';
+import { createPublicKey, randomBytes, verify as verifySignature } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
-import { LoginDto, SsoLoginDto } from './dto/login.dto';
+import { LoginDto, RegisterDto, SsoLoginDto } from './dto/login.dto';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -21,6 +34,8 @@ import {
 } from './dto/change-password.dto';
 import { JwtPayload } from './jwt.strategy';
 import { SessionService } from './session.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import { getEntitlementsForPlan, slugifyWorkspaceName } from '../workspaces/entitlements';
 
 type UserProfile = Prisma.UserGetPayload<{
   include: {
@@ -57,7 +72,155 @@ export class AuthService {
     private configService: ConfigService,
     private sessionService: SessionService,
     private audit: AuditService,
+    @Inject(forwardRef(() => WorkspacesService))
+    private workspacesService: WorkspacesService,
   ) {}
+
+  async register(dto: RegisterDto, meta: RequestMeta = {}) {
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException(`An account with email ${email} already exists.`);
+    }
+
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    const fullName = `${firstName} ${lastName}`.trim();
+    const workspaceType = dto.workspaceType ?? WorkspaceType.PERSONAL;
+    const workspaceName =
+      dto.workspaceName?.trim() ||
+      (workspaceType === WorkspaceType.PERSONAL ? `${firstName} Personal` : `${firstName} Workspace`);
+    const planCode =
+      workspaceType === WorkspaceType.PERSONAL
+        ? WorkspacePlanCode.INDIVIDUAL_FREE
+        : WorkspacePlanCode.BUSINESS_STARTER;
+    const entitlements = getEntitlementsForPlan(planCode);
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const employeeId = `EMP-${randomBytes(3).toString('hex').toUpperCase()}`;
+    const year = new Date().getFullYear();
+
+    const { user, workspace, membership } = await this.prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          employeeId,
+          email,
+          passwordHash,
+          mustChangePassword: false,
+          role: workspaceType === WorkspaceType.BUSINESS ? UserRole.SUPER_ADMIN : UserRole.EMPLOYEE,
+          firstName,
+          lastName,
+          fullName,
+          fullNameAr: fullName,
+          jobTitle: workspaceType === WorkspaceType.BUSINESS ? 'Workspace Owner' : 'Self',
+          department: workspaceType === WorkspaceType.BUSINESS ? 'Executive' : 'Personal',
+          isRemoteAllowed: workspaceType === WorkspaceType.PERSONAL,
+          canAccessWebAdmin: workspaceType === WorkspaceType.BUSINESS,
+        },
+        include: { branch: true, manager: { select: { firstName: true, lastName: true } } },
+      });
+
+      const baseSlug = slugifyWorkspaceName(workspaceName);
+      const slugTaken = await tx.workspace.findUnique({ where: { slug: baseSlug } });
+      const slug = slugTaken ? `${baseSlug}-${randomBytes(2).toString('hex')}` : baseSlug;
+
+      const createdWorkspace = await tx.workspace.create({
+        data: {
+          type: workspaceType,
+          name: workspaceName,
+          slug,
+          country: dto.country?.trim() || 'SA',
+          timezone: dto.timezone?.trim() || 'Asia/Riyadh',
+          currency: dto.currency?.trim() || 'SAR',
+          planCode,
+          status: WorkspaceStatus.ACTIVE,
+          leaveApprovalPolicy: LeaveApprovalPolicy.MANAGER_ONLY,
+          subscription: {
+            create: {
+              provider: 'INTERNAL',
+              seatsPurchased: entitlements.maxSeats,
+              status: 'ACTIVE',
+            },
+          },
+        },
+      });
+
+      const createdMembership = await tx.membership.create({
+        data: {
+          workspaceId: createdWorkspace.id,
+          userId: createdUser.id,
+          role: MembershipRole.OWNER,
+          status: MembershipStatus.ACTIVE,
+          employeeId,
+          jobTitle: createdUser.jobTitle,
+          department: createdUser.department,
+          isRemoteAllowed: createdUser.isRemoteAllowed,
+        },
+      });
+
+      const updatedWorkspace = await tx.workspace.update({
+        where: { id: createdWorkspace.id },
+        data: { ownerMembershipId: createdMembership.id },
+      });
+
+      await tx.leaveBalance.createMany({
+        data: [
+          { workspaceId: updatedWorkspace.id, userId: createdUser.id, leaveType: 'ANNUAL', totalDays: 30, usedDays: 0, year },
+          { workspaceId: updatedWorkspace.id, userId: createdUser.id, leaveType: 'SICK', totalDays: 30, usedDays: 0, year },
+        ],
+      });
+
+      await this.audit.record(
+        {
+          workspaceId: updatedWorkspace.id,
+          actorUserId: createdUser.id,
+          action: 'AUTH_REGISTERED',
+          resource: 'Workspace',
+          details: { workspaceType, planCode, slug: updatedWorkspace.slug },
+          ipAddress: meta.ipAddress,
+        },
+        tx,
+      );
+
+      return {
+        user: createdUser,
+        workspace: updatedWorkspace,
+        membership: createdMembership,
+      };
+    });
+
+    const issued = await this.sessionService.createSession({
+      userId: user.id,
+      role: user.role,
+      workspaceId: workspace.id,
+      membershipId: membership.id,
+      ...meta,
+    });
+
+    return {
+      accessToken: this.signAccessToken(user, issued.sessionId, {
+        workspaceId: workspace.id,
+        membershipId: membership.id,
+        workspaceRole: membership.role,
+        sv: membership.sessionVersion,
+      }),
+      refreshToken: issued.refreshToken,
+      expiresIn: this.configService.get<string>('auth.accessTokenTtl') || '15m',
+      user: this.toPublicUser(user),
+      workspace: {
+        id: workspace.id,
+        type: workspace.type,
+        name: workspace.name,
+        slug: workspace.slug,
+        planCode: workspace.planCode,
+      },
+      membership: {
+        id: membership.id,
+        role: membership.role,
+        sessionVersion: membership.sessionVersion,
+      },
+      entitlements,
+    };
+  }
 
   async login(loginDto: LoginDto, meta: RequestMeta = {}) {
     const user = await this.authenticateCredentials(loginDto.email, loginDto.password);
@@ -162,6 +325,30 @@ export class AuthService {
       await this.sessionService.revoke(rotated.sessionId, SessionRevokeReason.DEACTIVATED);
       throw new UnauthorizedException('Your session has ended. Sign in again.');
     }
+
+    let workspaceContext: {
+      workspaceId: string;
+      membershipId: string;
+      workspaceRole: string;
+      sv: number;
+    } | undefined;
+
+    if (rotated.membershipId && rotated.workspaceId) {
+      const membership = await this.prisma.membership.findUnique({
+        where: { id: rotated.membershipId },
+      });
+      if (!membership || membership.status !== 'ACTIVE' || membership.workspaceId !== rotated.workspaceId) {
+        await this.sessionService.revoke(rotated.sessionId, SessionRevokeReason.DEACTIVATED);
+        throw new UnauthorizedException('Your workspace membership is no longer active.');
+      }
+      workspaceContext = {
+        workspaceId: membership.workspaceId,
+        membershipId: membership.id,
+        workspaceRole: membership.role,
+        sv: membership.sessionVersion,
+      };
+    }
+
     if (user.role === UserRole.SUPER_ADMIN) {
       const hours =
         this.configService.get<number>('auth.superAdminAbsoluteSessionHours') ?? 8;
@@ -172,10 +359,158 @@ export class AuthService {
       });
     }
     return {
-      accessToken: this.signAccessToken(user, rotated.sessionId),
+      accessToken: this.signAccessToken(user, rotated.sessionId, workspaceContext),
       refreshToken: rotated.refreshToken,
       expiresIn: this.configService.get<string>('auth.accessTokenTtl') || '15m',
       user: this.toPublicUser(user),
+    };
+  }
+
+  async discover(rawEmail: string) {
+    const email = rawEmail.trim().toLowerCase();
+    const domain = email.split('@')[1] ?? '';
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        isActive: true,
+        memberships: {
+          where: { status: 'ACTIVE' },
+          include: {
+            workspace: {
+              include: {
+                ssoConnection: {
+                  select: {
+                    provider: true,
+                    domain: true,
+                    enforced: true,
+                    status: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user || !user.isActive) {
+      const domainSso = domain
+        ? await this.prisma.ssoConnection.findFirst({
+            where: {
+              domain,
+              enforced: true,
+              status: 'VERIFIED',
+            },
+            include: {
+              workspace: { select: { id: true, name: true, type: true } },
+            },
+          })
+        : null;
+      return {
+        passwordAllowed: !domainSso,
+        workspaces: domainSso
+          ? [
+              {
+                id: domainSso.workspace.id,
+                name: domainSso.workspace.name,
+                type: domainSso.workspace.type,
+                ssoRequired: true,
+                provider: domainSso.provider,
+              },
+            ]
+          : [],
+      };
+    }
+
+    const workspaces = user.memberships.map((m) => {
+      const sso = m.workspace.ssoConnection;
+      const ssoRequired = Boolean(sso?.enforced);
+      return {
+        id: m.workspace.id,
+        name: m.workspace.name,
+        type: m.workspace.type,
+        ssoRequired,
+        provider: sso?.provider ?? null,
+      };
+    });
+
+    const passwordAllowed = !workspaces.some((w) => w.ssoRequired);
+    return { passwordAllowed, workspaces };
+  }
+
+  async switchWorkspace(
+    userId: string,
+    currentSessionId: string,
+    workspaceId: string,
+    meta: RequestMeta = {},
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { branch: true, manager: { select: { firstName: true, lastName: true } } },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Your account is inactive.');
+    }
+
+    const membership = await this.workspacesService.requireMembership(workspaceId, userId);
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: { subscription: true },
+    });
+    if (!workspace || workspace.status !== 'ACTIVE') {
+      throw new ForbiddenException('Target workspace is not active.');
+    }
+
+    const issued = await this.sessionService.createSession({
+      userId: user.id,
+      role: user.role,
+      workspaceId: workspace.id,
+      membershipId: membership.id,
+      ...meta,
+    });
+
+    if (currentSessionId) {
+      await this.sessionService.revoke(currentSessionId, SessionRevokeReason.LOGOUT);
+    }
+
+    await this.audit.record({
+      workspaceId: workspace.id,
+      actorUserId: user.id,
+      action: 'AUTH_WORKSPACE_SWITCHED',
+      resource: 'AuthSession',
+      details: { workspaceId: workspace.id, membershipId: membership.id, role: membership.role },
+      ipAddress: meta.ipAddress,
+    });
+
+    const entitlements = getEntitlementsForPlan(
+      workspace.planCode,
+      workspace.subscription?.seatsPurchased,
+    );
+
+    return {
+      accessToken: this.signAccessToken(user, issued.sessionId, {
+        workspaceId: workspace.id,
+        membershipId: membership.id,
+        workspaceRole: membership.role,
+        sv: membership.sessionVersion,
+      }),
+      refreshToken: issued.refreshToken,
+      expiresIn: this.configService.get<string>('auth.accessTokenTtl') || '15m',
+      user: this.toPublicUser(user),
+      workspace: {
+        id: workspace.id,
+        type: workspace.type,
+        name: workspace.name,
+        slug: workspace.slug,
+        planCode: workspace.planCode,
+      },
+      membership: {
+        id: membership.id,
+        role: membership.role,
+        sessionVersion: membership.sessionVersion,
+      },
+      entitlements,
     };
   }
 
@@ -420,6 +755,23 @@ export class AuthService {
       throw new UnauthorizedException('This account has been deactivated. Please contact HR.');
     }
 
+    const enforcedSso = await this.prisma.ssoConnection.findFirst({
+      where: {
+        enforced: true,
+        workspace: {
+          memberships: {
+            some: { userId: user.id, status: 'ACTIVE' },
+          },
+        },
+      },
+      select: { provider: true, workspaceId: true },
+    });
+    if (enforcedSso) {
+      throw new ForbiddenException(
+        `Password login is disabled because ${enforcedSso.provider} SSO is enforced for your workspace.`,
+      );
+    }
+
     if (user.failedLoginAttempts > 0 || user.lockedUntil) {
       await this.prisma.user.updateMany({
         where: {
@@ -434,7 +786,16 @@ export class AuthService {
     return user;
   }
 
-  private signAccessToken(user: SessionSubject, sessionId: string): string {
+  private signAccessToken(
+    user: SessionSubject,
+    sessionId: string,
+    workspaceContext?: {
+      workspaceId: string;
+      membershipId: string;
+      workspaceRole: string;
+      sv: number;
+    },
+  ): string {
     const payload: JwtPayload = {
       sub: user.id,
       employeeId: user.employeeId,
@@ -444,20 +805,49 @@ export class AuthService {
       name: `${user.firstName} ${user.lastName}`,
       canAccessWebAdmin: user.canAccessWebAdmin,
       sid: sessionId,
+      ...(workspaceContext
+        ? {
+            workspaceId: workspaceContext.workspaceId,
+            membershipId: workspaceContext.membershipId,
+            workspaceRole: workspaceContext.workspaceRole,
+            sv: workspaceContext.sv,
+          }
+        : {}),
     };
     return this.jwtService.sign(payload);
   }
 
   private async establishSession(user: SessionSubject, meta: RequestMeta) {
+    const ctx = await this.workspacesService.ensureDefaultWorkspaceAndMembership(user.id);
     const issued = await this.sessionService.createSession({
       userId: user.id,
       role: user.role,
+      workspaceId: ctx.workspace.id,
+      membershipId: ctx.membership.id,
       ...meta,
     });
     return {
-      accessToken: this.signAccessToken(user, issued.sessionId),
+      accessToken: this.signAccessToken(user, issued.sessionId, {
+        workspaceId: ctx.workspace.id,
+        membershipId: ctx.membership.id,
+        workspaceRole: ctx.membership.role,
+        sv: ctx.membership.sessionVersion,
+      }),
       refreshToken: issued.refreshToken,
       expiresIn: this.configService.get<string>('auth.accessTokenTtl') || '15m',
+      workspace: {
+        id: ctx.workspace.id,
+        type: ctx.workspace.type,
+        name: ctx.workspace.name,
+        slug: ctx.workspace.slug,
+        planCode: ctx.workspace.planCode,
+      },
+      membership: {
+        id: ctx.membership.id,
+        role: ctx.membership.role,
+        sessionVersion: ctx.membership.sessionVersion,
+      },
+      entitlements: ctx.entitlements,
     };
   }
 

@@ -2,6 +2,41 @@ export const ADMIN_SESSION_KEY = 'macq_admin_session';
 
 export const SESSION_EXPIRED_EVENT = 'macq:session-expired';
 
+export interface AdminWorkspaceSummary {
+  id: string;
+  type: 'PERSONAL' | 'BUSINESS';
+  name: string;
+  nameAr?: string | null;
+  slug: string;
+  country?: string;
+  timezone?: string;
+  currency?: string;
+  planCode:
+    | 'INDIVIDUAL_FREE'
+    | 'INDIVIDUAL_PRO'
+    | 'BUSINESS_STARTER'
+    | 'BUSINESS_GROWTH'
+    | 'ENTERPRISE';
+  leaveApprovalPolicy?: 'MANAGER_ONLY' | 'MANAGER_THEN_HR' | 'HR_ONLY';
+}
+
+export interface AdminMembershipSummary {
+  id: string;
+  role: 'OWNER' | 'HR_ADMIN' | 'MANAGER' | 'EMPLOYEE';
+  sessionVersion: number;
+}
+
+export interface AdminWorkspaceEntitlements {
+  planCode: AdminWorkspaceSummary['planCode'];
+  maxSeats: number;
+  payroll: boolean;
+  sso: boolean;
+  audit: boolean;
+  multiBranch: boolean;
+  reports: boolean;
+  claimsVault: boolean;
+}
+
 export interface UserSession {
   token: string;
   user: {
@@ -17,6 +52,9 @@ export interface UserSession {
     avatarUrl?: string;
     canAccessWebAdmin: boolean;
   };
+  workspace?: AdminWorkspaceSummary;
+  membership?: AdminMembershipSummary;
+  entitlements?: AdminWorkspaceEntitlements;
 }
 
 export function isJwtExpired(token: string): boolean {

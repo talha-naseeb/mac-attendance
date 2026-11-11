@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   ChevronDown,
+  Layers,
 } from 'lucide-react';
 import { AdminTab } from './Sidebar';
 import { UserSession } from '../api/client';
@@ -112,6 +113,22 @@ export const Header: React.FC<HeaderProps> = ({
           <Home size={15} className={currentTab === 'overview' ? 'text-macq-orange' : ''} />
           <span>{isArabic ? 'لوحة التحكم' : 'Dashboard'}</span>
         </button>
+
+        {session.workspace && (
+          <button
+            type="button"
+            onClick={() => onSelectTab('workspaces')}
+            className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-colors ${
+              currentTab === 'workspaces'
+                ? 'border-macq-orange bg-macq-orange/10 text-macq-orange'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+            title={isArabic ? 'إدارة مساحات العمل' : 'Manage or switch workspace'}
+          >
+            <Layers size={13} className="text-macq-orange" />
+            <span className="max-w-[140px] truncate">{session.workspace.name}</span>
+          </button>
+        )}
       </div>
 
       {/* Right: KSA Time Zone, Bilingual, Dark Mode, Notifications, Profile */}

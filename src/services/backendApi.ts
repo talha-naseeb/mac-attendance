@@ -2,6 +2,16 @@ import { EditableEmployeeProfile, deriveAvatarInitials } from './profileSettings
 import { UserRole } from './dashboardOptimizationService';
 import { MACQUIRES_PALETTE } from '../theme/colors';
 import {
+  AuthDiscoveryResult,
+  mapMembershipRoleToAppRole,
+  MembershipSummary,
+  WorkspaceEntitlements,
+  WorkspaceListItem,
+  WorkspacePlanCode,
+  WorkspaceSummary,
+  WorkspaceType,
+} from './workspaceService';
+import {
   notifySessionExpired,
   refreshStoredSessionOutcome,
 } from './sessionManager';
@@ -58,6 +68,9 @@ interface BackendLoginResponse {
   accessToken: string;
   refreshToken: string;
   user: BackendUser;
+  workspace?: WorkspaceSummary;
+  membership?: MembershipSummary;
+  entitlements?: WorkspaceEntitlements;
 }
 
 export interface ApiAuthSession {
@@ -68,6 +81,9 @@ export interface ApiAuthSession {
   branchId?: string;
   isRemoteAllowed: boolean;
   mustChangePassword?: boolean;
+  workspace?: WorkspaceSummary;
+  membership?: MembershipSummary;
+  entitlements?: WorkspaceEntitlements;
 }
 
 export class BackendApiError extends Error {
@@ -462,6 +478,24 @@ async function request<T>(
   return body as T;
 }
 
+function mapAuthSessionFromResponse(response: BackendLoginResponse): ApiAuthSession {
+  const role = response.membership?.role
+    ? mapMembershipRoleToAppRole(response.membership.role)
+    : toAppRole(response.user.role);
+  return {
+    token: response.accessToken,
+    refreshToken: response.refreshToken,
+    role,
+    profile: toProfile(response.user),
+    branchId: response.user.branch?.id,
+    isRemoteAllowed: Boolean(response.user.isRemoteAllowed),
+    mustChangePassword: Boolean(response.user.mustChangePassword),
+    workspace: response.workspace,
+    membership: response.membership,
+    entitlements: response.entitlements,
+  };
+}
+
 export async function authenticateWithBackend(
   email: string,
   password: string,
@@ -470,15 +504,7 @@ export async function authenticateWithBackend(
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
-  return {
-    token: response.accessToken,
-    refreshToken: response.refreshToken,
-    role: toAppRole(response.user.role),
-    profile: toProfile(response.user),
-    branchId: response.user.branch?.id,
-    isRemoteAllowed: Boolean(response.user.isRemoteAllowed),
-    mustChangePassword: Boolean(response.user.mustChangePassword),
-  };
+  return mapAuthSessionFromResponse(response);
 }
 
 export async function changePassword(
@@ -769,5 +795,93 @@ export async function uploadDocumentToVault(
 
 export async function fetchMyDocumentsFromVault(token: string) {
   return request('/documents/my', { method: 'GET' }, token);
+}
+
+// ── Phase 13: Multi-Tenant Workspaces ──────────────────────────────────────
+
+export async function discoverWorkspaceAuth(email: string): Promise<AuthDiscoveryResult> {
+  return request<AuthDiscoveryResult>('/auth/discover', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+}
+
+export async function fetchMyWorkspacesFromBackend(
+  token: string,
+): Promise<WorkspaceListItem[]> {
+  return request<WorkspaceListItem[]>('/workspaces', { method: 'GET' }, token);
+}
+
+export async function createWorkspaceInBackend(
+  token: string,
+  payload: {
+    type: WorkspaceType;
+    name: string;
+    nameAr?: string;
+    country?: string;
+    timezone?: string;
+    currency?: string;
+    planCode?: WorkspacePlanCode;
+  },
+): Promise<{
+  workspace: WorkspaceSummary;
+  membership: MembershipSummary;
+  entitlements: WorkspaceEntitlements;
+}> {
+  return request('/workspaces', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+export async function switchWorkspaceInBackend(
+  token: string,
+  workspaceId: string,
+): Promise<ApiAuthSession> {
+  const response = await request<BackendLoginResponse>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/switch`,
+    { method: 'POST' },
+    token,
+  );
+  return mapAuthSessionFromResponse(response);
+}
+
+export async function convertWorkspaceToBusinessInBackend(
+  token: string,
+  workspaceId: string,
+  payload: {
+    name: string;
+    planCode?: WorkspacePlanCode;
+    seatsPurchased?: number;
+  },
+): Promise<{
+  workspace: WorkspaceSummary;
+  entitlements: WorkspaceEntitlements;
+}> {
+  return request(
+    `/workspaces/${encodeURIComponent(workspaceId)}/convert-business`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export async function acceptWorkspaceInviteInBackend(
+  token: string,
+  inviteToken: string,
+): Promise<{
+  workspace: WorkspaceSummary;
+  membership: MembershipSummary;
+}> {
+  return request(
+    '/workspaces/invites/accept',
+    {
+      method: 'POST',
+      body: JSON.stringify({ token: inviteToken.trim() }),
+    },
+    token,
+  );
 }
 

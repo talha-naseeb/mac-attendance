@@ -33,6 +33,8 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ShiftlyLogo } from './src/components/ShiftlyLogo';
 import { NotchedBottomBar } from './src/components/NotchedBottomBar';
 import { AdminOrgPanelModal } from './src/components/AdminOrgPanelModal';
+import { WorkspaceModal } from './src/components/WorkspaceModal';
+import { resolveWorkspaceDisplayRole } from './src/services/workspaceService';
 import { TRANSLATIONS } from './src/i18n/translations';
 import { ApprovalsScreen } from './src/screens/ApprovalsScreen';
 import { AttendanceScreen } from './src/screens/AttendanceScreen';
@@ -125,6 +127,7 @@ function MacqHRApp() {
   const [requestTimeOffVisible, setRequestTimeOffVisible] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState<SubModalType>(null);
   const [adminPanelVisible, setAdminPanelVisible] = useState(false);
+  const [workspaceModalVisible, setWorkspaceModalVisible] = useState(false);
 
   // Live Editable Employee Profile State (Option A Sidebar)
   const [employeeProfile, setEmployeeProfile] =
@@ -1008,6 +1011,17 @@ function MacqHRApp() {
                 onLogout={handleLogout}
                 userRole={userRole}
                 onOpenAdminPanel={() => setAdminPanelVisible(true)}
+                workspaceName={authSession?.workspace?.name}
+                workspaceRoleLabel={
+                  authSession?.workspace && authSession?.membership
+                    ? resolveWorkspaceDisplayRole(
+                        authSession.membership.role,
+                        authSession.workspace.type,
+                        lang,
+                      )
+                    : undefined
+                }
+                onOpenWorkspaces={() => setWorkspaceModalVisible(true)}
               />
             )}
           </View>
@@ -1076,6 +1090,36 @@ function MacqHRApp() {
             approvals={approvals}
             onClose={() => setAdminPanelVisible(false)}
             onDecideApproval={handleDecideApproval}
+          />
+
+          {/* Multi-Tenant Workspace Switcher, Creation & Invite Acceptance Modal */}
+          <WorkspaceModal
+            visible={workspaceModalVisible}
+            colors={colors}
+            lang={lang}
+            authToken={authToken}
+            activeWorkspace={authSession?.workspace}
+            activeMembership={authSession?.membership}
+            activeEntitlements={authSession?.entitlements}
+            onClose={() => setWorkspaceModalVisible(false)}
+            onWorkspaceSwitched={async (nextApiSession) => {
+              const nextSession: AuthSession = {
+                token: nextApiSession.token,
+                refreshToken: nextApiSession.refreshToken,
+                role: nextApiSession.role,
+                profile: nextApiSession.profile,
+                branchId: nextApiSession.branchId,
+                isRemoteAllowed: nextApiSession.isRemoteAllowed,
+                authenticatedAt: Date.now(),
+                authMethod: 'PASSWORD',
+                mustChangePassword: nextApiSession.mustChangePassword,
+                workspace: nextApiSession.workspace,
+                membership: nextApiSession.membership,
+                entitlements: nextApiSession.entitlements,
+              };
+              handleLoginSuccess(nextSession);
+              await refreshMobileApiData(nextApiSession.token, nextApiSession.role);
+            }}
           />
         </SafeAreaView>
       </View>

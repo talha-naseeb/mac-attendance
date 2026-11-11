@@ -5,6 +5,11 @@ import {
   authenticateWithBackend,
   BackendApiError,
 } from './backendApi';
+import type {
+  MembershipSummary,
+  WorkspaceEntitlements,
+  WorkspaceSummary,
+} from './workspaceService';
 
 export interface AuthCredentials {
   email: string;
@@ -22,6 +27,9 @@ export interface AuthSession {
   branchId?: string;
   isRemoteAllowed: boolean;
   mustChangePassword?: boolean;
+  workspace?: WorkspaceSummary;
+  membership?: MembershipSummary;
+  entitlements?: WorkspaceEntitlements;
 }
 
 export interface CredentialValidation {
@@ -95,5 +103,8 @@ export async function authenticateWithPasswordApi(
     authenticatedAt: Date.now(),
     authMethod: 'PASSWORD',
     mustChangePassword: backendSession.mustChangePassword,
+    workspace: backendSession.workspace,
+    membership: backendSession.membership,
+    entitlements: backendSession.entitlements,
   };
 }
